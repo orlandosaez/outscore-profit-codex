@@ -1,0 +1,80 @@
+{
+  "id": "Nz5hR2yLq8uPa0dK",
+  "name": "Profit - 08 Supabase Anchor Agreements Export",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "cc2d6785-463a-48f7-8ef2-a88297a3e632",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_agreements?select=anchor_relationship_id,agreement_name,client_business_name,status,effective_date,last_seen_at&order=client_business_name.asc&limit=1000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "fe3791f7-3751-4838-87a2-7ec1cc3c5dc4",
+      "name": "Fetch Supabase Agreements",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [\n  {\n    json: {\n      rowCount: rows.length,\n      agreements: rows.map((row) => ({\n        agreement_id: row.anchor_relationship_id,\n        agreement_name: row.agreement_name,\n        contact_company_name: row.client_business_name,\n        status: row.status,\n        effective_date: row.effective_date,\n        last_seen_at: row.last_seen_at,\n      })),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "e9ec4993-6e37-46f0-ba7c-0c1a04ccfb58",
+      "name": "Summarize Agreements"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Supabase Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Supabase Agreements": {
+      "main": [
+        [
+          {
+            "node": "Summarize Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}
