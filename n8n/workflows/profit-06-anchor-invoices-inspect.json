@@ -1,0 +1,221 @@
+{
+  "id": "Pe6rK1bWq9xZd4nT",
+  "name": "Profit - 06 Anchor Invoices Inspect",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c90834e4-1e88-4859-af15-64d8698a3a20",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://api.sayanchor.com/agreements?limit=20&status=active",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "6f4897fc-d759-4b3b-90fb-9a4ab46587ba",
+      "name": "Fetch Active Agreements",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const agreements = $input.first().json.entries ?? [];\nconst agreement = agreements.find((entry) => entry.id) ?? {};\n\nreturn [\n  {\n    json: {\n      relationshipId: agreement.id ?? null,\n      agreementName: agreement.name ?? null,\n      clientBusinessName: agreement.client?.business?.name ?? null,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "7f71a6dd-a76a-41b2-a950-f2b9d117a9da",
+      "name": "Pick Agreement"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.sayanchor.com/invoices?limit=5&relationshipId={{ encodeURIComponent($json.relationshipId) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "7c76b181-c6a3-4891-8b32-d3aaee49ee95",
+      "name": "Fetch Anchor Invoices",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $input.first().json;\nconst candidates = [\n  ['entries', root.entries],\n  ['data', root.data],\n  ['invoices', root.invoices],\n  ['items', root.items],\n  ['results', root.results],\n  ['root', Array.isArray(root) ? root : null],\n].filter(([, value]) => Array.isArray(value));\n\nconst [arrayKey, invoices] = candidates[0] ?? ['none', []];\nconst sample = invoices.slice(0, 3);\nconst sampleFields = [...new Set(sample.flatMap((invoice) => Object.keys(invoice ?? {})))].sort();\nconst first = invoices[0] ?? {};\nconst invoiceId = first.id ?? first.invoiceId ?? first.invoice_id ?? null;\n\nreturn [\n  {\n    json: {\n      totalCount: root.totalCount ?? root.total_count ?? null,\n      detectedArrayKey: arrayKey,\n      invoiceCount: invoices.length,\n      sampleFields,\n      sample,\n      invoiceId,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "ea068cc6-6e91-4964-a2ac-235807c58b60",
+      "name": "Pick First Invoice"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.sayanchor.com/invoices/{{ encodeURIComponent($json.invoiceId) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        0
+      ],
+      "id": "8005986f-5c44-4a03-92de-55dfeb2008dd",
+      "name": "Fetch Invoice Detail",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const detail = $input.first().json;\nconst arrays = [];\n\nfunction walk(value, path = []) {\n  if (Array.isArray(value)) {\n    const pathText = path.join('.').toLowerCase();\n    if (pathText.includes('line') || pathText.includes('item') || pathText.includes('service')) {\n      arrays.push({ path: path.join('.'), count: value.length, sample: value.slice(0, 2) });\n    }\n    value.forEach((child, index) => walk(child, [...path, index]));\n    return;\n  }\n  if (!value || typeof value !== 'object') return;\n  for (const [key, child] of Object.entries(value)) {\n    walk(child, [...path, key]);\n  }\n}\n\nwalk(detail);\n\nreturn [\n  {\n    json: {\n      rootFields: Object.keys(detail ?? {}).sort(),\n      invoiceId: detail.id ?? detail.invoiceId ?? detail.invoice_id ?? null,\n      invoiceNumber: detail.invoiceNumber ?? detail.invoice_number ?? detail.number ?? null,\n      relationshipId: detail.relationshipId ?? detail.relationship?.id ?? detail.agreementId ?? null,\n      totalAmount: detail.totalAmount ?? detail.total ?? detail.amount ?? null,\n      status: detail.displayStatus ?? detail.status ?? null,\n      lineItemArrays: arrays,\n      rawSample: detail,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        0
+      ],
+      "id": "bca5ddad-662b-412f-9ae7-6a23f74754a8",
+      "name": "Summarize Invoice Detail"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Active Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Active Agreements": {
+      "main": [
+        [
+          {
+            "node": "Pick Agreement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Agreement": {
+      "main": [
+        [
+          {
+            "node": "Fetch Anchor Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Anchor Invoices": {
+      "main": [
+        [
+          {
+            "node": "Pick First Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick First Invoice": {
+      "main": [
+        [
+          {
+            "node": "Fetch Invoice Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Invoice Detail": {
+      "main": [
+        [
+          {
+            "node": "Summarize Invoice Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

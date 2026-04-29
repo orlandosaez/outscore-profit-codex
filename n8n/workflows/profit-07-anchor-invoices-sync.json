@@ -1,0 +1,357 @@
+{
+  "id": "kMx8wQ4sN2pLa7vC",
+  "name": "Profit - 07 Anchor Invoices Sync",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "bc06f159-2593-4df7-97ad-dcfe3a485f96",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://api.sayanchor.com/agreements?limit=100&status=active",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "c6d37e50-2062-4f21-b536-472b5aee907d",
+      "name": "Fetch Active Agreements",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const agreements = $input.first().json.entries ?? [];\n\nif (!Array.isArray(agreements)) {\n  throw new Error('Anchor agreements response did not include entries[]');\n}\n\nreturn agreements.map((agreement) => ({\n  json: {\n    relationshipId: agreement.id,\n    agreementName: agreement.name ?? null,\n    clientBusinessName: agreement.client?.business?.name ?? null,\n  },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "c8a23d35-7601-49b9-9772-b2ece49f020c",
+      "name": "Explode Agreements"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.sayanchor.com/invoices?limit=100&relationshipId={{ encodeURIComponent($json.relationshipId) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "f81f3d30-4a4c-4404-827c-5dc70644dcd6",
+      "name": "Fetch Invoices For Agreement",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoiceItems = [];\nconst overLimitRelationships = [];\n\nfor (const item of $input.all()) {\n  const root = item.json;\n  const invoices = Array.isArray(root.entries) ? root.entries : [];\n  if ((root.totalCount ?? 0) > (root.limit ?? 100)) {\n    overLimitRelationships.push({ totalCount: root.totalCount, limit: root.limit });\n  }\n\n  for (const invoice of invoices) {\n    invoiceItems.push({\n      json: {\n        invoiceId: invoice.id,\n        listInvoice: invoice,\n        overLimitRelationships,\n      },\n    });\n  }\n}\n\nreturn invoiceItems;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "b183828e-93c9-4895-bc69-7f8aa9cb01a7",
+      "name": "Explode Invoices"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.sayanchor.com/invoices/{{ encodeURIComponent($json.invoiceId) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        0
+      ],
+      "id": "8c37a68d-f169-491e-966a-93e3a8499900",
+      "name": "Fetch Invoice Detail",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const lastSeenAt = new Date().toISOString();\n\nfunction parseMoney(value) {\n  if (value === undefined || value === null || value === '') return null;\n  if (typeof value === 'number') return value;\n  const cleaned = String(value).replace(/[$,]/g, '').trim();\n  if (!cleaned) return null;\n  const parsed = Number(cleaned);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction parseNumber(value) {\n  if (value === undefined || value === null || value === '') return null;\n  const parsed = Number(value);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction flattenLineItems(invoice, lineItems, parentLineItemId = null) {\n  const rows = [];\n\n  for (const lineItem of lineItems ?? []) {\n    const children = [\n      ...(Array.isArray(lineItem.groupedLineItems) ? lineItem.groupedLineItems : []),\n      ...(Array.isArray(lineItem.subItems) ? lineItem.subItems : []),\n    ];\n\n    rows.push({\n      anchor_line_item_id: lineItem.id,\n      anchor_invoice_id: invoice.id,\n      anchor_relationship_id: invoice.agreement?.id ?? null,\n      parent_line_item_id: parentLineItemId,\n      service_id: lineItem.serviceId ?? lineItem.origin?.serviceBundle?.bundleItemId ?? null,\n      service_template_id: lineItem.serviceTemplateId ?? lineItem.origin?.serviceBundle?.serviceTemplateId ?? null,\n      name: lineItem.name ?? null,\n      amount: parseMoney(lineItem.amount),\n      rate: parseMoney(lineItem.rate),\n      quantity: parseNumber(lineItem.quantity),\n      unit_name: lineItem.unitName ?? null,\n      qbo_product_id: lineItem.integrations?.quickbooks?.item?.id ?? null,\n      qbo_product_name: lineItem.integrations?.quickbooks?.item?.name ?? null,\n      is_bundle_parent: children.length > 0,\n      raw: lineItem,\n      last_seen_at: lastSeenAt,\n    });\n\n    rows.push(...flattenLineItems(invoice, children, lineItem.id));\n  }\n\n  return rows;\n}\n\nconst invoices = $input.all().map((item) => item.json);\nconst invoiceRows = invoices.map((invoice) => ({\n  anchor_invoice_id: invoice.id,\n  anchor_relationship_id: invoice.agreement?.id ?? null,\n  invoice_number: invoice.invoiceNumber ?? null,\n  issue_date: invoice.issueDate ?? null,\n  due_date: invoice.dueDate ?? null,\n  total_amount: parseMoney(invoice.totalAmount),\n  amount_paid: parseMoney(invoice.amountPaid),\n  amount_due: parseMoney(invoice.amountDue),\n  display_status: invoice.status?.displayStatus ?? invoice.status?.type ?? null,\n  qbo_status: invoice.integrations?.quickbooks?.status ?? null,\n  raw: invoice,\n  last_seen_at: lastSeenAt,\n}));\n\nconst lineRows = invoices.flatMap((invoice) => flattenLineItems(invoice, invoice.lineItems));\n\nreturn [\n  {\n    json: {\n      invoiceCount: invoiceRows.length,\n      lineItemCount: lineRows.length,\n      invoiceRows,\n      lineRows,\n      sampleInvoices: invoiceRows.slice(0, 5).map((row) => ({\n        anchor_invoice_id: row.anchor_invoice_id,\n        invoice_number: row.invoice_number,\n        anchor_relationship_id: row.anchor_relationship_id,\n        total_amount: row.total_amount,\n        display_status: row.display_status,\n      })),\n      sampleLineItems: lineRows.slice(0, 5).map((row) => ({\n        anchor_line_item_id: row.anchor_line_item_id,\n        anchor_invoice_id: row.anchor_invoice_id,\n        name: row.name,\n        amount: row.amount,\n        qbo_product_name: row.qbo_product_name,\n      })),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        0
+      ],
+      "id": "d0e3b46d-1ce4-405a-91bd-51bd66153898",
+      "name": "Map Invoice Rows"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_invoices?on_conflict=anchor_invoice_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.invoiceRows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        -120
+      ],
+      "id": "21d8ab44-e1ad-48d4-ae2d-8c8f5d7c276d",
+      "name": "Upsert Invoices",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_invoice_line_items?on_conflict=anchor_line_item_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.lineRows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        120
+      ],
+      "id": "b381de9e-de81-4862-8c65-ea43224f05db",
+      "name": "Upsert Invoice Line Items",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [\n  {\n    json: {\n      status: 'ok',\n      upsertedInvoiceCount: rows.length,\n      sample: rows.slice(0, 5).map((row) => ({\n        anchor_invoice_id: row.anchor_invoice_id,\n        invoice_number: row.invoice_number,\n        total_amount: row.total_amount,\n        display_status: row.display_status,\n      })),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        -120
+      ],
+      "id": "b2190611-7b28-44aa-a055-780424fa760d",
+      "name": "Summarize Invoice Upsert"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [\n  {\n    json: {\n      status: 'ok',\n      upsertedLineItemCount: rows.length,\n      sample: rows.slice(0, 5).map((row) => ({\n        anchor_line_item_id: row.anchor_line_item_id,\n        anchor_invoice_id: row.anchor_invoice_id,\n        name: row.name,\n        amount: row.amount,\n        qbo_product_name: row.qbo_product_name,\n      })),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        120
+      ],
+      "id": "627f9b70-bf42-42af-b056-0fed2f059f6b",
+      "name": "Summarize Line Item Upsert"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Active Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Active Agreements": {
+      "main": [
+        [
+          {
+            "node": "Explode Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explode Agreements": {
+      "main": [
+        [
+          {
+            "node": "Fetch Invoices For Agreement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Invoices For Agreement": {
+      "main": [
+        [
+          {
+            "node": "Explode Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explode Invoices": {
+      "main": [
+        [
+          {
+            "node": "Fetch Invoice Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Invoice Detail": {
+      "main": [
+        [
+          {
+            "node": "Map Invoice Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Invoice Rows": {
+      "main": [
+        [
+          {
+            "node": "Upsert Invoices",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Upsert Invoice Line Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Invoices": {
+      "main": [
+        [
+          {
+            "node": "Summarize Invoice Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Invoice Line Items": {
+      "main": [
+        [
+          {
+            "node": "Summarize Line Item Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

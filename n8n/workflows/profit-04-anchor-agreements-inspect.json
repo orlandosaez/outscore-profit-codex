@@ -1,0 +1,155 @@
+{
+  "id": "VtUq7xNQp4mKc2bA",
+  "name": "Profit - 04 Anchor Agreements Inspect",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8f45b108-d04c-4b0b-8ac6-7909e876710d",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://api.sayanchor.com/agreements?limit=5&status=active",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "d87174ff-4159-4129-a6da-859ac66decf0",
+      "name": "Fetch Anchor Agreements",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $input.first().json;\n\nconst candidates = [\n  ['entries', root.entries],\n  ['data', root.data],\n  ['agreements', root.agreements],\n  ['items', root.items],\n  ['results', root.results],\n  ['root', Array.isArray(root) ? root : null],\n].filter(([, value]) => Array.isArray(value));\n\nconst [arrayKey, agreements] = candidates[0] ?? ['none', []];\nconst sample = agreements.slice(0, 3);\nconst sampleFields = [...new Set(sample.flatMap((agreement) => Object.keys(agreement ?? {})))].sort();\nconst first = agreements[0] ?? {};\nconst relationshipId = first.id ?? first.relationshipId ?? first.relationship_id ?? first.agreementId ?? first.agreement_id ?? null;\n\nreturn [\n  {\n    json: {\n      totalCount: root.totalCount ?? root.total_count ?? null,\n      detectedArrayKey: arrayKey,\n      agreementCount: agreements.length,\n      sampleFields,\n      sample,\n      relationshipId,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "31ade976-1051-4128-924e-97d8f4d70f8f",
+      "name": "Pick First Agreement"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.sayanchor.com/agreements/{{ encodeURIComponent($json.relationshipId) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "0370f13d-741a-444e-b556-440a00e6cae7",
+      "name": "Fetch Agreement Detail",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const detail = $input.first().json;\nconst serviceArrays = [];\n\nfunction walk(value, path = []) {\n  if (Array.isArray(value)) {\n    if (path.some((part) => String(part).toLowerCase().includes('service'))) {\n      serviceArrays.push({ path: path.join('.'), count: value.length, sample: value.slice(0, 2) });\n    }\n    value.forEach((child, index) => walk(child, [...path, index]));\n    return;\n  }\n  if (!value || typeof value !== 'object') return;\n  for (const [key, child] of Object.entries(value)) {\n    walk(child, [...path, key]);\n  }\n}\n\nwalk(detail);\n\nreturn [\n  {\n    json: {\n      rootFields: Object.keys(detail ?? {}).sort(),\n      relationshipId: detail.id ?? detail.relationshipId ?? detail.relationship_id ?? detail.agreementId ?? detail.agreement_id ?? null,\n      agreementName: detail.name ?? detail.agreementName ?? detail.agreement_name ?? null,\n      status: detail.status ?? null,\n      serviceArrays,\n      rawSample: detail,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "026b09c9-ed34-4fd9-bfe5-d40ee293c78e",
+      "name": "Summarize Agreement Detail"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Anchor Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Anchor Agreements": {
+      "main": [
+        [
+          {
+            "node": "Pick First Agreement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick First Agreement": {
+      "main": [
+        [
+          {
+            "node": "Fetch Agreement Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Agreement Detail": {
+      "main": [
+        [
+          {
+            "node": "Summarize Agreement Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

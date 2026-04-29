@@ -1,0 +1,226 @@
+{
+  "id": "tQe9nH2rYp6vLm3S",
+  "name": "Profit - 05 Anchor Agreements Sync",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "41b1dd37-14cc-4c5d-b9d0-63d3eb38df78",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://api.sayanchor.com/agreements?limit=100&status=active",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "b6a023f5-2ac4-49e5-9f9d-8b7f1b358298",
+      "name": "Fetch Active Agreements",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $input.first().json;\nconst agreements = root.entries ?? [];\n\nif (!Array.isArray(agreements)) {\n  throw new Error('Anchor agreements response did not include entries[]');\n}\n\nreturn agreements.map((agreement) => ({\n  json: {\n    relationshipId: agreement.id,\n    listAgreement: agreement,\n    sourceTotalCount: root.totalCount ?? null,\n  },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "54eda8d3-b355-4036-90e1-97f670be4991",
+      "name": "Explode Agreements"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.sayanchor.com/agreements/{{ encodeURIComponent($json.relationshipId) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "5cf3f42a-8eda-4e7f-b015-3e7cc99675a0",
+      "name": "Fetch Agreement Detail",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const lastSeenAt = new Date().toISOString();\n\nfunction cleanNumber(value) {\n  if (value === undefined || value === null || value === '') return null;\n  const parsed = Number(value);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction summarizeServices(services) {\n  const summary = [];\n\n  for (const service of services) {\n    const children = Array.isArray(service.bundle?.services) ? service.bundle.services : [];\n    summary.push({\n      service_id: service.id ?? null,\n      parent_service_id: null,\n      service_template_id: service.serviceTemplateId ?? null,\n      name: service.name ?? null,\n      occurrence: service.billing?.occurrence ?? null,\n      trigger: service.billing?.trigger ?? null,\n      is_billed_upfront: service.billing?.isBilledUpfront ?? null,\n      pricing_type: service.rate?.pricingType ?? null,\n      price: cleanNumber(service.rate?.priceAfterDiscount ?? service.rate?.price),\n      status: service.status?.type ?? null,\n      is_paused: service.isPaused ?? null,\n      is_bundle_parent: children.length > 0,\n      is_bundle_child: false,\n    });\n\n    for (const child of children) {\n      summary.push({\n        service_id: child.id ?? null,\n        parent_service_id: service.id ?? null,\n        service_template_id: child.serviceTemplateId ?? null,\n        name: child.name ?? null,\n        occurrence: service.billing?.occurrence ?? null,\n        trigger: service.billing?.trigger ?? null,\n        is_billed_upfront: service.billing?.isBilledUpfront ?? null,\n        pricing_type: service.rate?.pricingType ?? null,\n        price: cleanNumber(child.rate),\n        status: service.status?.type ?? null,\n        is_paused: service.isPaused ?? null,\n        is_bundle_parent: false,\n        is_bundle_child: true,\n      });\n    }\n  }\n\n  return summary;\n}\n\nconst rows = $input.all().map((item) => {\n  const agreement = item.json;\n  const services = Array.isArray(agreement.services) ? agreement.services : [];\n  const serviceSummary = summarizeServices(services);\n\n  return {\n    anchor_relationship_id: agreement.id,\n    agreement_name: agreement.agreementName ?? agreement.name ?? null,\n    status: agreement.status ?? null,\n    client_business_id: agreement.client?.business?.id ?? null,\n    client_business_name: agreement.client?.business?.name ?? null,\n    client_contact_id: agreement.client?.contactId ?? null,\n    effective_date: agreement.effectiveDate ?? null,\n    last_updated_at: agreement.lastUpdatedAt ?? null,\n    raw: {\n      ...agreement,\n      profitSyncServiceSummary: serviceSummary,\n    },\n    last_seen_at: lastSeenAt,\n  };\n});\n\nreturn [\n  {\n    json: {\n      rowCount: rows.length,\n      rows,\n      sample: rows.slice(0, 3).map((row) => ({\n        anchor_relationship_id: row.anchor_relationship_id,\n        agreement_name: row.agreement_name,\n        client_business_name: row.client_business_name,\n        serviceCount: row.raw.profitSyncServiceSummary.length,\n        bundleChildCount: row.raw.profitSyncServiceSummary.filter((service) => service.is_bundle_child).length,\n      })),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "c237fe0a-6589-4095-971b-f88030c47036",
+      "name": "Map Agreement Rows"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_agreements?on_conflict=anchor_relationship_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        0
+      ],
+      "id": "d36a3b7d-92db-46f4-ad9b-505143a9b1e7",
+      "name": "Upsert Agreements",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\n\nreturn [\n  {\n    json: {\n      status: 'ok',\n      upsertedCount: rows.length,\n      sample: rows.slice(0, 5).map((row) => ({\n        anchor_relationship_id: row.anchor_relationship_id,\n        agreement_name: row.agreement_name,\n        client_business_name: row.client_business_name,\n        serviceCount: row.raw?.profitSyncServiceSummary?.length ?? 0,\n      })),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        0
+      ],
+      "id": "26a012e7-411a-472e-a4e4-a1eb2fa556aa",
+      "name": "Summarize Upsert"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Active Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Active Agreements": {
+      "main": [
+        [
+          {
+            "node": "Explode Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explode Agreements": {
+      "main": [
+        [
+          {
+            "node": "Fetch Agreement Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Agreement Detail": {
+      "main": [
+        [
+          {
+            "node": "Map Agreement Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Agreement Rows": {
+      "main": [
+        [
+          {
+            "node": "Upsert Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Agreements": {
+      "main": [
+        [
+          {
+            "node": "Summarize Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}
