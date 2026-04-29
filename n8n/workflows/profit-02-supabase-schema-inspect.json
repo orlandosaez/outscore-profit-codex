@@ -1,0 +1,89 @@
+{
+  "id": "g9qxHHTT0XiHFBds",
+  "name": "Profit - 02 Supabase Schema Inspect",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "7bd77bcb-737d-4b8a-8bdf-3489f2560914",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/openapi+json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "067510fd-c318-4cfb-9368-169bdcf0f4db",
+      "name": "Fetch Supabase OpenAPI Schema",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const envelope = $input.first().json;\nconst root = typeof envelope.data === 'string' ? JSON.parse(envelope.data) : envelope;\nconst definitions = root.definitions ?? root.components?.schemas ?? {};\nconst tableNames = [\n  'profit_anchor_service_templates',\n  'profit_anchor_agreements',\n  'profit_anchor_invoices',\n  'profit_anchor_invoice_line_items',\n  'profit_staff',\n];\n\nreturn tableNames.map((tableName) => {\n  const schema = definitions[tableName];\n  const properties = schema?.properties ?? {};\n\n  return {\n    json: {\n      tableName,\n      found: Boolean(schema),\n      required: schema?.required ?? [],\n      columns: Object.entries(properties).map(([name, definition]) => ({\n        name,\n        type: definition.type ?? null,\n        format: definition.format ?? null,\n        default: definition.default ?? null,\n        description: definition.description ?? null,\n      })),\n    },\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "fe7e2013-8d7b-42e7-930f-47432c5e4b48",
+      "name": "Summarize Profit Tables"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Supabase OpenAPI Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Supabase OpenAPI Schema": {
+      "main": [
+        [
+          {
+            "node": "Summarize Profit Tables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

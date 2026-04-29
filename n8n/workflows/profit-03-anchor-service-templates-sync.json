@@ -1,0 +1,160 @@
+{
+  "id": "CWUaoEQ2y2x0BnWO",
+  "name": "Profit - 03 Anchor Service Templates Sync",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "649e773e-07c6-4594-9526-1fafb2530919",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://api.sayanchor.com/service-templates?limit=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "d57876c3-11b2-4f61-8b92-a12afb28a7b2",
+      "name": "Fetch Anchor Service Templates",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $input.first().json;\nconst templates = root.entries ?? [];\nconst lastSeenAt = new Date().toISOString();\n\nfunction getBillingTrigger(template) {\n  if (template.type === 'bundle') return template.bundle?.billingTrigger ?? null;\n  return template.service?.billingTrigger ?? null;\n}\n\nfunction getFixedPrice(trigger) {\n  if (!trigger?.type) return null;\n  const config = trigger[trigger.type];\n  const value = config?.pricing?.fixed?.price;\n  if (value === undefined || value === null || value === '') return null;\n  const parsed = Number(value);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nconst rows = templates.map((template) => {\n  const billingTrigger = getBillingTrigger(template);\n\n  return {\n    anchor_service_template_id: template.id,\n    name: template.name ?? null,\n    template_type: template.type ?? null,\n    billing_type: billingTrigger?.type ?? null,\n    price: getFixedPrice(billingTrigger),\n    raw: template,\n    last_seen_at: lastSeenAt,\n  };\n});\n\nreturn [\n  {\n    json: {\n      sourceTotalCount: root.totalCount ?? null,\n      rowCount: rows.length,\n      rows,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "8337af59-b0cb-452a-9ec2-b8cf98f17d4f",
+      "name": "Map Service Templates"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_service_templates?on_conflict=anchor_service_template_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "3841017d-9973-44ca-84a6-f7419b8cf0d9",
+      "name": "Upsert Service Templates",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\n\nreturn [\n  {\n    json: {\n      status: 'ok',\n      upsertedCount: rows.length,\n      sample: rows.slice(0, 3).map((row) => ({\n        anchor_service_template_id: row.anchor_service_template_id,\n        name: row.name,\n        template_type: row.template_type,\n        billing_type: row.billing_type,\n        price: row.price,\n      })),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "f8b97b8b-fcb5-4fdb-a764-fbc12f2f04de",
+      "name": "Summarize Upsert"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Anchor Service Templates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Anchor Service Templates": {
+      "main": [
+        [
+          {
+            "node": "Map Service Templates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Service Templates": {
+      "main": [
+        [
+          {
+            "node": "Upsert Service Templates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Service Templates": {
+      "main": [
+        [
+          {
+            "node": "Summarize Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

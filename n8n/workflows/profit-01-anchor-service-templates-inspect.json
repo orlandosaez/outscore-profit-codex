@@ -1,0 +1,89 @@
+{
+  "id": "PolC0AEjpIInbzx5",
+  "name": "Profit - 01 Anchor Service Templates Inspect",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "7dcf703c-988f-4cdd-8913-b5061ae5683e",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://api.sayanchor.com/service-templates?limit=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "ba4c5272-2055-49df-b12b-11706db6358b",
+      "name": "Fetch Anchor Service Templates",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $input.first().json;\n\nconst candidates = [\n  ['entries', root.entries],\n  ['data', root.data],\n  ['serviceTemplates', root.serviceTemplates],\n  ['items', root.items],\n  ['results', root.results],\n  ['service_templates', root.service_templates],\n  ['root', Array.isArray(root) ? root : null],\n].filter(([, value]) => Array.isArray(value));\n\nconst [arrayKey, templates] = candidates[0] ?? ['none', []];\nconst sample = templates.slice(0, 3);\nconst sampleFields = [...new Set(sample.flatMap((template) => Object.keys(template ?? {})))].sort();\n\nreturn [\n  {\n    json: {\n      totalCount: root.totalCount ?? root.total_count ?? null,\n      detectedArrayKey: arrayKey,\n      serviceTemplateCount: templates.length,\n      sampleFields,\n      sample,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "fdbd5bb2-3989-42e3-8cd9-76a8785cd6af",
+      "name": "Summarize Response Shape"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Anchor Service Templates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Anchor Service Templates": {
+      "main": [
+        [
+          {
+            "node": "Summarize Response Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

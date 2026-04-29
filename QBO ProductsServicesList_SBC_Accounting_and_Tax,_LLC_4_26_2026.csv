@@ -1,0 +1,107 @@
+"Product/Service Name","Variant Name","Quantity on hand","Item type","Single,parent or variant?","Category","SKU","Option 1 name","Option 1 value","Option 2 name","Option 2 value","Option 3 name","Option 3 value","Option 4 name","Option 4 value","Option 5 name","Option 5 value","Price","Cost","Income Account","Expense Account","Inventory asset account","Sales Description","Purchase Description","Reorder Point"
+"1040 Advanced","",0,"Service","Single","Tax Work","1040A","","","","","","","","","","",650,"0","Tax Services - Individual","","","Complex personal tax return - multiple income streams, business income, capital gains/losses, multiple rentals, cryptocurrency, comprehensive tax planning",,0
+"1040 Essentials","",0,"Service","Single","Tax Work","1040E","","","","","","","","","","",200,"0","Tax Services - Individual","","","Personal tax return preparation - W-2 forms only, standard deduction, federal and one state return, electronic filing",,0
+"1040 Plus","",0,"Service","Single","Tax Work","1040P","","","","","","","","","","",350,"0","Tax Services - Individual","","","Personal tax return preparation - multiple income sources, itemized deductions, up to one rental property, includes 30-minute tax planning consultation",,0
+"1065 Advanced","",0,"Service","Single","Tax Work","1065A","","","","","","","","","","",1100,"0","Tax Services - Business","","","Include all partners who share in the liabilities and profits, multi-member LLCs, undeclared businesses with multiple owners. Documents needed before 3rd week of February to avoid need to go on extension.",,0
+"1065 Essential","",0,"Service","Single","Tax Work","1065E","","","","","","","","","","",350,"0","Tax Services - Business","","","Basic partnership return preparation (Form 1065), K-1s for up to 4 partners, one state filing, standard partner communication.",,0
+"1065 Plus","",0,"Service","Single","Tax Work","1065P","","","","","","","","","","",650,"0","Tax Services - Business","","","Complex partnership return - unlimited partners, special allocations, multi-state filings, basis tracking, partnership tax strategy review.",,0
+"1099 Preparation","",0,"Service","Single","Tax Work","1099","","","","","","","","","","","0","0","Tax Services - Business","","","Outscore prepares, reviews, and electronically files your Form 1099-NEC and 1099-MISC with the IRS and applicable states. We verify W-9s for compliance, upload digital copies to your client folder, manage a multi-round filing schedule to meet deadlines, and offer late-filing and correction support as needed.
+
+Pricing
+
+Early / Standard Rate (all contractor info + W-9s received by Dec 30):
+
+First 1099: $30
+
+Each additional: $15
+
+Late / Premium Rate (received after deadlines):
+
+$25 per form
+
+Corrections / re-files: $25 per form
+To keep your filings compliant and avoid penalties, we follow a structured deadline schedule for gathering contractor information and W-9s. Early submission of information allows us to file your forms at our standard discounted rate. Late or incomplete submissions will be subject to our premium filing rates.",,0
+"1120 Advanced","",0,"Service","Single","Tax Work","1120A","","","","","","","","","","",1100,"0","Tax Services - Business","","","Complex corporate tax return - multiple income streams, multi-state filings, foreign income/credits, consolidated returns, advanced tax planning.",,0
+"1120 Essential","",0,"Service","Single","Tax Work","1120E","","","","","","","","","","",350,"0","Tax Services - Business","","","Basic corporate tax return preparation (Form 1120/1120S), one state return, Florida tangible personal property return, electronic filing",,0
+"1120 Plus","",0,"Service","Single","Tax Work","1120P","","","","","","","","","","",550,"0","Tax Services - Business","","","Standard corporate tax return - complete 1120/1120S preparation, inventory/COGS calculations, payroll analysis, officer compensation review",,0
+"990-EZ Short Form","",0,"Service","Single","Tax Work","990EZ","","","","","","","","","","",350,"0","Tax Services - Business","","","Mid-size nonprofit Form 990-EZ preparation for organizations with gross receipts < $200,000 and assets < $500,000",,0
+"990 Full Return Essential","",0,"Service","Single","Tax Work","990E","","","","","","","","","","",600,"0","Tax Services - Business","","","Complete Form 990 preparation for larger nonprofits, all required schedules, governance review, electronic filing.",,0
+"990 Full Return Plus","",0,"Service","Single","Tax Work","990P","","","","","","","","","","",1200,"0","Tax Services - Business","","","Complex nonprofit Form 990 with advanced schedules, related organization reporting, quarterly compliance monitoring",,0
+"990-T Unrelated Business","",0,"Service","Single","Tax Work","990T","","","","","","","","","","",450,"0","Tax Services - Business","","","Nonprofit unrelated business income tax return (Form 990-T) preparation and filing",,0
+"Accounting Advanced","",0,"Service","Single","Accounting","BOOKA","","","","","","","","","","",900,"0","Accounting Services","","","Advanced monthly accounting - full accrual basis, bank reconciliation, sales tax filing, complete financial package, strategic business consultation, KPI tracking.",,0
+"Accounting and Tax Services Bundle","",0,"Bundle","Parent",,"TAXACCT","","","","","","","","","","",,,"","","","Bundle of services related to accounting, bookkeeping, financial statements, payroll and tax planning and filing services.","",0
+"Accounting Essential","",0,"Service","Single","Accounting","BOOKE","","","","","","","","","","",350,"0","Accounting Services","","","Basic monthly bookkeeping service for small businesses on cash-basis accounting. Includes:
+Bank and credit card reconciliation (up to 3 accounts total)
+Transaction categorization with error identification and correction
+Journal entries as needed
+Florida sales tax preparation and filing (single entity, single state)
+Monthly year-to-date financial statements (Balance Sheet and Profit & Loss)
+
+Books are completed by the 20th of the following month, contingent on timely client response to our monthly ask report.",,0
+"Accounting Plus","",0,"Service","Single","Accounting","BOOKP","","","","","","","","","","",650,"0","Accounting Services","","","Comprehensive monthly accounting service for growing businesses requiring deeper financial insight. Includes:
+Bank and credit card reconciliation (up to 5 accounts)
+Cash or modified accrual basis accounting
+Transaction categorization with error identification and correction
+Journal entries and depreciation calculations
+Full monthly year-to-date financial statements (Balance Sheet, Profit & Loss, and Cash Flow)
+Accounts Payable and Accounts Receivable aging reports
+Sales tax preparation and filing (single entity, Florida only)
+Quarterly business review call with your accountant
+
+Books are completed by the 10th of the following month, contingent on timely client response to our monthly ask report.",,0
+"Advisory","",0,"Service","Single","Advisory",,"","","","","","","","","","",225,"0","Strategic Advisory","","","Hourly business and financial consulting for project-based or one-off engagements. Common uses include tax planning sessions, system implementations (QuickBooks, Xero, payroll setup), process documentation, financial analysis for specific decisions, and ad-hoc advisory needs that fall outside your monthly accounting service.
+Billed at $175/hour in 15-minute increments. Estimates provided in advance for engagements expected to exceed 4 hours.",,0
+"Annual Estimate Tax Review","",0,"Service","Single","Tax Work",,"","","","","","","","","","",200,"0","Tax Services - Business","","","Annual review of estimated tax payments to confirm accuracy and alignment with current income and deductions.",,0
+"Audit Protection Business","",0,"Service","Single","Tax Work","AUDITB","","","","","","","","","","",30,"0","Tax Services - Business","","","Fixed-rate protection against IRS audit for your business. Includes data compilation, document preparation, and correspondence with the IRS on your behalf as needed throughout the audit process. Active subscription required at the time the audit notice is received.",,0
+"Audit Protection Individual","",0,"Service","Single","Tax Work","AUDITI","","","","","","","","","","",5,"0","Tax Services - Individual","","","Fixed-rate protection against IRS audit for individuals and families. Includes data compilation, document preparation, and correspondence with the IRS on your behalf as needed throughout the audit process. Covers personal tax returns (Form 1040 and related schedules). Active subscription required at the time the audit notice is received.",,0
+"Audit Support Service","",0,"Service","Single","Other","AUDITSUPPORT","","","","","","","","","","",125,"0","Specialized Services","","","Audit support service",,0
+"Billable Expenses","",0,"Service","Single","Other",,"","","","","","","","","","","0","0","Billable Expense","","","Out-of-pocket expenses incurred on behalf of clients and passed through at cost (no markup). Common categories include software subscriptions paid on the client's behalf, government filing fees, postage and shipping, travel expenses, and third-party service costs (e.g., e-filing fees, payroll service fees). Itemized on your invoice with supporting documentation provided upon request.",,0
+"Credit Card Fee of 3%","",0,"Service","Single","Other",,"","","","","","","","","","","0","0","QuickBooks Payments Fees","Purchases","","Credit card processing fee (3% of transaction amount)",,0
+"Fractional CFO","",0,"Service","Single","Advisory",,"","","","","","","","","","",1500,"0","Strategic Advisory","","","Senior financial leadership without a full-time hire. Designed for businesses ready to move from looking at last month's numbers to actively managing future performance. Includes:
+Monthly budgeting and rolling 12-month forecasting
+Cash flow management and 13-week cash forecast
+KPI dashboard design and monthly review
+Business performance analysis with variance commentary
+Growth planning and scenario modeling
+Strategic financial consulting (capital structure, M&A support, banking relationships)
+Monthly business review meeting with your CFO advisor
+Direct access between meetings via email and scheduled calls
+Billed monthly. Tier pricing based on company size and complexity:
+Starter: $1,500/mo (under $1M revenue)
+Growth: $2,500/mo ($1M-$5M revenue)
+Scale: $4,500/mo ($5M+ revenue or multi-entity)
+Minimum 6-month engagement. Onboarding setup fee may apply.",,0
+"Other Income","",0,"Service","Single","Other",,"","","","","","","","","","","0","0","Other Service Income","","","Miscellaneous revenue not fitting standard service categories including referral fees, partnership income, interest earned on client accounts, and non-service related income.",,0
+"Payroll Service","",0,"Service","Single","Payroll","PAYROLL","","","","","","","","","","",110,"0","Payroll Service","","","Full-service payroll processing powered by ADP RUN. Includes:
+Flexible pay schedules (weekly, bi-weekly, semi-monthly, or monthly)
+Automated tax calculation, withholding, and remittance
+Direct deposit for all employees
+Quarterly tax filings (Forms 941, state withholding, state unemployment)
+Year-end W-2 and 1099 preparation and distribution
+Employee web and mobile portal access with self-service paystubs and tax documents
+Secure document vault for HR and payroll records
+Optional Wisely by ADP prepaid VISA card for unbanked employees
+
+Includes core processing, filing, and support for up to 10 employees. Direct deposit only; paper checks available as an add-on service. Additional employees charged at $11/mon per employee.",,0
+"Payroll Tax Compliance","",0,"Service","Single","Payroll","941","","","","","","","","","","",85,"0","Payroll Service","","","Quarterly payroll tax filing service for businesses that run payroll in-house or through another provider. We handle the compliance side only — you process payroll, we file the returns. Includes:
+
+Quarterly federal payroll tax filing (Form 941)
+Quarterly state withholding and state unemployment (SUTA) returns
+Annual federal unemployment tax filing (Form 940)
+Annual W-2 preparation and distribution to employees
+Compliance review of payroll records each quarter
+
+Billed quarterly. Annual filings (Form 940 and W-2s) included at no additional charge in the applicable quarter.
+What's not included: payroll processing, direct deposit, paystubs, or employee portal access. For full-service payroll, see our Payroll Service.
+What we'll need from you: payroll register, tax liability reports, and employee data each quarter. We'll provide a checklist at onboarding.",,0
+"Reimbursable Expenses","",0,"Non-Inventory","Single","Accounting",,"","","","","","","","","","","0","0","Strategic Advisory","","","Out of pocket expenses incured on behalf of client work",,0
+"Remote Desktop Access","",0,"Service","Single","Other",,"","","","","","","","","","",200,"0","Billable Expense","","","Out-pocket desktop access (powered by Splashtop) for all remote computers",,0
+"Remote QBD Access","",0,"Service","Single","Other",,"","","","","","","","","","",200,"0","Billable Expense","","","client out-pocket CoralTree Tech QBOX",,0
+"Sales Tax Compliance","",0,"Service","Single","Tax Work",,"","","","","","","","","","",30,"0","Tax Services - Business","","","Monthly sales tax return prep, filing, and compliance for one entity, single state - includes transaction review, exemption handling, and quarterly reconciliation",,0
+"Services","",0,"Service","Single","Advisory",,"","","","","","","","","","","0","0","Uncategorized Income","","","General services",,0
+"Setup and Onboarding","",0,"Service","Single","Advisory","SETUP","","","","","","","","","","",850,"0","Setup and Onboarding","","","New client setup and onboarding including EIN application, corporate formation, QuickBooks setup, chart of accounts design, historical cleanup, system implementation, process documentation, staff training.",,0
+"Specialized Services","",0,"Service","Single","Other",,"","","","","","","","","","","0","0","Specialized Services","","","Tax resolution services, IRS representation, audit support, business valuation assistance, due diligence support, and other specialized consulting not covered in regular services.",,0
+"Tangible Property Tax","",0,"Service","Single","Tax Work","TPP","","","","","","","","","","",20,"0","Tax Services - Business","","","Preparation and electronic filing of Florida Tangible Personal Property Tax Return (Form DR-405) for business assets and equipment",,0
+"TPP Florida","",0,"Service","Single",,,"","","","","","","","","","","0","0","Tax Services - Business","Purchases","","Florida Tangible Personal Property Compliance Filing",,0
+"Work Comp Tax","",0,"Service","Single","Payroll",,"","","","","","","","","","","0","0","Payroll Service","","","Preparation and filing of workers’ comp tax documents for year-end compliance.",,0
+"Year End Accounting Close","",0,"Service","Single","Accounting","YECLOSE","","","","","","","","","","","0","0","Accounting Services","","","Includes review, general ledger entries, and preparation of year-end financial records for tax readiness.",,0
