@@ -12,6 +12,7 @@ Current contents:
 - `scripts/match_time_entries.py` — matches normalized contractor time entries to Anchor relationships for labor allocation review.
 - `scripts/classify_anchor_revenue_lines.py` — classifies synced Anchor invoice line items into macro service buckets and generates review/load files.
 - `supabase/sql/` — one-time Supabase schema migrations; dynamic row loads happen through n8n/Supabase REST.
+- `supabase/sql/003_profit_gp_invoice_basis_views.sql` — first directional GP rollup views; invoice-basis, not recognition-basis.
 - Root CSV/XLSX files — current source exports used for data audit and initial mapping.
 - `timesheets/` — uploaded staff timesheet samples for parser design and historical ingestion.
 
