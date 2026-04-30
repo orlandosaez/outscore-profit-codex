@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT))
 from profit_import.anchor_matching import match_owner_assignments_to_anchor, parse_anchor_agreements_csv
 from profit_import.assignments import expand_service_owner_assignments, parse_assignment_workbook
 from profit_import.time_matching import (
+    build_time_entry_load_rows,
     build_client_aliases_from_owner_matches,
     match_time_entries_to_anchor,
     summarize_time_entry_matches,
@@ -27,6 +28,7 @@ def main() -> int:
     parser.add_argument("--assignments", default=ROOT / "Client-staff assignments.xlsx", type=Path)
     parser.add_argument("--review-output", default=ROOT / "build/time_entry_anchor_matches_review.csv", type=Path)
     parser.add_argument("--summary", default=ROOT / "build/time_entry_anchor_matches_summary.json", type=Path)
+    parser.add_argument("--load-output", default=ROOT / "build/time_entry_anchor_matches_load.json", type=Path)
     args = parser.parse_args()
 
     entries = parse_timesheet_folder(args.timesheets)
@@ -40,12 +42,15 @@ def main() -> int:
     write_time_entry_matches_csv(matches, args.review_output)
     args.summary.parent.mkdir(parents=True, exist_ok=True)
     args.summary.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+    args.load_output.parent.mkdir(parents=True, exist_ok=True)
+    args.load_output.write_text(json.dumps(build_time_entry_load_rows(matches), indent=2, sort_keys=True), encoding="utf-8")
 
     print(f"time_entries={summary['time_entry_count']}")
     print(f"matched_time_entries={summary['matched_time_entry_count']}")
     print(f"admin_time_entries={summary['admin_time_entry_count']}")
     print(f"unmatched_time_entries={summary['unmatched_time_entry_count']}")
     print(f"review_csv={args.review_output}")
+    print(f"load_json={args.load_output}")
     print(f"summary={args.summary}")
     return 0
 

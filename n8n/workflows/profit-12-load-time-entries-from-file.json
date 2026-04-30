@@ -1,0 +1,168 @@
+{
+  "id": "Ht8rN4wZa6pQx2sB",
+  "name": "Profit - 12 Load Time Entries From File",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b35be805-c2c1-483d-90c1-28d59d2f5575",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/tmp/time_entry_anchor_matches_load.json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "id": "3f4dfb07-38a9-40b7-ad93-9976784c6f8c",
+      "name": "Read Time Entry Load JSON"
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        520,
+        0
+      ],
+      "id": "ec27c7e3-76da-4981-aa15-6893f951c815",
+      "name": "Extract JSON Text"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.data;\nconst rows = JSON.parse(raw);\nif (!Array.isArray(rows)) {\n  throw new Error('Time entry load JSON must be an array');\n}\nconst preparedRows = rows.map((row) => ({\n  ...row,\n  loaded_at: new Date().toISOString(),\n}));\nconst byStatus = preparedRows.reduce((acc, row) => {\n  acc[row.match_status] = (acc[row.match_status] ?? 0) + 1;\n  return acc;\n}, {});\nreturn [\n  {\n    json: {\n      rows: preparedRows,\n      summary: {\n        rowCount: preparedRows.length,\n        byStatus,\n        matchedLaborCost: Math.round(preparedRows.filter((row) => row.match_status === 'matched').reduce((sum, row) => sum + Number(row.labor_cost ?? 0), 0) * 100) / 100,\n        adminLaborCost: Math.round(preparedRows.filter((row) => row.match_status === 'admin').reduce((sum, row) => sum + Number(row.labor_cost ?? 0), 0) * 100) / 100,\n      },\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "1b2dca08-8803-442c-8926-907071b62434",
+      "name": "Prepare Time Entry Rows"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_time_entries?on_conflict=time_entry_key",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "bb0d7104-d454-4b84-908f-367735be4701",
+      "name": "Upsert Time Entries",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst byStatus = rows.reduce((acc, row) => {\n  acc[row.match_status] = (acc[row.match_status] ?? 0) + 1;\n  return acc;\n}, {});\nreturn [\n  {\n    json: {\n      status: 'ok',\n      upsertedTimeEntryCount: rows.length,\n      byStatus,\n      matchedLaborCost: Math.round(rows.filter((row) => row.match_status === 'matched').reduce((sum, row) => sum + Number(row.labor_cost ?? 0), 0) * 100) / 100,\n      adminLaborCost: Math.round(rows.filter((row) => row.match_status === 'admin').reduce((sum, row) => sum + Number(row.labor_cost ?? 0), 0) * 100) / 100,\n      unmatchedLaborCost: Math.round(rows.filter((row) => row.match_status === 'unmatched').reduce((sum, row) => sum + Number(row.labor_cost ?? 0), 0) * 100) / 100,\n      sample: rows.slice(0, 10),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        0
+      ],
+      "id": "d0cf4d01-6aa4-4bcc-af83-24564e97c435",
+      "name": "Summarize Time Entry Upsert"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Time Entry Load JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Time Entry Load JSON": {
+      "main": [
+        [
+          {
+            "node": "Extract JSON Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract JSON Text": {
+      "main": [
+        [
+          {
+            "node": "Prepare Time Entry Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Time Entry Rows": {
+      "main": [
+        [
+          {
+            "node": "Upsert Time Entries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Time Entries": {
+      "main": [
+        [
+          {
+            "node": "Summarize Time Entry Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

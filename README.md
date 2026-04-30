@@ -34,4 +34,5 @@ The parser writes ignored local outputs to `build/normalized_time_entries.csv` a
 The owner parser writes ignored local outputs to `build/client_service_owners_staging.csv` and `build/client_service_owners_staging_summary.json`.
 The owner matcher writes ignored local outputs to `build/client_service_owner_matches_review.csv`, `build/client_service_owner_load_staging.csv`, `build/client_service_owner_load.sql`, and `build/client_service_owner_matches_summary.json`.
 The time-entry matcher writes ignored local outputs to `build/time_entry_anchor_matches_review.csv` and `build/time_entry_anchor_matches_summary.json`.
+It also writes `build/time_entry_anchor_matches_load.json` for n8n/Supabase REST backfill loading.
 The revenue classifier writes ignored local outputs to `build/anchor_line_item_classifications_review.csv` and `build/anchor_line_item_classifications_load.sql`.

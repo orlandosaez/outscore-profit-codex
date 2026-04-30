@@ -166,6 +166,34 @@ def summarize_time_entry_matches(matches: Iterable[TimeEntryAnchorMatch]) -> dic
     }
 
 
+def build_time_entry_load_rows(matches: Iterable[TimeEntryAnchorMatch]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for match in matches:
+        rows.append(
+            {
+                "time_entry_key": match.time_entry_key,
+                "staff_name": match.staff_name,
+                "entry_date": match.entry_date.isoformat(),
+                "client_raw": match.client_raw,
+                "task_raw": match.task_raw,
+                "hours": match.hours,
+                "hourly_rate": match.hourly_rate,
+                "labor_cost": match.labor_cost,
+                "macro_service_type": match.macro_service_type,
+                "is_admin": match.is_admin,
+                "match_status": match.match_status,
+                "match_reason": match.match_reason,
+                "candidate_count": match.candidate_count,
+                "anchor_relationship_id": match.anchor_relationship_id,
+                "anchor_client_business_name": match.anchor_client_business_name,
+                "source_file": match.source_file,
+                "source_sheet": match.source_sheet,
+                "source_row": match.source_row,
+            }
+        )
+    return rows
+
+
 def _make_match(
     entry: TimeEntry,
     status: str,

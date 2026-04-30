@@ -12,6 +12,7 @@ from profit_import.anchor_matching import (
 from profit_import.assignments import expand_service_owner_assignments, parse_assignment_workbook
 from profit_import.time_matching import (
     build_client_aliases_from_owner_matches,
+    build_time_entry_load_rows,
     match_time_entries_to_anchor,
     stable_time_entry_key,
 )
@@ -165,6 +166,36 @@ class TimeMatchingTests(unittest.TestCase):
 
         keys = [(row["anchor_relationship_id"], row["macro_service_type"]) for row in owner_rows]
         self.assertEqual(len(keys), len(set(keys)))
+
+    def test_build_time_entry_load_rows_serializes_dates_and_match_fields(self) -> None:
+        entry = TimeEntry(
+            staff_name="Laura",
+            entry_date=date(2026, 3, 17),
+            client_raw="Kar Kraft Auto Repair",
+            task_raw="Review T/R",
+            hours=1.25,
+            hourly_rate=60.0,
+            labor_cost=75.0,
+            service_type="tax",
+            is_admin=False,
+            source_file="Laura Timesheet 3.31.26.xlsx",
+            source_sheet="3.31. TS",
+            source_row=7,
+        )
+        agreements = parse_anchor_agreements_csv(ROOT / "anchor_agreements_export_1777160122406.csv")
+        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "Client-staff assignments.xlsx"))
+        owner_matches = match_owner_assignments_to_anchor(assignments, agreements)
+        aliases = build_client_aliases_from_owner_matches(owner_matches)
+        match = match_time_entries_to_anchor([entry], agreements, aliases)[0]
+
+        rows = build_time_entry_load_rows([match])
+
+        self.assertEqual(rows[0]["time_entry_key"], match.time_entry_key)
+        self.assertEqual(rows[0]["entry_date"], "2026-03-17")
+        self.assertEqual(rows[0]["anchor_relationship_id"], "relationship-z26do6jeiYCI-ZMAXueMMOGLu8Upt")
+        self.assertEqual(rows[0]["match_status"], "matched")
+        self.assertEqual(rows[0]["macro_service_type"], "tax")
+        self.assertFalse(rows[0]["is_admin"])
 
 
 if __name__ == "__main__":

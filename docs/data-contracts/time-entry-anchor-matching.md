@@ -25,6 +25,13 @@ Generated locally:
 
 - `build/time_entry_anchor_matches_review.csv`
 - `build/time_entry_anchor_matches_summary.json`
+- `build/time_entry_anchor_matches_load.json`
+
+Production/backfill load:
+
+- `supabase/sql/002_profit_time_entries.sql` creates `profit_time_entries`
+- `Profit - 12 Load Time Entries From File` reads `/tmp/time_entry_anchor_matches_load.json` in the n8n container
+- n8n upserts rows through Supabase REST using `time_entry_key` as the idempotency key
 
 Current live run:
 
