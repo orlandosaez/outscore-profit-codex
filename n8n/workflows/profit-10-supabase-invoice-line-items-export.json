@@ -1,0 +1,80 @@
+{
+  "id": "Bp4sT8nYq2mKv7cR",
+  "name": "Profit - 10 Supabase Invoice Line Items Export",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "3da5d25e-205d-4a2e-9a71-913160d25f9a",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_invoice_line_items?select=anchor_line_item_id,anchor_invoice_id,anchor_relationship_id,parent_line_item_id,qbo_product_name,name,amount,is_bundle_parent&order=anchor_invoice_id.asc,anchor_line_item_id.asc&limit=5000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "5d7f81af-608c-49ac-a75c-37b5a8b2ba98",
+      "name": "Fetch Invoice Line Items",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst byProduct = rows.reduce((acc, row) => {\n  const key = row.qbo_product_name ?? '(blank)';\n  acc[key] = (acc[key] ?? 0) + 1;\n  return acc;\n}, {});\nconst bundleParentCount = rows.filter((row) => row.is_bundle_parent).length;\nconst childCount = rows.filter((row) => row.parent_line_item_id).length;\nreturn [\n  {\n    json: {\n      rowCount: rows.length,\n      bundleParentCount,\n      childCount,\n      byProduct,\n      rows,\n      sample: rows.slice(0, 10),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "4dd79260-dcc7-4db1-b117-8ed70ce2e50c",
+      "name": "Summarize Line Items"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Invoice Line Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Invoice Line Items": {
+      "main": [
+        [
+          {
+            "node": "Summarize Line Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

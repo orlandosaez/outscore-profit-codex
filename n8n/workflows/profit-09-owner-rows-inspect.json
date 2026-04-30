@@ -1,0 +1,80 @@
+{
+  "id": "Rq9tP6vXc3hLd2mN",
+  "name": "Profit - 09 Owner Rows Inspect",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e5ef5d58-7e37-4a2c-91bf-4ee7cbf5ea19",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_client_service_owners?select=anchor_relationship_id,macro_service_type,effective_from,effective_to,profit_staff(name)&order=anchor_relationship_id.asc,macro_service_type.asc&limit=200",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "311a75ca-615f-47a8-9a39-d5af0e05905d",
+      "name": "Fetch Owner Rows",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst byMacro = rows.reduce((acc, row) => {\n  const key = row.macro_service_type ?? '(blank)';\n  acc[key] = (acc[key] ?? 0) + 1;\n  return acc;\n}, {});\nconst byStaff = rows.reduce((acc, row) => {\n  const key = row.profit_staff?.name ?? '(missing staff join)';\n  acc[key] = (acc[key] ?? 0) + 1;\n  return acc;\n}, {});\nreturn [\n  {\n    json: {\n      rowCount: rows.length,\n      byMacro,\n      byStaff,\n      sample: rows.slice(0, 10),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "091b6aa0-d17c-43bc-9a04-7b84418388b8",
+      "name": "Summarize Owner Rows"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Owner Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Owner Rows": {
+      "main": [
+        [
+          {
+            "node": "Summarize Owner Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

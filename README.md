@@ -9,6 +9,7 @@ Current contents:
 - `scripts/parse_timesheets.py` — normalizes uploaded staff timesheets into a TimeEntry CSV.
 - `scripts/parse_client_assignments.py` — normalizes client/staff owner mappings into a service-owner staging CSV.
 - `scripts/match_client_assignments.py` — matches owner mappings to Anchor relationships and generates review/load files.
+- `scripts/classify_anchor_revenue_lines.py` — classifies synced Anchor invoice line items into macro service buckets and generates review/load files.
 - Root CSV/XLSX files — current source exports used for data audit and initial mapping.
 - `timesheets/` — uploaded staff timesheet samples for parser design and historical ingestion.
 
@@ -23,8 +24,10 @@ Use the bundled Codex Python runtime for now:
 /Users/orlandosaez/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 scripts/parse_timesheets.py
 /Users/orlandosaez/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 scripts/parse_client_assignments.py
 /Users/orlandosaez/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 scripts/match_client_assignments.py
+/Users/orlandosaez/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 scripts/classify_anchor_revenue_lines.py
 ```
 
 The parser writes ignored local outputs to `build/normalized_time_entries.csv` and `build/normalized_time_entries_summary.json`.
 The owner parser writes ignored local outputs to `build/client_service_owners_staging.csv` and `build/client_service_owners_staging_summary.json`.
 The owner matcher writes ignored local outputs to `build/client_service_owner_matches_review.csv`, `build/client_service_owner_load_staging.csv`, `build/client_service_owner_load.sql`, and `build/client_service_owner_matches_summary.json`.
+The revenue classifier writes ignored local outputs to `build/anchor_line_item_classifications_review.csv` and `build/anchor_line_item_classifications_load.sql`.
