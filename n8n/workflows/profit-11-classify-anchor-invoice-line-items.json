@@ -1,0 +1,151 @@
+{
+  "id": "Lv7mC2pXq9rNd5aF",
+  "name": "Profit - 11 Classify Anchor Invoice Line Items",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8ab4c7f9-c6d2-47d8-8439-2e5ef5956d95",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_invoice_line_items?select=anchor_line_item_id,anchor_invoice_id,anchor_relationship_id,parent_line_item_id,qbo_product_name,name,amount,is_bundle_parent&order=anchor_invoice_id.asc,anchor_line_item_id.asc&limit=5000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "41c22474-55cd-4468-9e3e-7c3cc9bdd4d5",
+      "name": "Fetch Invoice Line Items",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function parseMoney(value) {\n  if (value === undefined || value === null || value === '') return null;\n  if (typeof value === 'number') return value;\n  const cleaned = String(value).replace(/[$,]/g, '').trim();\n  if (!cleaned) return null;\n  const parsed = Number(cleaned);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction normalize(value) {\n  return String(value ?? '')\n    .trim()\n    .toLowerCase()\n    .replace(/^[^:]+:/, '')\n    .replace(/[^a-z0-9]+/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction categoryPrefix(value) {\n  const text = String(value ?? '').trim().toLowerCase();\n  if (!text.includes(':')) return null;\n  return text.split(':', 1)[0].trim();\n}\n\nconst prefixToMacro = {\n  accounting: 'bookkeeping',\n  'tax work': 'tax',\n  payroll: 'payroll',\n  advisory: 'advisory',\n};\n\nconst exactProductToMacro = {\n  '1040 advanced': 'tax',\n  '1040 essentials': 'tax',\n  '1040 plus': 'tax',\n  '1065 advanced': 'tax',\n  '1065 essential': 'tax',\n  '1065 plus': 'tax',\n  '1099 preparation': 'tax',\n  '1120 advanced': 'tax',\n  '1120 essential': 'tax',\n  '1120 plus': 'tax',\n  '990 ez short form': 'tax',\n  '990 full return essential': 'tax',\n  '990 full return plus': 'tax',\n  '990 t unrelated business': 'tax',\n  'accounting advanced': 'bookkeeping',\n  'accounting essential': 'bookkeeping',\n  'accounting plus': 'bookkeeping',\n  'annual estimate tax review': 'tax',\n  'audit protection business': 'tax',\n  'audit protection individual': 'tax',\n  'fractional cfo': 'advisory',\n  'payroll service': 'payroll',\n  'payroll tax compliance': 'payroll',\n  'sales tax compliance': 'tax',\n  services: 'advisory',\n  'setup and onboarding': 'advisory',\n  'tangible property tax': 'tax',\n  'tpp florida': 'tax',\n  'work comp tax': 'payroll',\n  'year end accounting close': 'bookkeeping',\n};\n\nfunction classify(row, parentIdsWithChildren) {\n  const lineItemId = row.anchor_line_item_id;\n  const amount = parseMoney(row.amount);\n  const qboProductName = row.qbo_product_name ?? '';\n  const sourceName = row.name ?? '';\n\n  if (row.is_bundle_parent && parentIdsWithChildren.has(lineItemId)) {\n    return ['bundle_parent', false, 'bundle_parent_has_children'];\n  }\n\n  const prefixMacro = prefixToMacro[categoryPrefix(qboProductName)];\n  if (prefixMacro) return [prefixMacro, true, 'qbo_category_prefix'];\n\n  const exactMacro = exactProductToMacro[normalize(qboProductName)] ?? exactProductToMacro[normalize(sourceName)];\n  if (exactMacro) return [exactMacro, true, 'qbo_product_mapping'];\n\n  const text = `${qboProductName} ${sourceName}`.toLowerCase();\n  if (text.includes('expense') || text.includes('fee') || text.includes('remote desktop') || text.includes('remote qbd')) {\n    return ['other', false, 'non_service_product'];\n  }\n\n  return ['unknown', false, 'unclassified_qbo_product'];\n}\n\nconst sourceRows = $input.all().map((item) => item.json);\nconst parentIdsWithChildren = new Set(\n  sourceRows\n    .map((row) => row.parent_line_item_id)\n    .filter((value) => value !== undefined && value !== null && value !== '')\n);\n\nconst classifiedRows = sourceRows.map((row) => {\n  const amount = parseMoney(row.amount);\n  const [macroServiceType, includeInRevenueAllocation, classificationReason] = classify(row, parentIdsWithChildren);\n  return {\n    anchor_line_item_id: row.anchor_line_item_id,\n    anchor_invoice_id: row.anchor_invoice_id,\n    anchor_relationship_id: row.anchor_relationship_id ?? null,\n    parent_line_item_id: row.parent_line_item_id ?? null,\n    qbo_product_name: row.qbo_product_name ?? null,\n    source_name: row.name ?? null,\n    amount,\n    revenue_amount: includeInRevenueAllocation && amount !== null ? amount : 0,\n    macro_service_type: macroServiceType,\n    include_in_revenue_allocation: includeInRevenueAllocation,\n    classification_reason: classificationReason,\n    classified_at: new Date().toISOString(),\n  };\n});\n\nconst byMacro = classifiedRows.reduce((acc, row) => {\n  acc[row.macro_service_type] = (acc[row.macro_service_type] ?? 0) + 1;\n  return acc;\n}, {});\nconst unclassified = classifiedRows.filter((row) => row.classification_reason === 'unclassified_qbo_product');\nconst includedRevenueAmount = classifiedRows.reduce((sum, row) => sum + Number(row.revenue_amount ?? 0), 0);\n\nreturn [\n  {\n    json: {\n      classifiedRows,\n      summary: {\n        classifiedLineItems: classifiedRows.length,\n        unclassifiedLineItems: unclassified.length,\n        includedRevenueAmount: Math.round(includedRevenueAmount * 100) / 100,\n        byMacro,\n        unclassifiedSample: unclassified.slice(0, 10),\n      },\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "070ea369-a77f-47d5-a56c-3b33a483d1fd",
+      "name": "Classify Line Items"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_line_item_classifications?on_conflict=anchor_line_item_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.classifiedRows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "c2afaf7d-57f7-40bd-983c-60b69bfb27b8",
+      "name": "Upsert Classifications",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst byMacro = rows.reduce((acc, row) => {\n  acc[row.macro_service_type] = (acc[row.macro_service_type] ?? 0) + 1;\n  return acc;\n}, {});\nconst unclassified = rows.filter((row) => row.classification_reason === 'unclassified_qbo_product');\nconst includedRevenueAmount = rows.reduce((sum, row) => sum + Number(row.revenue_amount ?? 0), 0);\nreturn [\n  {\n    json: {\n      status: 'ok',\n      upsertedClassificationCount: rows.length,\n      unclassifiedLineItems: unclassified.length,\n      includedRevenueAmount: Math.round(includedRevenueAmount * 100) / 100,\n      byMacro,\n      sample: rows.slice(0, 10),\n      unclassifiedSample: unclassified.slice(0, 10),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "7594397e-cd29-4b5f-98cb-ec4beea077db",
+      "name": "Summarize Classification Upsert"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Invoice Line Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Invoice Line Items": {
+      "main": [
+        [
+          {
+            "node": "Classify Line Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Line Items": {
+      "main": [
+        [
+          {
+            "node": "Upsert Classifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Classifications": {
+      "main": [
+        [
+          {
+            "node": "Summarize Classification Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

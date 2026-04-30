@@ -10,6 +10,7 @@ Current contents:
 - `scripts/parse_client_assignments.py` — normalizes client/staff owner mappings into a service-owner staging CSV.
 - `scripts/match_client_assignments.py` — matches owner mappings to Anchor relationships and generates review/load files.
 - `scripts/classify_anchor_revenue_lines.py` — classifies synced Anchor invoice line items into macro service buckets and generates review/load files.
+- `supabase/sql/` — one-time Supabase schema migrations; dynamic row loads happen through n8n/Supabase REST.
 - Root CSV/XLSX files — current source exports used for data audit and initial mapping.
 - `timesheets/` — uploaded staff timesheet samples for parser design and historical ingestion.
 

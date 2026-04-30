@@ -25,12 +25,22 @@ Purpose: classify synced Anchor invoice line items into macro service buckets fo
 
 ## Outputs
 
-Generated locally:
+Generated locally for review/backfill:
 
 - `build/anchor_line_item_classifications_review.csv`
 - `build/anchor_line_item_classifications_load.sql`
 
-The SQL creates and upserts:
+Production/dynamic load:
+
+- `Profit - 11 Classify Anchor Invoice Line Items` reads `profit_anchor_invoice_line_items`
+- classifies each row inside n8n
+- upserts through Supabase REST into `profit_anchor_line_item_classifications`
+
+One-time schema migration:
+
+- `supabase/sql/001_profit_anchor_line_item_classifications.sql`
+
+The workflow upserts:
 
 - `profit_anchor_line_item_classifications`
 
