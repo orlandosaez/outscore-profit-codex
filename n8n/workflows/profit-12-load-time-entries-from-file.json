@@ -15,7 +15,7 @@
     },
     {
       "parameters": {
-        "fileSelector": "/tmp/time_entry_anchor_matches_load.json",
+        "fileSelector": "/home/node/.n8n-files/time_entry_anchor_matches_load.json",
         "options": {}
       },
       "type": "n8n-nodes-base.readWriteFile",
