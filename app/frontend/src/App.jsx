@@ -11,7 +11,8 @@ import {
   UsersRound,
 } from "lucide-react";
 
-const endpoint = "/api/profit/admin/dashboard";
+const apiBase = import.meta.env.VITE_PROFIT_API_BASE ?? "/api";
+const endpoint = `${apiBase}/profit/admin/dashboard`;
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -294,4 +295,3 @@ function App() {
 }
 
 export default App;
-

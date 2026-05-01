@@ -12,7 +12,8 @@ class ProfitAdminFrontendTests(unittest.TestCase):
         app_path = ROOT / "app/frontend/src/App.jsx"
         source = app_path.read_text(encoding="utf-8")
 
-        self.assertIn("/api/profit/admin/dashboard", source)
+        self.assertIn("VITE_PROFIT_API_BASE", source)
+        self.assertIn("/profit/admin/dashboard", source)
         self.assertIn("Company GP", source)
         self.assertIn("Per-Client GP", source)
         self.assertIn("Per-Staff GP", source)
@@ -28,6 +29,13 @@ class ProfitAdminFrontendTests(unittest.TestCase):
         self.assertIn('"dev": "vite', source)
         self.assertIn('"react"', source)
         self.assertIn('"lucide-react"', source)
+
+    def test_vite_config_supports_profit_subpath_deployments(self) -> None:
+        config_path = ROOT / "app/frontend/vite.config.js"
+        source = config_path.read_text(encoding="utf-8")
+
+        self.assertIn("VITE_BASE_PATH", source)
+        self.assertIn("proxy", source)
 
 
 if __name__ == "__main__":

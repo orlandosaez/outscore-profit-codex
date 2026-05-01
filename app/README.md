@@ -40,3 +40,23 @@ npm run dev
 
 By default the React app calls `/api/profit/admin/dashboard`, so put it behind the FastAPI route or configure the deployed reverse proxy to forward `/api/profit/*` to the backend.
 
+For `app.outscore.com/profit`, build with:
+
+```bash
+VITE_BASE_PATH=/profit/ VITE_PROFIT_API_BASE=/profit/api npm run build
+```
+
+## VPS Deployment Notes
+
+Deployment files are in `app/deploy/`:
+
+- `profit-admin-api.service` runs FastAPI on `127.0.0.1:8010`.
+- `nginx-profit.conf` mounts the static app at `/profit/` and proxies `/profit/api/`.
+- `deploy_profit_app.sh` copies the built app/API into `/opt/agents/outscore_profit`.
+
+Before starting the service, create `/opt/agents/outscore_profit/.env` on the VPS:
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
