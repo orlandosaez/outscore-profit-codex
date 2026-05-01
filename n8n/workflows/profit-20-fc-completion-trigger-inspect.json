@@ -1,0 +1,194 @@
+{
+  "id": "Qp7dR5xLj4nVt8bC",
+  "name": "Profit - 20 FC Completion Trigger Inspect",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "6d15aa8c-2e0e-4f8c-a84b-a42c896da034",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_client_anchor_match_candidates?select=fc_client_id,fc_client_name,anchor_relationship_id,anchor_client_business_name,match_status,match_confidence&limit=10000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "1f1a6c36-3e12-4dc0-8bb5-cdf18a48f933",
+      "name": "Fetch FC Client Match Candidates",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst byClientMatchStatus = rows.reduce((acc, row) => {\n  acc[row.match_status] = (acc[row.match_status] ?? 0) + 1;\n  return acc;\n}, {});\nreturn [{\n  json: {\n    clientMatchCandidateCount: rows.length,\n    byClientMatchStatus,\n    unmatchedClientSamples: rows.filter((row) => row.match_status !== 'auto_exact').slice(0, 20),\n    clientMatchSamples: rows.slice(0, 10),\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "0ac7fbdf-f533-4c3d-86d0-e560bb2c50a1",
+      "name": "Summarize Client Matches"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_completion_trigger_candidates?select=fc_task_id,fc_client_id,client_name,project_title,task_title,completed_at,suggested_trigger_type,suggested_macro_service_type,anchor_relationship_id,anchor_client_business_name,macro_service_type,trigger_type,service_period_month,completion_date,approval_status,trigger_load_status&limit=10000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "da4aa572-35e6-499e-90c6-d0b9ffcc12cd",
+      "name": "Fetch Trigger Candidates",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst byTriggerLoadStatus = rows.reduce((acc, row) => {\n  acc[row.trigger_load_status] = (acc[row.trigger_load_status] ?? 0) + 1;\n  return acc;\n}, {});\nconst byApprovalStatus = rows.reduce((acc, row) => {\n  acc[row.approval_status] = (acc[row.approval_status] ?? 0) + 1;\n  return acc;\n}, {});\nconst bySuggestedTriggerType = rows.reduce((acc, row) => {\n  acc[row.suggested_trigger_type] = (acc[row.suggested_trigger_type] ?? 0) + 1;\n  return acc;\n}, {});\nreturn [{\n  json: {\n    triggerCandidateCount: rows.length,\n    byTriggerLoadStatus,\n    byApprovalStatus,\n    bySuggestedTriggerType,\n    actionableSamples: rows.filter((row) => row.suggested_trigger_type !== 'manual_review' && row.anchor_relationship_id).slice(0, 20),\n    needsReviewSamples: rows.filter((row) => row.trigger_load_status !== 'ready_to_load').slice(0, 20),\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "ca8ef3a0-91d1-4af4-b680-ed4ec5f8696a",
+      "name": "Summarize Trigger Candidates"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_completion_triggers_ready_to_load?select=recognition_trigger_key,source_record_id,anchor_relationship_id,macro_service_type,service_period_month,completion_date,trigger_type&limit=10000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        0
+      ],
+      "id": "6aac1d49-b5af-4609-a9bc-590e9f9121ba",
+      "name": "Fetch Ready Triggers",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const readyRows = $input.all().map((item) => item.json);\nconst clientSummary = $('Summarize Client Matches').first().json;\nconst triggerSummary = $('Summarize Trigger Candidates').first().json;\nreturn [{\n  json: {\n    status: 'ok',\n    ...clientSummary,\n    ...triggerSummary,\n    readyToLoadCount: readyRows.length,\n    readyToLoadSamples: readyRows.slice(0, 20),\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        0
+      ],
+      "id": "f34956b1-3499-4953-9f83-d6d72a8afff8",
+      "name": "Summarize FC Trigger Inspect"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch FC Client Match Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch FC Client Match Candidates": {
+      "main": [
+        [
+          {
+            "node": "Summarize Client Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Client Matches": {
+      "main": [
+        [
+          {
+            "node": "Fetch Trigger Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Trigger Candidates": {
+      "main": [
+        [
+          {
+            "node": "Summarize Trigger Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Trigger Candidates": {
+      "main": [
+        [
+          {
+            "node": "Fetch Ready Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Ready Triggers": {
+      "main": [
+        [
+          {
+            "node": "Summarize FC Trigger Inspect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

@@ -45,6 +45,30 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("recognition_trigger_key", serialized)
         self.assertIn("financial_cents", serialized)
 
+    def test_fc_completion_trigger_inspect_workflow_reads_candidate_views(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-20-fc-completion-trigger-inspect.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertIn("profit_fc_client_anchor_match_candidates", serialized)
+        self.assertIn("profit_fc_completion_trigger_candidates", serialized)
+        self.assertIn("profit_fc_completion_triggers_ready_to_load", serialized)
+        self.assertIn("byClientMatchStatus", serialized)
+        self.assertIn("byTriggerLoadStatus", serialized)
+        self.assertIn("readyToLoadCount", serialized)
+
+    def test_fc_tax_filed_approval_workflow_only_approves_matched_tax_filed_tasks(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-21-approve-matched-fc-tax-filed-triggers.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertIn("profit_fc_completion_trigger_candidates", serialized)
+        self.assertIn("suggested_trigger_type=eq.tax_filed", serialized)
+        self.assertIn("anchor_relationship_id=not.is.null", serialized)
+        self.assertIn("approval_status=eq.pending", serialized)
+        self.assertIn("profit_fc_task_trigger_approvals?on_conflict=fc_task_id", serialized)
+        self.assertIn("approval_status: 'approved'", serialized)
+
     def test_financial_cents_sync_workflow_fetches_fc_resources_and_upserts_raw_tables(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-17-financial-cents-sync.json"
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))

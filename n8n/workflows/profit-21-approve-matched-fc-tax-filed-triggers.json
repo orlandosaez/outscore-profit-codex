@@ -1,0 +1,151 @@
+{
+  "id": "Nc6mT9yRe2sQa4hJ",
+  "name": "Profit - 21 Approve Matched FC Tax Filed Triggers",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "964f7f6a-252d-4384-8dd8-28087f60414a",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_completion_trigger_candidates?select=fc_task_id,client_name,project_title,task_title,completed_at,anchor_relationship_id,anchor_client_business_name,macro_service_type,trigger_type,service_period_month&suggested_trigger_type=eq.tax_filed&trigger_type=eq.tax_filed&anchor_relationship_id=not.is.null&macro_service_type=not.is.null&approval_status=eq.pending&order=completed_at.asc&limit=5000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "977ef71b-beba-4d95-8754-5536f5e472aa",
+      "name": "Fetch Matched Tax Filed Candidates",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const candidates = $input.all().map((item) => item.json);\nconst approvedAt = new Date().toISOString();\nconst rows = candidates.map((row) => ({\n  fc_task_id: Number(row.fc_task_id),\n  approval_status: 'approved',\n  approved_by: 'codex_conservative_tax_filed_loader',\n  approved_at: approvedAt,\n  notes: `Conservative approval: matched Anchor client and FC tax-filed task (${row.task_title} / ${row.project_title}).`,\n  loaded_at: approvedAt,\n}));\nreturn [{\n  json: {\n    rows,\n    summary: {\n      candidateCount: candidates.length,\n      approvalCount: rows.length,\n      samples: candidates.slice(0, 20),\n    },\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "99662b1a-392d-4ef5-8e9b-5c8eed68a245",
+      "name": "Build Approval Rows"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_task_trigger_approvals?on_conflict=fc_task_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "3b50c628-54e4-48a6-b247-d371795271f8",
+      "name": "Upsert FC Task Trigger Approvals",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [{\n  json: {\n    status: 'ok',\n    approvedFcTaskCount: rows.length,\n    sample: rows.slice(0, 20),\n    note: 'Only matched tax_filed Financial Cents tasks were approved.',\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "c6556a2e-7ec8-43d3-ba4b-fd7c72dcad3d",
+      "name": "Summarize Approval Upsert"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Matched Tax Filed Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Matched Tax Filed Candidates": {
+      "main": [
+        [
+          {
+            "node": "Build Approval Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Approval Rows": {
+      "main": [
+        [
+          {
+            "node": "Upsert FC Task Trigger Approvals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert FC Task Trigger Approvals": {
+      "main": [
+        [
+          {
+            "node": "Summarize Approval Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

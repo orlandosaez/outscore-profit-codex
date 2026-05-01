@@ -37,6 +37,8 @@ class FinancialCentsSqlTests(unittest.TestCase):
         self.assertIn("suggested_trigger_type <> 'manual_review'", sql)
         self.assertIn("anchor_relationship_id is not null", sql)
         self.assertIn("macro_service_type is not null", sql)
+        self.assertIn("provision", sql)
+        self.assertIn("not ilike '%provision%'", sql)
 
 
 if __name__ == "__main__":

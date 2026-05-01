@@ -77,3 +77,8 @@ After the first live FC sync:
 5. Approve rows in `profit_fc_task_trigger_approvals`.
 6. Run `Profit - 19 Load FC Completion Triggers`.
 7. Run `Profit - 16 Apply Recognition Triggers`.
+
+Helper workflows:
+
+- `Profit - 20 FC Completion Trigger Inspect` summarizes client match/candidate/ready counts.
+- `Profit - 21 Approve Matched FC Tax Filed Triggers` approves only matched `tax_filed` candidates.

@@ -45,3 +45,4 @@ Revenue event candidates are loaded dynamically through n8n workflow `Profit - 1
 Recognition triggers should be loaded into `profit_recognition_triggers`; n8n workflow `Profit - 16 Apply Recognition Triggers` applies only rows exposed by the ready view.
 Financial Cents raw sync starts with n8n workflow `Profit - 17 Financial Cents Sync`; it needs a `Financial Cents API - Production` HTTP Header Auth credential before it can run.
 Approved FC task completions are loaded into `profit_recognition_triggers` through n8n workflow `Profit - 19 Load FC Completion Triggers`; run `supabase/sql/007_profit_fc_trigger_loader.sql` first.
+Use `Profit - 20 FC Completion Trigger Inspect` to review FC trigger candidates and `Profit - 21 Approve Matched FC Tax Filed Triggers` for the conservative matched-tax-filed starter approval path.

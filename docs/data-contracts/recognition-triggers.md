@@ -88,3 +88,15 @@ Initial mapping:
 - File: `n8n/workflows/profit-19-load-fc-completion-triggers.json`
 
 The workflow reads `profit_fc_completion_triggers_ready_to_load` and upserts into `profit_recognition_triggers`. Run `Profit - 16 Apply Recognition Triggers` after reviewing the load summary.
+
+## FC Review Helpers
+
+- `Profit - 20 FC Completion Trigger Inspect`
+- File: `n8n/workflows/profit-20-fc-completion-trigger-inspect.json`
+
+This workflow summarizes FC client match status, completion trigger candidate status, and ready-to-load trigger counts.
+
+- `Profit - 21 Approve Matched FC Tax Filed Triggers`
+- File: `n8n/workflows/profit-21-approve-matched-fc-tax-filed-triggers.json`
+
+This is a conservative starter approval workflow. It approves only pending FC tasks where the suggested trigger is `tax_filed`, the trigger type is `tax_filed`, and the task already has a resolved Anchor relationship and macro service type.
