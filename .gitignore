@@ -3,6 +3,8 @@
 ~$*
 *.tmp
 build/
+app/frontend/dist/
+app/frontend/node_modules/
 .firecrawl/
 __pycache__/
 *.py[cod]

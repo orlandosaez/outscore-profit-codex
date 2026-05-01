@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class ProfitAdminFrontendTests(unittest.TestCase):
+    def test_react_admin_page_fetches_dashboard_snapshot_endpoint(self) -> None:
+        app_path = ROOT / "app/frontend/src/App.jsx"
+        source = app_path.read_text(encoding="utf-8")
+
+        self.assertIn("/api/profit/admin/dashboard", source)
+        self.assertIn("Company GP", source)
+        self.assertIn("Per-Client GP", source)
+        self.assertIn("Per-Staff GP", source)
+        self.assertIn("Comp Ledger", source)
+        self.assertIn("W2 Watch", source)
+        self.assertIn("FC Trigger Queue", source)
+
+    def test_frontend_package_declares_profit_admin_app(self) -> None:
+        package_path = ROOT / "app/frontend/package.json"
+        source = package_path.read_text(encoding="utf-8")
+
+        self.assertIn('"name": "outscore-profit-admin"', source)
+        self.assertIn('"dev": "vite', source)
+        self.assertIn('"react"', source)
+        self.assertIn('"lucide-react"', source)
+
+
+if __name__ == "__main__":
+    unittest.main()
