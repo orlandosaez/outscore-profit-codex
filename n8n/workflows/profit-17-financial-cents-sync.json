@@ -1,0 +1,386 @@
+{
+  "id": "La8mC5vQt2pZr6nF",
+  "name": "Profit - 17 Financial Cents Sync",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c36e22a6-e5b7-4e19-93c6-88043f0d6ec8",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://app.financial-cents.com/api/v1/clients?order_by=name&order_dir=asc&page=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "e8acae7a-ac6d-4538-a962-a234e890b89c",
+      "name": "Fetch FC Clients",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_FINANCIAL_CENTS_CREDENTIAL_ID",
+          "name": "Financial Cents API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $input.first().json;\nconst clients = Array.isArray(root.data) ? root.data : [];\nconst lastSeenAt = new Date().toISOString();\nconst rows = clients.map((client) => ({\n  fc_client_id: Number(client.id),\n  company_id: client.company_id ?? null,\n  name: client.name,\n  is_archived: client.is_archived ?? null,\n  archived_at: client.archived_at ?? null,\n  created_at: client.created_at ?? null,\n  updated_at: client.updated_at ?? null,\n  raw: client,\n  last_seen_at: lastSeenAt,\n}));\nreturn [{ json: { rows, fcClientCount: rows.length, sample: rows.slice(0, 5) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        0
+      ],
+      "id": "e4ad7a18-21f4-43a1-9580-cfbc740c763a",
+      "name": "Map FC Clients"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_clients?on_conflict=fc_client_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        0
+      ],
+      "id": "c7d53d35-b729-42ac-b172-1284d15e89e7",
+      "name": "Upsert FC Clients",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://app.financial-cents.com/api/v1/projects?page=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        0
+      ],
+      "id": "1996850d-89e4-4b31-aa22-b91d9ca14fa8",
+      "name": "Fetch FC Projects",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_FINANCIAL_CENTS_CREDENTIAL_ID",
+          "name": "Financial Cents API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function dateOnly(value) {\n  if (!value) return null;\n  const date = new Date(value);\n  if (Number.isNaN(date.getTime())) return null;\n  return date.toISOString().slice(0, 10);\n}\nconst root = $input.first().json;\nconst projects = Array.isArray(root.data) ? root.data : [];\nconst lastSeenAt = new Date().toISOString();\nconst rows = projects.map((project) => ({\n  fc_project_id: Number(project.id),\n  fc_client_id: project.client?.id ?? project.client_id ?? null,\n  title: project.title,\n  template_id: project.template_id ?? null,\n  service_item_id: project.service_item_id ?? null,\n  is_closed: project.is_closed ?? project.closed ?? null,\n  closed_at: project.closed_at ?? null,\n  start_date: dateOnly(project.start_date),\n  due_date: dateOnly(project.due_date),\n  accounting_period: dateOnly(project.accounting_period),\n  accounting_period_date: dateOnly(project.accounting_period_date),\n  computed_accounting_period: dateOnly(project.computed_accounting_period),\n  created_at: project.created_at ?? null,\n  updated_at: project.updated_at ?? null,\n  raw: project,\n  last_seen_at: lastSeenAt,\n}));\nreturn [{ json: { rows, fcProjectCount: rows.length, sample: rows.slice(0, 5) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        0
+      ],
+      "id": "8407ab79-0d16-4147-a56e-74d8d6a46e36",
+      "name": "Map FC Projects"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_projects?on_conflict=fc_project_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        0
+      ],
+      "id": "50f1c7e6-ad90-467d-ba8f-8d9e620893db",
+      "name": "Upsert FC Projects",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://app.financial-cents.com/api/v1/tasks?status=completed&order_by=updated_at&order_dir=desc&page=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        0
+      ],
+      "id": "aeb0cbe6-4d25-40b2-8e73-d55110f14c35",
+      "name": "Fetch Completed FC Tasks",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_FINANCIAL_CENTS_CREDENTIAL_ID",
+          "name": "Financial Cents API - Production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $input.first().json;\nconst tasks = Array.isArray(root.data) ? root.data : [];\nconst lastSeenAt = new Date().toISOString();\nconst rows = tasks.map((task) => ({\n  fc_task_id: Number(task.id),\n  fc_project_id: task.project?.id ?? null,\n  fc_client_id: task.project?.client?.id ?? null,\n  title: task.title,\n  project_title: task.project?.title ?? null,\n  client_name: task.project?.client?.name ?? null,\n  user_name: task.user?.name ?? null,\n  completed_by_name: task.completed_by?.name ?? null,\n  is_completed: Boolean(task.is_completed),\n  completed_at: task.completed_at ?? null,\n  due_date: task.due_date ?? null,\n  created_at: task.created_at ?? null,\n  updated_at: task.updated_at ?? null,\n  raw: task,\n  last_seen_at: lastSeenAt,\n}));\nreturn [{ json: { rows, fcTaskCount: rows.length, sample: rows.slice(0, 5) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        0
+      ],
+      "id": "2f417b47-80c3-447f-bca7-82270047679e",
+      "name": "Map Completed FC Tasks"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_tasks?on_conflict=fc_task_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2320,
+        0
+      ],
+      "id": "86024f99-6ed7-4d18-ad05-7803e1704ca4",
+      "name": "Upsert Completed FC Tasks",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const taskRows = $input.all().map((item) => item.json);\nreturn [{\n  json: {\n    status: 'ok',\n    syncedCompletedTaskCount: taskRows.length,\n    note: 'Clients and projects were upserted earlier in the workflow. Review profit_fc_completed_task_review before loading recognition triggers.',\n    sampleTasks: taskRows.slice(0, 10),\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2580,
+        0
+      ],
+      "id": "fb43fd33-7284-417c-ab02-1df76a8b1fee",
+      "name": "Summarize FC Sync"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch FC Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch FC Clients": {
+      "main": [
+        [
+          {
+            "node": "Map FC Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map FC Clients": {
+      "main": [
+        [
+          {
+            "node": "Upsert FC Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert FC Clients": {
+      "main": [
+        [
+          {
+            "node": "Fetch FC Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch FC Projects": {
+      "main": [
+        [
+          {
+            "node": "Map FC Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map FC Projects": {
+      "main": [
+        [
+          {
+            "node": "Upsert FC Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert FC Projects": {
+      "main": [
+        [
+          {
+            "node": "Fetch Completed FC Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Completed FC Tasks": {
+      "main": [
+        [
+          {
+            "node": "Map Completed FC Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Completed FC Tasks": {
+      "main": [
+        [
+          {
+            "node": "Upsert Completed FC Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Completed FC Tasks": {
+      "main": [
+        [
+          {
+            "node": "Summarize FC Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

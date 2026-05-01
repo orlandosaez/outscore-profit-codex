@@ -15,6 +15,7 @@ Current contents:
 - `supabase/sql/003_profit_gp_invoice_basis_views.sql` — first directional GP rollup views; invoice-basis, not recognition-basis.
 - `supabase/sql/004_profit_revenue_events.sql` — recognition candidate ledger and recognition-basis GP views.
 - `supabase/sql/005_profit_recognition_triggers.sql` — completion trigger ledger and ready-for-recognition view.
+- `supabase/sql/006_profit_financial_cents_sync.sql` — Financial Cents raw sync tables and completed-task review view.
 - Root CSV/XLSX files — current source exports used for data audit and initial mapping.
 - `timesheets/` — uploaded staff timesheet samples for parser design and historical ingestion.
 
@@ -41,3 +42,4 @@ It also writes `build/time_entry_anchor_matches_load.json` for n8n/Supabase REST
 The revenue classifier writes ignored local outputs to `build/anchor_line_item_classifications_review.csv` and `build/anchor_line_item_classifications_load.sql`.
 Revenue event candidates are loaded dynamically through n8n workflow `Profit - 15 Load Revenue Event Candidates`; do not hand-load rows into Supabase for the live process.
 Recognition triggers should be loaded into `profit_recognition_triggers`; n8n workflow `Profit - 16 Apply Recognition Triggers` applies only rows exposed by the ready view.
+Financial Cents raw sync starts with n8n workflow `Profit - 17 Financial Cents Sync`; it needs a `Financial Cents API - Production` HTTP Header Auth credential before it can run.

@@ -34,6 +34,19 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("recognized_amount_to_apply", serialized)
         self.assertIn("recognized_by_completion_trigger", serialized)
 
+    def test_financial_cents_sync_workflow_fetches_fc_resources_and_upserts_raw_tables(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-17-financial-cents-sync.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertIn("https://app.financial-cents.com/api/v1/clients", serialized)
+        self.assertIn("https://app.financial-cents.com/api/v1/projects", serialized)
+        self.assertIn("https://app.financial-cents.com/api/v1/tasks", serialized)
+        self.assertIn("profit_fc_clients?on_conflict=fc_client_id", serialized)
+        self.assertIn("profit_fc_projects?on_conflict=fc_project_id", serialized)
+        self.assertIn("profit_fc_tasks?on_conflict=fc_task_id", serialized)
+        self.assertIn("Financial Cents API - Production", serialized)
+
 
 if __name__ == "__main__":
     unittest.main()
