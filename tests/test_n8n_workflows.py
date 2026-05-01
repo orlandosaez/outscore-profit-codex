@@ -42,10 +42,43 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("https://app.financial-cents.com/api/v1/clients", serialized)
         self.assertIn("https://app.financial-cents.com/api/v1/projects", serialized)
         self.assertIn("https://app.financial-cents.com/api/v1/tasks", serialized)
+        self.assertNotIn("order_by=updated_at", serialized)
         self.assertIn("profit_fc_clients?on_conflict=fc_client_id", serialized)
         self.assertIn("profit_fc_projects?on_conflict=fc_project_id", serialized)
         self.assertIn("profit_fc_tasks?on_conflict=fc_task_id", serialized)
         self.assertIn("Financial Cents API - Production", serialized)
+
+    def test_financial_cents_sync_collapses_supabase_upserts_before_next_fc_call(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-17-financial-cents-sync.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        connections = workflow["connections"]
+
+        self.assertEqual(
+            connections["Upsert FC Clients"]["main"][0][0]["node"],
+            "Summarize FC Client Upsert",
+        )
+        self.assertEqual(
+            connections["Summarize FC Client Upsert"]["main"][0][0]["node"],
+            "Fetch FC Projects",
+        )
+        self.assertEqual(
+            connections["Upsert FC Projects"]["main"][0][0]["node"],
+            "Summarize FC Project Upsert",
+        )
+        self.assertEqual(
+            connections["Summarize FC Project Upsert"]["main"][0][0]["node"],
+            "Fetch Completed FC Tasks",
+        )
+
+    def test_financial_cents_inspect_workflow_reads_fc_sync_tables(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-18-financial-cents-sync-inspect.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertIn("profit_fc_clients?select=fc_client_id", serialized)
+        self.assertIn("profit_fc_projects?select=fc_project_id", serialized)
+        self.assertIn("profit_fc_tasks?select=fc_task_id", serialized)
+        self.assertIn("fcClientCount", serialized)
 
 
 if __name__ == "__main__":

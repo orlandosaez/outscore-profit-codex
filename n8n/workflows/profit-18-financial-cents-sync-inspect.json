@@ -1,0 +1,194 @@
+{
+  "id": "Bc9pN2wKu5dHr7xM",
+  "name": "Profit - 18 Financial Cents Sync Inspect",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e9dcab68-dfb5-4c89-9028-32f70d90de7c",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_clients?select=fc_client_id,name&limit=10000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        -160
+      ],
+      "id": "a1851242-0639-467d-9491-63e981240ad7",
+      "name": "Fetch FC Client Rows",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const clients = $input.all().map((item) => item.json);\nreturn [{ json: { fcClientCount: clients.length, sampleClients: clients.slice(0, 5) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        -160
+      ],
+      "id": "bf35a24c-4975-4068-a869-d853ed56454f",
+      "name": "Summarize FC Client Rows"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_projects?select=fc_project_id,title&limit=10000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "c60e7303-588e-4b31-9529-f0a7a356ac77",
+      "name": "Fetch FC Project Rows",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const projects = $input.all().map((item) => item.json);\nreturn [{ json: { fcProjectCount: projects.length, sampleProjects: projects.slice(0, 5) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "d2e35a80-00b8-46cc-ba94-d630ca699b94",
+      "name": "Summarize FC Project Rows"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_tasks?select=fc_task_id,title&limit=10000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        160
+      ],
+      "id": "cfc838b8-9563-4f29-b5ef-bfd1d1b6a0be",
+      "name": "Fetch FC Task Rows",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientSummary = $('Summarize FC Client Rows').first().json;\nconst projectSummary = $('Summarize FC Project Rows').first().json;\nconst tasks = $input.all().map((item) => item.json);\n\nreturn [{\n  json: {\n    status: 'ok',\n    fcClientCount: clientSummary.fcClientCount,\n    fcProjectCount: projectSummary.fcProjectCount,\n    fcTaskCount: tasks.length,\n    sampleClients: clientSummary.sampleClients,\n    sampleProjects: projectSummary.sampleProjects,\n    sampleTasks: tasks.slice(0, 5),\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        160
+      ],
+      "id": "e4eb0f77-b39e-4421-a3d1-36f19937c726",
+      "name": "Summarize FC Sync Tables"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch FC Client Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch FC Client Rows": {
+      "main": [
+        [
+          {
+            "node": "Summarize FC Client Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize FC Client Rows": {
+      "main": [
+        [
+          {
+            "node": "Fetch FC Project Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch FC Project Rows": {
+      "main": [
+        [
+          {
+            "node": "Summarize FC Project Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize FC Project Rows": {
+      "main": [
+        [
+          {
+            "node": "Fetch FC Task Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch FC Task Rows": {
+      "main": [
+        [
+          {
+            "node": "Summarize FC Sync Tables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

@@ -175,7 +175,33 @@
     },
     {
       "parameters": {
-        "url": "https://app.financial-cents.com/api/v1/tasks?status=completed&order_by=updated_at&order_dir=desc&page=1",
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [{\n  json: {\n    status: 'ok',\n    upsertedFcClientCount: rows.length,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        0
+      ],
+      "id": "44181816-9b31-4305-a70c-5bfbbac41248",
+      "name": "Summarize FC Client Upsert"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [{\n  json: {\n    status: 'ok',\n    upsertedFcProjectCount: rows.length,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        0
+      ],
+      "id": "ef468536-2705-4fce-99a2-e6c02b02c016",
+      "name": "Summarize FC Project Upsert"
+    },
+    {
+      "parameters": {
+        "url": "https://app.financial-cents.com/api/v1/tasks?status=completed&order_by=due_date&order_dir=desc&page=1",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -305,6 +331,17 @@
       "main": [
         [
           {
+            "node": "Summarize FC Client Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize FC Client Upsert": {
+      "main": [
+        [
+          {
             "node": "Fetch FC Projects",
             "type": "main",
             "index": 0
@@ -335,6 +372,17 @@
       ]
     },
     "Upsert FC Projects": {
+      "main": [
+        [
+          {
+            "node": "Summarize FC Project Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize FC Project Upsert": {
       "main": [
         [
           {
