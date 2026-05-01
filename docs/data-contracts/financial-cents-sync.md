@@ -25,9 +25,9 @@ The FC API docs confirm:
 
 The workflow reads:
 
-- `GET /clients?page=1`
-- `GET /projects?page=1`
-- `GET /tasks?status=completed&page=1`
+- `GET /clients`, pages 1-10
+- `GET /projects`, pages 1-50
+- `GET /tasks?status=completed`, pages 1-100 ordered by due date descending
 
 The workflow upserts:
 
@@ -35,7 +35,7 @@ The workflow upserts:
 - `profit_fc_projects`
 - `profit_fc_tasks`
 
-Initial live sync scope is intentionally first-page only. Add pagination before scheduling this as the production trigger source.
+Pagination is intentionally bounded and FC request nodes are batched at 10 requests per 8 seconds to stay under live rate limits. Raise the caps if the inspect workflow shows counts hitting the cap.
 
 ## Inspect Workflow
 

@@ -48,17 +48,53 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("profit_fc_tasks?on_conflict=fc_task_id", serialized)
         self.assertIn("Financial Cents API - Production", serialized)
 
+    def test_financial_cents_sync_uses_bounded_pagination_and_flattens_pages(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-17-financial-cents-sync.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        nodes_by_name = {node["name"]: node for node in workflow["nodes"]}
+
+        self.assertIn("Build FC Client Page Requests", nodes_by_name)
+        self.assertIn("Build FC Project Page Requests", nodes_by_name)
+        self.assertIn("Build Completed FC Task Page Requests", nodes_by_name)
+        self.assertIn("Array.from({ length: maxPages }", json.dumps(nodes_by_name["Build FC Client Page Requests"]))
+        self.assertIn("$json.page", nodes_by_name["Fetch FC Clients"]["parameters"]["url"])
+        self.assertIn("$json.page", nodes_by_name["Fetch FC Projects"]["parameters"]["url"])
+        self.assertIn("$json.page", nodes_by_name["Fetch Completed FC Tasks"]["parameters"]["url"])
+        self.assertTrue(nodes_by_name["Fetch FC Clients"]["parameters"]["url"].startswith("={{"))
+        self.assertTrue(nodes_by_name["Fetch FC Projects"]["parameters"]["url"].startswith("={{"))
+        self.assertTrue(nodes_by_name["Fetch Completed FC Tasks"]["parameters"]["url"].startswith("={{"))
+        self.assertIn("$input.all().flatMap", nodes_by_name["Map FC Clients"]["parameters"]["jsCode"])
+        self.assertIn("$input.all().flatMap", nodes_by_name["Map FC Projects"]["parameters"]["jsCode"])
+        self.assertIn("$input.all().flatMap", nodes_by_name["Map Completed FC Tasks"]["parameters"]["jsCode"])
+
+        for node_name in ("Fetch FC Clients", "Fetch FC Projects", "Fetch Completed FC Tasks"):
+            batching = nodes_by_name[node_name]["parameters"]["options"]["batching"]["batch"]
+            self.assertLessEqual(batching["batchSize"], 10)
+            self.assertGreaterEqual(batching["batchInterval"], 8000)
+
     def test_financial_cents_sync_collapses_supabase_upserts_before_next_fc_call(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-17-financial-cents-sync.json"
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
         connections = workflow["connections"]
 
         self.assertEqual(
+            connections["Manual Trigger"]["main"][0][0]["node"],
+            "Build FC Client Page Requests",
+        )
+        self.assertEqual(
+            connections["Build FC Client Page Requests"]["main"][0][0]["node"],
+            "Fetch FC Clients",
+        )
+        self.assertEqual(
             connections["Upsert FC Clients"]["main"][0][0]["node"],
             "Summarize FC Client Upsert",
         )
         self.assertEqual(
             connections["Summarize FC Client Upsert"]["main"][0][0]["node"],
+            "Build FC Project Page Requests",
+        )
+        self.assertEqual(
+            connections["Build FC Project Page Requests"]["main"][0][0]["node"],
             "Fetch FC Projects",
         )
         self.assertEqual(
@@ -67,6 +103,10 @@ class N8nWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(
             connections["Summarize FC Project Upsert"]["main"][0][0]["node"],
+            "Build Completed FC Task Page Requests",
+        )
+        self.assertEqual(
+            connections["Build Completed FC Task Page Requests"]["main"][0][0]["node"],
             "Fetch Completed FC Tasks",
         )
 

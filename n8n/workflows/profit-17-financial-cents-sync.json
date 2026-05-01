@@ -15,7 +15,7 @@
     },
     {
       "parameters": {
-        "url": "https://app.financial-cents.com/api/v1/clients?order_by=name&order_dir=asc&page=1",
+        "url": "={{ 'https://app.financial-cents.com/api/v1/clients?order_by=name&order_dir=asc&page=' + $json.page }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -27,12 +27,19 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 10,
+              "batchInterval": 8000
+            }
+          }
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        240,
+        460,
         0
       ],
       "id": "e8acae7a-ac6d-4538-a962-a234e890b89c",
@@ -46,12 +53,12 @@
     },
     {
       "parameters": {
-        "jsCode": "const root = $input.first().json;\nconst clients = Array.isArray(root.data) ? root.data : [];\nconst lastSeenAt = new Date().toISOString();\nconst rows = clients.map((client) => ({\n  fc_client_id: Number(client.id),\n  company_id: client.company_id ?? null,\n  name: client.name,\n  is_archived: client.is_archived ?? null,\n  archived_at: client.archived_at ?? null,\n  created_at: client.created_at ?? null,\n  updated_at: client.updated_at ?? null,\n  raw: client,\n  last_seen_at: lastSeenAt,\n}));\nreturn [{ json: { rows, fcClientCount: rows.length, sample: rows.slice(0, 5) } }];\n"
+        "jsCode": "const clients = $input.all().flatMap((item) => Array.isArray(item.json.data) ? item.json.data : []);\nconst lastSeenAt = new Date().toISOString();\nconst rows = clients.map((client) => ({\n  fc_client_id: Number(client.id),\n  company_id: client.company_id ?? null,\n  name: client.name,\n  is_archived: client.is_archived ?? null,\n  archived_at: client.archived_at ?? null,\n  created_at: client.created_at ?? null,\n  updated_at: client.updated_at ?? null,\n  raw: client,\n  last_seen_at: lastSeenAt,\n}));\nreturn [{ json: { rows, fcClientCount: rows.length, sample: rows.slice(0, 5) } }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        500,
+        720,
         0
       ],
       "id": "e4ad7a18-21f4-43a1-9580-cfbc740c763a",
@@ -81,7 +88,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        760,
+        980,
         0
       ],
       "id": "c7d53d35-b729-42ac-b172-1284d15e89e7",
@@ -95,7 +102,7 @@
     },
     {
       "parameters": {
-        "url": "https://app.financial-cents.com/api/v1/projects?page=1",
+        "url": "={{ 'https://app.financial-cents.com/api/v1/projects?page=' + $json.page }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -107,12 +114,19 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 10,
+              "batchInterval": 8000
+            }
+          }
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1020,
+        1380,
         0
       ],
       "id": "1996850d-89e4-4b31-aa22-b91d9ca14fa8",
@@ -126,12 +140,12 @@
     },
     {
       "parameters": {
-        "jsCode": "function dateOnly(value) {\n  if (!value) return null;\n  const date = new Date(value);\n  if (Number.isNaN(date.getTime())) return null;\n  return date.toISOString().slice(0, 10);\n}\nconst root = $input.first().json;\nconst projects = Array.isArray(root.data) ? root.data : [];\nconst lastSeenAt = new Date().toISOString();\nconst rows = projects.map((project) => ({\n  fc_project_id: Number(project.id),\n  fc_client_id: project.client?.id ?? project.client_id ?? null,\n  title: project.title,\n  template_id: project.template_id ?? null,\n  service_item_id: project.service_item_id ?? null,\n  is_closed: project.is_closed ?? project.closed ?? null,\n  closed_at: project.closed_at ?? null,\n  start_date: dateOnly(project.start_date),\n  due_date: dateOnly(project.due_date),\n  accounting_period: dateOnly(project.accounting_period),\n  accounting_period_date: dateOnly(project.accounting_period_date),\n  computed_accounting_period: dateOnly(project.computed_accounting_period),\n  created_at: project.created_at ?? null,\n  updated_at: project.updated_at ?? null,\n  raw: project,\n  last_seen_at: lastSeenAt,\n}));\nreturn [{ json: { rows, fcProjectCount: rows.length, sample: rows.slice(0, 5) } }];\n"
+        "jsCode": "function dateOnly(value) {\n  if (!value) return null;\n  const date = new Date(value);\n  if (Number.isNaN(date.getTime())) return null;\n  return date.toISOString().slice(0, 10);\n}\nconst projects = $input.all().flatMap((item) => Array.isArray(item.json.data) ? item.json.data : []);\nconst lastSeenAt = new Date().toISOString();\nconst rows = projects.map((project) => ({\n  fc_project_id: Number(project.id),\n  fc_client_id: project.client?.id ?? project.client_id ?? null,\n  title: project.title,\n  template_id: project.template_id ?? null,\n  service_item_id: project.service_item_id ?? null,\n  is_closed: project.is_closed ?? project.closed ?? null,\n  closed_at: project.closed_at ?? null,\n  start_date: dateOnly(project.start_date),\n  due_date: dateOnly(project.due_date),\n  accounting_period: dateOnly(project.accounting_period),\n  accounting_period_date: dateOnly(project.accounting_period_date),\n  computed_accounting_period: dateOnly(project.computed_accounting_period),\n  created_at: project.created_at ?? null,\n  updated_at: project.updated_at ?? null,\n  raw: project,\n  last_seen_at: lastSeenAt,\n}));\nreturn [{ json: { rows, fcProjectCount: rows.length, sample: rows.slice(0, 5) } }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1280,
+        1640,
         0
       ],
       "id": "8407ab79-0d16-4147-a56e-74d8d6a46e36",
@@ -161,7 +175,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1540,
+        1900,
         0
       ],
       "id": "50f1c7e6-ad90-467d-ba8f-8d9e620893db",
@@ -180,7 +194,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        900,
+        1080,
         0
       ],
       "id": "44181816-9b31-4305-a70c-5bfbbac41248",
@@ -193,7 +207,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
+        2000,
         0
       ],
       "id": "ef468536-2705-4fce-99a2-e6c02b02c016",
@@ -201,7 +215,7 @@
     },
     {
       "parameters": {
-        "url": "https://app.financial-cents.com/api/v1/tasks?status=completed&order_by=due_date&order_dir=desc&page=1",
+        "url": "={{ 'https://app.financial-cents.com/api/v1/tasks?status=completed&order_by=due_date&order_dir=desc&page=' + $json.page }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -213,12 +227,19 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 10,
+              "batchInterval": 8000
+            }
+          }
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1800,
+        2220,
         0
       ],
       "id": "aeb0cbe6-4d25-40b2-8e73-d55110f14c35",
@@ -232,12 +253,12 @@
     },
     {
       "parameters": {
-        "jsCode": "const root = $input.first().json;\nconst tasks = Array.isArray(root.data) ? root.data : [];\nconst lastSeenAt = new Date().toISOString();\nconst rows = tasks.map((task) => ({\n  fc_task_id: Number(task.id),\n  fc_project_id: task.project?.id ?? null,\n  fc_client_id: task.project?.client?.id ?? null,\n  title: task.title,\n  project_title: task.project?.title ?? null,\n  client_name: task.project?.client?.name ?? null,\n  user_name: task.user?.name ?? null,\n  completed_by_name: task.completed_by?.name ?? null,\n  is_completed: Boolean(task.is_completed),\n  completed_at: task.completed_at ?? null,\n  due_date: task.due_date ?? null,\n  created_at: task.created_at ?? null,\n  updated_at: task.updated_at ?? null,\n  raw: task,\n  last_seen_at: lastSeenAt,\n}));\nreturn [{ json: { rows, fcTaskCount: rows.length, sample: rows.slice(0, 5) } }];\n"
+        "jsCode": "const tasks = $input.all().flatMap((item) => Array.isArray(item.json.data) ? item.json.data : []);\nconst lastSeenAt = new Date().toISOString();\nconst rows = tasks.map((task) => ({\n  fc_task_id: Number(task.id),\n  fc_project_id: task.project?.id ?? null,\n  fc_client_id: task.project?.client?.id ?? null,\n  title: task.title,\n  project_title: task.project?.title ?? null,\n  client_name: task.project?.client?.name ?? null,\n  user_name: task.user?.name ?? null,\n  completed_by_name: task.completed_by?.name ?? null,\n  is_completed: Boolean(task.is_completed),\n  completed_at: task.completed_at ?? null,\n  due_date: task.due_date ?? null,\n  created_at: task.created_at ?? null,\n  updated_at: task.updated_at ?? null,\n  raw: task,\n  last_seen_at: lastSeenAt,\n}));\nreturn [{ json: { rows, fcTaskCount: rows.length, sample: rows.slice(0, 5) } }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2060,
+        2480,
         0
       ],
       "id": "2f417b47-80c3-447f-bca7-82270047679e",
@@ -267,7 +288,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2320,
+        2740,
         0
       ],
       "id": "86024f99-6ed7-4d18-ad05-7803e1704ca4",
@@ -286,11 +307,50 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2580,
+        3000,
         0
       ],
       "id": "fb43fd33-7284-417c-ab02-1df76a8b1fee",
       "name": "Summarize FC Sync"
+    },
+    {
+      "parameters": {
+        "jsCode": "const maxPages = 10;\nreturn Array.from({ length: maxPages }, (_, index) => ({\n  json: { page: index + 1 },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "4731fc3d-37b0-46bb-a144-b01653b1fa1d",
+      "name": "Build FC Client Page Requests"
+    },
+    {
+      "parameters": {
+        "jsCode": "const maxPages = 50;\nreturn Array.from({ length: maxPages }, (_, index) => ({\n  json: { page: index + 1 },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        0
+      ],
+      "id": "d50cf817-51c4-44fe-a07c-3fa179d0689c",
+      "name": "Build FC Project Page Requests"
+    },
+    {
+      "parameters": {
+        "jsCode": "const maxPages = 100;\nreturn Array.from({ length: maxPages }, (_, index) => ({\n  json: { page: index + 1 },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        0
+      ],
+      "id": "20f03873-a9cb-4236-9563-15985ec878f5",
+      "name": "Build Completed FC Task Page Requests"
     }
   ],
   "connections": {
@@ -298,7 +358,7 @@
       "main": [
         [
           {
-            "node": "Fetch FC Clients",
+            "node": "Build FC Client Page Requests",
             "type": "main",
             "index": 0
           }
@@ -342,7 +402,7 @@
       "main": [
         [
           {
-            "node": "Fetch FC Projects",
+            "node": "Build FC Project Page Requests",
             "type": "main",
             "index": 0
           }
@@ -386,7 +446,7 @@
       "main": [
         [
           {
-            "node": "Fetch Completed FC Tasks",
+            "node": "Build Completed FC Task Page Requests",
             "type": "main",
             "index": 0
           }
@@ -420,6 +480,39 @@
         [
           {
             "node": "Summarize FC Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build FC Client Page Requests": {
+      "main": [
+        [
+          {
+            "node": "Fetch FC Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build FC Project Page Requests": {
+      "main": [
+        [
+          {
+            "node": "Fetch FC Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Completed FC Task Page Requests": {
+      "main": [
+        [
+          {
+            "node": "Fetch Completed FC Tasks",
             "type": "main",
             "index": 0
           }
