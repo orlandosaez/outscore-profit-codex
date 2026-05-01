@@ -1,0 +1,151 @@
+{
+  "id": "Rx7qT4mHy2nKp9vS",
+  "name": "Profit - 16 Apply Recognition Triggers",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "41d5fe36-5f59-42ed-85b4-3c4b6f1b4bd4",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_revenue_events_ready_for_recognition?select=*&order=recognition_date_to_apply.asc&limit=5000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "8414a3c7-1743-4c58-9f59-964fdd0a4215",
+      "name": "Fetch Ready Revenue Events",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const readyRows = $input.all().map((item) => item.json);\nconst rows = readyRows.map((row) => ({\n  revenue_event_key: row.revenue_event_key,\n  anchor_line_item_id: row.anchor_line_item_id ?? null,\n  anchor_invoice_id: row.anchor_invoice_id,\n  anchor_relationship_id: row.anchor_relationship_id ?? null,\n  macro_service_type: row.macro_service_type,\n  source_amount: Number(row.source_amount ?? 0),\n  recognized_amount: Number(row.recognized_amount_to_apply ?? 0),\n  recognition_status: row.next_recognition_status ?? 'recognized_by_completion_trigger',\n  recognition_rule: row.recognition_rule,\n  candidate_period_month: row.candidate_period_month ?? null,\n  recognition_date: row.recognition_date_to_apply,\n  recognition_period_month: row.recognition_period_month_to_apply,\n  trigger_source: row.source_system,\n  trigger_reference: row.trigger_reference_to_apply,\n  notes: `Recognized by ${row.trigger_type} trigger ${row.recognition_trigger_key}.`,\n  loaded_at: new Date().toISOString(),\n}));\n\nconst recognizedAmount = rows.reduce((sum, row) => sum + Number(row.recognized_amount ?? 0), 0);\nconst byMacro = rows.reduce((acc, row) => {\n  acc[row.macro_service_type] = (acc[row.macro_service_type] ?? 0) + 1;\n  return acc;\n}, {});\n\nreturn [\n  {\n    json: {\n      rows,\n      summary: {\n        readyRevenueEventCount: rows.length,\n        recognizedAmount: Math.round(recognizedAmount * 100) / 100,\n        byMacro,\n      },\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "474d4617-c3d8-40d8-b912-dc9606c55043",
+      "name": "Build Recognition Updates"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_revenue_events?on_conflict=revenue_event_key",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "77dab628-00e1-4528-a0c4-b12871c4505d",
+      "name": "Upsert Recognized Revenue Events",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst recognizedAmount = rows.reduce((sum, row) => sum + Number(row.recognized_amount ?? 0), 0);\nconst byMacro = rows.reduce((acc, row) => {\n  acc[row.macro_service_type] = (acc[row.macro_service_type] ?? 0) + 1;\n  return acc;\n}, {});\n\nreturn [\n  {\n    json: {\n      status: 'ok',\n      appliedRevenueEventCount: rows.length,\n      recognizedAmount: Math.round(recognizedAmount * 100) / 100,\n      byMacro,\n      sample: rows.slice(0, 10),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "ed06ed9a-4ba5-417e-82cc-38d76e1ef77d",
+      "name": "Summarize Recognition Apply"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Ready Revenue Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Ready Revenue Events": {
+      "main": [
+        [
+          {
+            "node": "Build Recognition Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Recognition Updates": {
+      "main": [
+        [
+          {
+            "node": "Upsert Recognized Revenue Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Recognized Revenue Events": {
+      "main": [
+        [
+          {
+            "node": "Summarize Recognition Apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

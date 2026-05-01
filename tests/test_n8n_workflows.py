@@ -24,6 +24,16 @@ class N8nWorkflowTests(unittest.TestCase):
             "Supabase REST filters should name a real column, not a stray q parameter.",
         )
 
+    def test_apply_recognition_triggers_workflow_reads_ready_view_and_updates_events(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-16-apply-recognition-triggers.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertIn("profit_revenue_events_ready_for_recognition", serialized)
+        self.assertIn("profit_revenue_events?on_conflict=revenue_event_key", serialized)
+        self.assertIn("recognized_amount_to_apply", serialized)
+        self.assertIn("recognized_by_completion_trigger", serialized)
+
 
 if __name__ == "__main__":
     unittest.main()
