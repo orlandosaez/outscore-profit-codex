@@ -81,6 +81,20 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("kickerAccrualCount", serialized)
         self.assertIn("w2FlagCount", serialized)
 
+    def test_admin_dashboard_inspect_workflow_reads_dashboard_views(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-23-admin-dashboard-inspect.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertIn("profit_admin_company_dashboard_summary", serialized)
+        self.assertIn("profit_admin_client_gp_dashboard", serialized)
+        self.assertIn("profit_admin_staff_gp_dashboard", serialized)
+        self.assertIn("profit_admin_comp_kicker_ledger", serialized)
+        self.assertIn("profit_admin_w2_candidates", serialized)
+        self.assertIn("profit_admin_fc_trigger_queue", serialized)
+        self.assertIn("clientGpRowCount", serialized)
+        self.assertIn("staffGpRowCount", serialized)
+
     def test_financial_cents_sync_workflow_fetches_fc_resources_and_upserts_raw_tables(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-17-financial-cents-sync.json"
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))

@@ -1,0 +1,365 @@
+{
+  "id": "La9fC2pDs7vQm5xE",
+  "name": "Profit - 23 Admin Dashboard Inspect",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "7fed64c9-553c-4afd-8070-332ea13e4b4e",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_admin_company_dashboard_summary?select=*",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "7e46a796-e8fa-43fa-bb6d-cc126cc55677",
+      "name": "Fetch Company Dashboard Summary",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { companySummary: $input.first()?.json ?? null } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "60b04b61-6ba8-4817-85c0-6f84c44b460d",
+      "name": "Summarize Company Dashboard"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_admin_client_gp_dashboard?select=*&order=period_month.desc,low_gp_rank.asc&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "3d760c23-27f2-40e8-83fd-ee07d95f2975",
+      "name": "Fetch Client GP Dashboard",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [{ json: { clientGpRowCount: rows.length, clientGpRows: rows.slice(0, 25) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "d06824a8-34f1-4af5-8d88-e65679226a7b",
+      "name": "Summarize Client GP Dashboard"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_admin_staff_gp_dashboard?select=*&order=period_month.desc,staff_name.asc&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        0
+      ],
+      "id": "4388ccdb-1996-4053-9824-3086d03d2f30",
+      "name": "Fetch Staff GP Dashboard",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [{ json: { staffGpRowCount: rows.length, staffGpRows: rows.slice(0, 25) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        0
+      ],
+      "id": "27b15daf-df07-4b07-8ba0-c798eaefad51",
+      "name": "Summarize Staff GP Dashboard"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_admin_comp_kicker_ledger?select=*&order=period_month.desc,staff_name.asc&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        0
+      ],
+      "id": "43fb60e8-bdd0-4d52-9572-fce8e3ecdbde",
+      "name": "Fetch Comp Kicker Ledger",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [{ json: { compKickerLedgerCount: rows.length, compKickerRows: rows.slice(0, 25) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        0
+      ],
+      "id": "e8c9fbca-b6e1-4026-8ccd-7ed90aed69d4",
+      "name": "Summarize Comp Kicker Ledger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_admin_w2_candidates?select=*&order=period_month.desc,staff_name.asc&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2340,
+        0
+      ],
+      "id": "749ac96a-7d95-4bdf-af06-9927d4d88daa",
+      "name": "Fetch W2 Candidates",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [{ json: { w2CandidateCount: rows.length, w2CandidateRows: rows.slice(0, 25) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        0
+      ],
+      "id": "3733d9a2-5c30-432d-9b48-0dcb5e8f2271",
+      "name": "Summarize W2 Candidates"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_admin_fc_trigger_queue?select=approval_status,trigger_load_status,suggested_trigger_type,client_name,project_title,task_title,completed_at&order=completed_at.desc&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2860,
+        0
+      ],
+      "id": "d0f0fe26-3678-4eaa-8833-558057db9bf9",
+      "name": "Fetch FC Trigger Queue",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst company = $('Summarize Company Dashboard').first().json;\nconst clientGp = $('Summarize Client GP Dashboard').first().json;\nconst staffGp = $('Summarize Staff GP Dashboard').first().json;\nconst comp = $('Summarize Comp Kicker Ledger').first().json;\nconst w2 = $('Summarize W2 Candidates').first().json;\nconst byQueueStatus = rows.reduce((acc, row) => {\n  const key = `${row.approval_status ?? 'unknown'}:${row.trigger_load_status ?? 'unknown'}`;\n  acc[key] = (acc[key] ?? 0) + 1;\n  return acc;\n}, {});\nreturn [{\n  json: {\n    status: 'ok',\n    ...company,\n    ...clientGp,\n    ...staffGp,\n    ...comp,\n    ...w2,\n    fcTriggerQueueRowCount: rows.length,\n    fcTriggerQueueByStatus: byQueueStatus,\n    fcTriggerQueueRows: rows.slice(0, 25),\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        0
+      ],
+      "id": "ba03f743-9e7d-4c49-880e-419f202b1ce8",
+      "name": "Summarize Admin Dashboard Inspect"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Company Dashboard Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Company Dashboard Summary": {
+      "main": [
+        [
+          {
+            "node": "Summarize Company Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Company Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Fetch Client GP Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Client GP Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Summarize Client GP Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Client GP Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Fetch Staff GP Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Staff GP Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Summarize Staff GP Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Staff GP Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Fetch Comp Kicker Ledger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Comp Kicker Ledger": {
+      "main": [
+        [
+          {
+            "node": "Summarize Comp Kicker Ledger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Comp Kicker Ledger": {
+      "main": [
+        [
+          {
+            "node": "Fetch W2 Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch W2 Candidates": {
+      "main": [
+        [
+          {
+            "node": "Summarize W2 Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize W2 Candidates": {
+      "main": [
+        [
+          {
+            "node": "Fetch FC Trigger Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch FC Trigger Queue": {
+      "main": [
+        [
+          {
+            "node": "Summarize Admin Dashboard Inspect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

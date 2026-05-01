@@ -18,6 +18,7 @@ Current contents:
 - `supabase/sql/006_profit_financial_cents_sync.sql` — Financial Cents raw sync tables and completed-task review view.
 - `supabase/sql/007_profit_fc_trigger_loader.sql` — FC task approval, candidate, and approved-trigger loader views.
 - `supabase/sql/008_profit_comp_w2.sql` — comp plan config, staff kicker accruals, and W2 conversion flag views.
+- `supabase/sql/009_profit_admin_dashboard_views.sql` — stable admin dashboard read views over recognition, comp, W2, and FC trigger data.
 - Root CSV/XLSX files — current source exports used for data audit and initial mapping.
 - `timesheets/` — uploaded staff timesheet samples for parser design and historical ingestion.
 
@@ -48,3 +49,4 @@ Financial Cents raw sync starts with n8n workflow `Profit - 17 Financial Cents S
 Approved FC task completions are loaded into `profit_recognition_triggers` through n8n workflow `Profit - 19 Load FC Completion Triggers`; run `supabase/sql/007_profit_fc_trigger_loader.sql` first.
 Use `Profit - 20 FC Completion Trigger Inspect` to review FC trigger candidates and `Profit - 21 Approve Matched FC Tax Filed Triggers` for the conservative matched-tax-filed starter approval path.
 Comp/W2 reporting starts with `supabase/sql/008_profit_comp_w2.sql` and inspect workflow `Profit - 22 Comp W2 Inspect`.
+Admin dashboard read surfaces start with `supabase/sql/009_profit_admin_dashboard_views.sql` and inspect workflow `Profit - 23 Admin Dashboard Inspect`.

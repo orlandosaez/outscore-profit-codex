@@ -39,6 +39,7 @@ class FinancialCentsSqlTests(unittest.TestCase):
         self.assertIn("macro_service_type is not null", sql)
         self.assertIn("provision", sql)
         self.assertIn("not ilike '%provision%'", sql)
+        self.assertIn("file the tax return", sql)
 
 
 if __name__ == "__main__":

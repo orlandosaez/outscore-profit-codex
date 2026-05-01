@@ -57,7 +57,9 @@ select
       and task.title not ilike '%setup%'
       and (task.title ilike '%processed%' or task.title ilike '%process payroll%') then 'payroll_processed'
     when task.title ilike '%extension%' and task.title ilike '%file%' then 'tax_extension_filed'
-    when task.title ilike '%file tax return%' or task.title ilike '%file return%' then 'tax_filed'
+    when task.title ilike '%file tax return%'
+      or task.title ilike '%file the tax return%'
+      or task.title ilike '%file return%' then 'tax_filed'
     else 'manual_review'
   end as suggested_trigger_type,
   case
