@@ -13,6 +13,7 @@ Current contents:
 - `scripts/classify_anchor_revenue_lines.py` — classifies synced Anchor invoice line items into macro service buckets and generates review/load files.
 - `supabase/sql/` — one-time Supabase schema migrations; dynamic row loads happen through n8n/Supabase REST.
 - `supabase/sql/003_profit_gp_invoice_basis_views.sql` — first directional GP rollup views; invoice-basis, not recognition-basis.
+- `supabase/sql/004_profit_revenue_events.sql` — recognition candidate ledger and recognition-basis GP views.
 - Root CSV/XLSX files — current source exports used for data audit and initial mapping.
 - `timesheets/` — uploaded staff timesheet samples for parser design and historical ingestion.
 
@@ -37,3 +38,4 @@ The owner matcher writes ignored local outputs to `build/client_service_owner_ma
 The time-entry matcher writes ignored local outputs to `build/time_entry_anchor_matches_review.csv` and `build/time_entry_anchor_matches_summary.json`.
 It also writes `build/time_entry_anchor_matches_load.json` for n8n/Supabase REST backfill loading.
 The revenue classifier writes ignored local outputs to `build/anchor_line_item_classifications_review.csv` and `build/anchor_line_item_classifications_load.sql`.
+Revenue event candidates are loaded dynamically through n8n workflow `Profit - 15 Load Revenue Event Candidates`; do not hand-load rows into Supabase for the live process.
