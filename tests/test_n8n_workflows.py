@@ -69,6 +69,18 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("profit_fc_task_trigger_approvals?on_conflict=fc_task_id", serialized)
         self.assertIn("approval_status: 'approved'", serialized)
 
+    def test_comp_w2_inspect_workflow_reads_comp_and_w2_views(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-22-comp-w2-inspect.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertIn("profit_company_quarterly_gp_gate", serialized)
+        self.assertIn("profit_staff_monthly_kicker_accruals", serialized)
+        self.assertIn("profit_staff_monthly_w2_conversion_flags", serialized)
+        self.assertIn("quarterlyGateCount", serialized)
+        self.assertIn("kickerAccrualCount", serialized)
+        self.assertIn("w2FlagCount", serialized)
+
     def test_financial_cents_sync_workflow_fetches_fc_resources_and_upserts_raw_tables(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-17-financial-cents-sync.json"
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))

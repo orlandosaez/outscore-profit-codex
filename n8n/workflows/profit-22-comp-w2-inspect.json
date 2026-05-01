@@ -1,0 +1,194 @@
+{
+  "id": "Vd3sP8qMf6xRn2kA",
+  "name": "Profit - 22 Comp W2 Inspect",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "f422aecc-f453-42e2-9c40-0b9d560c2ba5",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_company_quarterly_gp_gate?select=*&order=quarter_start.desc&limit=8",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "873d0931-19f6-4050-bc3f-5f33ab63572a",
+      "name": "Fetch Quarterly Gate",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [{\n  json: {\n    quarterlyGateCount: rows.length,\n    latestQuarterGate: rows[0] ?? null,\n    quarterlyGateRows: rows,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "2972ccbd-aed0-4f73-bb92-e77429eb1be5",
+      "name": "Summarize Quarterly Gate"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_staff_monthly_kicker_accruals?select=*&order=period_month.desc,staff_name.asc&limit=200",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "67e1eb34-31a2-43a2-9f2b-47099e0f3442",
+      "name": "Fetch Kicker Accruals",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst byStaff = rows.reduce((acc, row) => {\n  const staff = row.staff_name ?? '(missing)';\n  acc[staff] = (acc[staff] ?? 0) + Number(row.kicker_accrual_amount ?? 0);\n  return acc;\n}, {});\nreturn [{\n  json: {\n    kickerAccrualCount: rows.length,\n    kickerAccrualAmount: Math.round(rows.reduce((sum, row) => sum + Number(row.kicker_accrual_amount ?? 0), 0) * 100) / 100,\n    kickerByStaff: byStaff,\n    kickerRows: rows.slice(0, 50),\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "e3a5b076-cde1-4543-86cd-d117eaa4fba4",
+      "name": "Summarize Kicker Accruals"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_staff_monthly_w2_conversion_flags?select=*&order=period_month.desc,staff_name.asc&limit=200",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        0
+      ],
+      "id": "8b5621e4-76da-41a0-8ce7-c8e31d54ac18",
+      "name": "Fetch W2 Flags",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst byStatus = rows.reduce((acc, row) => {\n  const status = row.w2_flag_status ?? '(missing)';\n  acc[status] = (acc[status] ?? 0) + 1;\n  return acc;\n}, {});\nconst gateSummary = $('Summarize Quarterly Gate').first().json;\nconst kickerSummary = $('Summarize Kicker Accruals').first().json;\nreturn [{\n  json: {\n    status: 'ok',\n    ...gateSummary,\n    ...kickerSummary,\n    w2FlagCount: rows.length,\n    w2ByStatus: byStatus,\n    w2FlagRows: rows.filter((row) => row.w2_flag_status !== 'no_flag').slice(0, 50),\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        0
+      ],
+      "id": "4b23f233-f8db-40aa-b2cc-09118eb69d87",
+      "name": "Summarize Comp W2 Inspect"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Quarterly Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Quarterly Gate": {
+      "main": [
+        [
+          {
+            "node": "Summarize Quarterly Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Quarterly Gate": {
+      "main": [
+        [
+          {
+            "node": "Fetch Kicker Accruals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Kicker Accruals": {
+      "main": [
+        [
+          {
+            "node": "Summarize Kicker Accruals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Kicker Accruals": {
+      "main": [
+        [
+          {
+            "node": "Fetch W2 Flags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch W2 Flags": {
+      "main": [
+        [
+          {
+            "node": "Summarize Comp W2 Inspect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}
