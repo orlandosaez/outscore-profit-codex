@@ -1,0 +1,90 @@
+{
+  "id": "Zm5tR8qBd2vNy6hL",
+  "name": "Profit - 14 Cleanup Future Time Entries",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "6017c426-c5f5-4817-9c0e-c7e1723ed5be",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_time_entries?entry_date=gte.2030-01-01",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "044d2879-2670-4633-8c57-651af1693afa",
+      "name": "Delete Future Time Entries",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [\n  {\n    json: {\n      status: 'ok',\n      deletedCount: rows.length,\n      deletedRows: rows,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "083fbc6a-f0aa-4699-8563-825a3d614ef8",
+      "name": "Summarize Delete"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Delete Future Time Entries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Future Time Entries": {
+      "main": [
+        [
+          {
+            "node": "Summarize Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

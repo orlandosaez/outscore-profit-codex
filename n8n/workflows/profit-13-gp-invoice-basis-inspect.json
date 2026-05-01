@@ -1,0 +1,144 @@
+{
+  "id": "Qr3vL9xPm6sYk2dE",
+  "name": "Profit - 13 GP Invoice Basis Inspect",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "497d5907-7c43-43db-a256-11f57fd5e519",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_company_monthly_gp_invoice_basis?select=*&order=period_month.desc&limit=24",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        -120
+      ],
+      "id": "4f2fdca4-4491-450d-a34d-70464bc9a061",
+      "name": "Fetch Company GP",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_client_service_monthly_gp_invoice_basis?select=*&order=period_month.desc,gp_amount.desc&limit=200",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        120
+      ],
+      "id": "9f123b56-4775-4d70-94a7-46323d0d7607",
+      "name": "Fetch Client Service GP",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        560,
+        0
+      ],
+      "id": "c2bb2b28-c8b6-4ef4-afb5-d9db24783229",
+      "name": "Merge Results"
+    },
+    {
+      "parameters": {
+        "jsCode": "const companyRows = $('Fetch Company GP').all().map((item) => item.json);\nconst clientRows = $('Fetch Client Service GP').all().map((item) => item.json);\nconst topPositive = [...clientRows]\n  .filter((row) => Number(row.invoice_revenue_amount ?? 0) !== 0)\n  .sort((a, b) => Number(b.gp_amount ?? 0) - Number(a.gp_amount ?? 0))\n  .slice(0, 10);\nconst lowestGpPct = [...clientRows]\n  .filter((row) => Number(row.invoice_revenue_amount ?? 0) > 0 && row.gp_pct !== null)\n  .sort((a, b) => Number(a.gp_pct ?? 0) - Number(b.gp_pct ?? 0))\n  .slice(0, 10);\nconst laborNoRevenue = clientRows\n  .filter((row) => Number(row.invoice_revenue_amount ?? 0) === 0 && Number(row.matched_labor_cost ?? 0) > 0)\n  .slice(0, 20);\nreturn [\n  {\n    json: {\n      companyRowCount: companyRows.length,\n      clientServiceRowCount: clientRows.length,\n      companyRows,\n      topPositive,\n      lowestGpPct,\n      laborNoRevenue,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        820,
+        0
+      ],
+      "id": "88266c82-ad44-44b7-a5eb-ff4d02b3f0d3",
+      "name": "Summarize GP"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Company GP",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Client Service GP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Company GP": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Client Service GP": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Summarize GP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

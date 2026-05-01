@@ -37,6 +37,15 @@ class TimesheetParserTests(unittest.TestCase):
         )
         self.assertEqual(tax_entry.service_type, "tax")
         self.assertFalse(tax_entry.is_admin)
+        self.assertFalse(any(entry.entry_date.year == 2036 for entry in entries))
+        self.assertTrue(
+            any(
+                entry.client_raw == "Admin"
+                and entry.source_row == 59
+                and entry.entry_date == date(2026, 3, 6)
+                for entry in entries
+            )
+        )
 
     def test_wama_excludes_upwork_and_pre_cutoff_rows(self) -> None:
         entries = parse_timesheet_file(ROOT / "timesheets/Wama Hours Log - Outscore.xlsx")

@@ -167,7 +167,7 @@ def _parse_laura(file_path: Path, worksheet) -> list[TimeEntry]:
         entries.append(
             _make_entry(
                 staff_name=staff_name,
-                entry_date=entry_date.date(),
+                entry_date=_repair_obvious_future_year(entry_date.date()),
                 client_raw=client_raw,
                 task_raw=task_raw,
                 hours=hours,
@@ -197,7 +197,7 @@ def _parse_wama(file_path: Path, worksheet) -> list[TimeEntry]:
         entries.append(
             _make_entry(
                 staff_name="Wama",
-                entry_date=parsed_date,
+                entry_date=_repair_obvious_future_year(parsed_date),
                 client_raw=_clean_text(client),
                 task_raw=_clean_text(task),
                 hours=hours,
@@ -221,7 +221,7 @@ def _parse_beth(file_path: Path, worksheet) -> list[TimeEntry]:
 
         parsed_date = _coerce_date(raw_date)
         if parsed_date is not None:
-            current_date = _repair_beth_date(parsed_date, file_path.name)
+            current_date = _repair_beth_date(_repair_obvious_future_year(parsed_date), file_path.name)
 
         if current_date is None or not _has_value(client) or not _has_value(hours):
             continue
@@ -264,7 +264,7 @@ def _parse_julie(file_path: Path, worksheet) -> list[TimeEntry]:
             entries.append(
                 _make_entry(
                     staff_name=staff_name,
-                    entry_date=entry_date,
+                    entry_date=_repair_obvious_future_year(entry_date),
                     client_raw=client,
                     task_raw="",
                     hours=value,
@@ -330,6 +330,12 @@ def _repair_beth_date(value: date, filename: str) -> date:
     if value.month == 1 and value.year == 2025:
         return value.replace(year=2026)
 
+    return value
+
+
+def _repair_obvious_future_year(value: date) -> date:
+    if value.year == 2036:
+        return value.replace(year=2026)
     return value
 
 
