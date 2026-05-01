@@ -16,6 +16,7 @@ Current contents:
 - `supabase/sql/004_profit_revenue_events.sql` — recognition candidate ledger and recognition-basis GP views.
 - `supabase/sql/005_profit_recognition_triggers.sql` — completion trigger ledger and ready-for-recognition view.
 - `supabase/sql/006_profit_financial_cents_sync.sql` — Financial Cents raw sync tables and completed-task review view.
+- `supabase/sql/007_profit_fc_trigger_loader.sql` — FC task approval, candidate, and approved-trigger loader views.
 - Root CSV/XLSX files — current source exports used for data audit and initial mapping.
 - `timesheets/` — uploaded staff timesheet samples for parser design and historical ingestion.
 
@@ -43,3 +44,4 @@ The revenue classifier writes ignored local outputs to `build/anchor_line_item_c
 Revenue event candidates are loaded dynamically through n8n workflow `Profit - 15 Load Revenue Event Candidates`; do not hand-load rows into Supabase for the live process.
 Recognition triggers should be loaded into `profit_recognition_triggers`; n8n workflow `Profit - 16 Apply Recognition Triggers` applies only rows exposed by the ready view.
 Financial Cents raw sync starts with n8n workflow `Profit - 17 Financial Cents Sync`; it needs a `Financial Cents API - Production` HTTP Header Auth credential before it can run.
+Approved FC task completions are loaded into `profit_recognition_triggers` through n8n workflow `Profit - 19 Load FC Completion Triggers`; run `supabase/sql/007_profit_fc_trigger_loader.sql` first.

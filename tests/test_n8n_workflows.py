@@ -34,6 +34,17 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("recognized_amount_to_apply", serialized)
         self.assertIn("recognized_by_completion_trigger", serialized)
 
+    def test_load_fc_completion_triggers_workflow_writes_approved_triggers(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-19-load-fc-completion-triggers.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertIn("profit_fc_completion_triggers_ready_to_load", serialized)
+        self.assertIn("profit_recognition_triggers?on_conflict=recognition_trigger_key", serialized)
+        self.assertIn("fc_task_id", serialized)
+        self.assertIn("recognition_trigger_key", serialized)
+        self.assertIn("financial_cents", serialized)
+
     def test_financial_cents_sync_workflow_fetches_fc_resources_and_upserts_raw_tables(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-17-financial-cents-sync.json"
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))

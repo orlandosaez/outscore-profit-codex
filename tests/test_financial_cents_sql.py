@@ -24,6 +24,20 @@ class FinancialCentsSqlTests(unittest.TestCase):
         self.assertIn("completed_at", sql)
         self.assertIn("is_completed", sql)
 
+    def test_financial_cents_trigger_loader_requires_review_approval(self) -> None:
+        sql_path = ROOT / "supabase/sql/007_profit_fc_trigger_loader.sql"
+        sql = sql_path.read_text(encoding="utf-8").lower()
+
+        self.assertIn("create table if not exists profit_fc_task_trigger_approvals", sql)
+        self.assertIn("approval_status text not null default 'pending'", sql)
+        self.assertIn("create or replace view profit_fc_client_anchor_match_candidates", sql)
+        self.assertIn("create or replace view profit_fc_completion_trigger_candidates", sql)
+        self.assertIn("create or replace view profit_fc_completion_triggers_ready_to_load", sql)
+        self.assertIn("approval_status = 'approved'", sql)
+        self.assertIn("suggested_trigger_type <> 'manual_review'", sql)
+        self.assertIn("anchor_relationship_id is not null", sql)
+        self.assertIn("macro_service_type is not null", sql)
+
 
 if __name__ == "__main__":
     unittest.main()

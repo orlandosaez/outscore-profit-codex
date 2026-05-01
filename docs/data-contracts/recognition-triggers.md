@@ -59,7 +59,21 @@ The workflow reads `profit_revenue_events_ready_for_recognition` and upserts rec
 
 ## Financial Cents Path
 
-The FC sync should write only trigger rows. It should not update revenue events directly.
+The FC sync writes raw FC clients, projects, and tasks. A separate approval layer turns reviewed FC tasks into trigger rows. It does not update revenue events directly.
+
+Required migration:
+
+- `supabase/sql/007_profit_fc_trigger_loader.sql`
+
+Approval table:
+
+- `profit_fc_task_trigger_approvals`
+
+Candidate/review views:
+
+- `profit_fc_client_anchor_match_candidates` proposes exact normalized FC-to-Anchor client matches.
+- `profit_fc_completion_trigger_candidates` shows each completed FC task, suggested trigger type, resolved client/service, approval status, and load status.
+- `profit_fc_completion_triggers_ready_to_load` exposes only approved rows with a resolved Anchor relationship, macro service type, completion date, and non-manual trigger type.
 
 Initial mapping:
 
@@ -68,4 +82,9 @@ Initial mapping:
 - Return filed task -> `tax_filed`
 - Extension filed task -> `tax_extension_filed`
 
-This is the next API milestone.
+## FC Trigger Load Workflow
+
+- `Profit - 19 Load FC Completion Triggers`
+- File: `n8n/workflows/profit-19-load-fc-completion-triggers.json`
+
+The workflow reads `profit_fc_completion_triggers_ready_to_load` and upserts into `profit_recognition_triggers`. Run `Profit - 16 Apply Recognition Triggers` after reviewing the load summary.

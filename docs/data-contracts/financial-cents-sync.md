@@ -72,5 +72,8 @@ After the first live FC sync:
 
 1. Match FC clients to Anchor relationships in `profit_fc_client_anchor_matches`.
 2. Review suggested task trigger types from `profit_fc_completed_task_review`.
-3. Build the approved loader from review rows into `profit_recognition_triggers`.
-4. Run `Profit - 16 Apply Recognition Triggers`.
+3. Run `supabase/sql/007_profit_fc_trigger_loader.sql`.
+4. Review `profit_fc_completion_trigger_candidates`.
+5. Approve rows in `profit_fc_task_trigger_approvals`.
+6. Run `Profit - 19 Load FC Completion Triggers`.
+7. Run `Profit - 16 Apply Recognition Triggers`.

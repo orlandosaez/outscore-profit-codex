@@ -1,0 +1,151 @@
+{
+  "id": "Ym4qK8vBn3sLp2dF",
+  "name": "Profit - 19 Load FC Completion Triggers",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c25c4145-06f0-4e62-b155-af5214d83791",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_completion_triggers_ready_to_load?select=*&order=completion_date.asc&limit=5000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "ec2167d6-4312-4b9c-8c83-e25120e31fc2",
+      "name": "Fetch Approved FC Completion Triggers",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const triggerRows = $input.all().map((item) => item.json);\nconst rows = triggerRows.map((row) => ({\n  recognition_trigger_key: row.recognition_trigger_key,\n  source_system: 'financial_cents',\n  source_record_id: String(row.fc_task_id ?? row.source_record_id),\n  anchor_relationship_id: row.anchor_relationship_id,\n  macro_service_type: row.macro_service_type,\n  service_period_month: row.service_period_month ?? null,\n  completion_date: row.completion_date,\n  trigger_type: row.trigger_type,\n  recognition_action: row.recognition_action ?? 'recognize_full_source_amount',\n  notes: row.notes ?? null,\n  raw: row.raw ?? row,\n  loaded_at: new Date().toISOString(),\n}));\n\nconst byTriggerType = rows.reduce((acc, row) => {\n  acc[row.trigger_type] = (acc[row.trigger_type] ?? 0) + 1;\n  return acc;\n}, {});\n\nreturn [\n  {\n    json: {\n      rows,\n      summary: {\n        approvedFcTriggerCount: rows.length,\n        byTriggerType,\n      },\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "6c1f0304-f164-4c2f-965d-eea5c8365c0c",
+      "name": "Build Recognition Triggers"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_recognition_triggers?on_conflict=recognition_trigger_key",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "f232f496-03d6-47cf-a842-8f2df5ba33d50",
+      "name": "Upsert Recognition Triggers",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst byTriggerType = rows.reduce((acc, row) => {\n  acc[row.trigger_type] = (acc[row.trigger_type] ?? 0) + 1;\n  return acc;\n}, {});\n\nreturn [\n  {\n    json: {\n      status: 'ok',\n      loadedFcTriggerCount: rows.length,\n      byTriggerType,\n      sample: rows.slice(0, 10),\n      note: 'Run Profit - 16 Apply Recognition Triggers after reviewing this summary.',\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "75de73ed-876a-456a-ab45-8f2b6b2d316b",
+      "name": "Summarize Trigger Load"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Approved FC Completion Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Approved FC Completion Triggers": {
+      "main": [
+        [
+          {
+            "node": "Build Recognition Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Recognition Triggers": {
+      "main": [
+        [
+          {
+            "node": "Upsert Recognition Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Recognition Triggers": {
+      "main": [
+        [
+          {
+            "node": "Summarize Trigger Load",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}
