@@ -24,6 +24,8 @@ class ProfitAppDeployTests(unittest.TestCase):
         self.assertIn("alias /opt/agents/outscore_profit/frontend/dist/", nginx)
         self.assertIn("location /profit/api/", nginx)
         self.assertIn("proxy_pass http://127.0.0.1:8010/api/", nginx)
+        self.assertIn("auth_basic \"Outscore Profit\"", nginx)
+        self.assertIn("auth_basic_user_file /etc/nginx/.htpasswd-profit", nginx)
 
     def test_deploy_script_keeps_env_external_to_repo(self) -> None:
         script = (ROOT / "app/deploy/deploy_profit_app.sh").read_text(

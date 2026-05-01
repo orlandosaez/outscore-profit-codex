@@ -60,3 +60,11 @@ Before starting the service, create `/opt/agents/outscore_profit/.env` on the VP
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
+
+Also create an Nginx basic-auth file before enabling `/profit` publicly:
+
+```bash
+htpasswd -c /etc/nginx/.htpasswd-profit orlando
+```
+
+Use a strong password. This is a temporary admin-only protection layer until this dashboard is wired into the existing Supabase Auth session model.
