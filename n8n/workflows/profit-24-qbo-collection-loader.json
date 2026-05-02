@@ -262,6 +262,71 @@
       ],
       "id": "26d7d6f4-df3a-4924-a6d4-f610ef35f356",
       "name": "Summarize QBO Collection Load"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst firstRow = $('Fetch Anchor Invoices').first().json ?? null;\nreturn [{ json: { anchorInvoiceFetchCount: rows.length, firstRow } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        -240
+      ],
+      "id": "6f9550d2-66c4-4e72-9032-7c044726c5db",
+      "name": "Collapse Anchor Invoices"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst firstRow = $('Fetch Anchor Agreements').first().json ?? null;\nreturn [{ json: { anchorAgreementFetchCount: rows.length, firstRow } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        -80
+      ],
+      "id": "f43250d1-8382-4114-9c38-31f13895a855",
+      "name": "Collapse Anchor Agreements"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst firstRow = $('Fetch Revenue Events').first().json ?? null;\nreturn [{ json: { revenueEventFetchCount: rows.length, firstRow } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        80
+      ],
+      "id": "b564f210-af04-498f-b09d-ac3130f98e3a",
+      "name": "Collapse Revenue Events"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst firstRow = $('Fetch Existing Allocations').first().json ?? null;\nreturn [{ json: { existingAllocationFetchCount: rows.length, firstRow } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        240
+      ],
+      "id": "7bb1a1c4-c45c-4d01-af95-30428a079859",
+      "name": "Collapse Existing Allocations"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst firstRow = $('Upsert Cash Collections').first().json ?? null;\nreturn [{ json: { upsertedCashCollectionCount: rows.length, firstRow } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1490,
+        0
+      ],
+      "id": "145d4806-dba2-40c6-9fd9-a7f4fdf316f6",
+      "name": "Collapse Cash Collection Upsert"
     }
   ],
   "connections": {
@@ -324,7 +389,7 @@
       "main": [
         [
           {
-            "node": "Fetch Anchor Agreements",
+            "node": "Collapse Anchor Invoices",
             "type": "main",
             "index": 0
           }
@@ -335,7 +400,7 @@
       "main": [
         [
           {
-            "node": "Fetch Revenue Events",
+            "node": "Collapse Anchor Agreements",
             "type": "main",
             "index": 0
           }
@@ -346,7 +411,7 @@
       "main": [
         [
           {
-            "node": "Fetch Existing Allocations",
+            "node": "Collapse Revenue Events",
             "type": "main",
             "index": 0
           }
@@ -357,7 +422,7 @@
       "main": [
         [
           {
-            "node": "Build Cash Collections And Allocations",
+            "node": "Collapse Existing Allocations",
             "type": "main",
             "index": 0
           }
@@ -379,7 +444,7 @@
       "main": [
         [
           {
-            "node": "Upsert Collection Allocations",
+            "node": "Collapse Cash Collection Upsert",
             "type": "main",
             "index": 0
           }
@@ -391,6 +456,61 @@
         [
           {
             "node": "Summarize QBO Collection Load",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse Anchor Invoices": {
+      "main": [
+        [
+          {
+            "node": "Fetch Anchor Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse Anchor Agreements": {
+      "main": [
+        [
+          {
+            "node": "Fetch Revenue Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse Revenue Events": {
+      "main": [
+        [
+          {
+            "node": "Fetch Existing Allocations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse Existing Allocations": {
+      "main": [
+        [
+          {
+            "node": "Build Cash Collections And Allocations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse Cash Collection Upsert": {
+      "main": [
+        [
+          {
+            "node": "Upsert Collection Allocations",
             "type": "main",
             "index": 0
           }

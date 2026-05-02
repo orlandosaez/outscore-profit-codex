@@ -194,6 +194,63 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("customer_amount_date_window", serialized)
         self.assertIn("rounding_delta", serialized)
 
+    def test_qbo_collection_loader_collapses_batch_fetches_between_http_nodes(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-24-qbo-collection-loader.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        nodes_by_name = {node["name"]: node for node in workflow["nodes"]}
+        connections = workflow["connections"]
+
+        for node_name in (
+            "Collapse Anchor Invoices",
+            "Collapse Anchor Agreements",
+            "Collapse Revenue Events",
+            "Collapse Existing Allocations",
+            "Collapse Cash Collection Upsert",
+        ):
+            self.assertIn(node_name, nodes_by_name)
+            self.assertIn("first().json", nodes_by_name[node_name]["parameters"]["jsCode"])
+
+        self.assertEqual(
+            connections["Fetch Anchor Invoices"]["main"][0][0]["node"],
+            "Collapse Anchor Invoices",
+        )
+        self.assertEqual(
+            connections["Collapse Anchor Invoices"]["main"][0][0]["node"],
+            "Fetch Anchor Agreements",
+        )
+        self.assertEqual(
+            connections["Fetch Anchor Agreements"]["main"][0][0]["node"],
+            "Collapse Anchor Agreements",
+        )
+        self.assertEqual(
+            connections["Collapse Anchor Agreements"]["main"][0][0]["node"],
+            "Fetch Revenue Events",
+        )
+        self.assertEqual(
+            connections["Fetch Revenue Events"]["main"][0][0]["node"],
+            "Collapse Revenue Events",
+        )
+        self.assertEqual(
+            connections["Collapse Revenue Events"]["main"][0][0]["node"],
+            "Fetch Existing Allocations",
+        )
+        self.assertEqual(
+            connections["Fetch Existing Allocations"]["main"][0][0]["node"],
+            "Collapse Existing Allocations",
+        )
+        self.assertEqual(
+            connections["Collapse Existing Allocations"]["main"][0][0]["node"],
+            "Build Cash Collections And Allocations",
+        )
+        self.assertEqual(
+            connections["Upsert Cash Collections"]["main"][0][0]["node"],
+            "Collapse Cash Collection Upsert",
+        )
+        self.assertEqual(
+            connections["Collapse Cash Collection Upsert"]["main"][0][0]["node"],
+            "Upsert Collection Allocations",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
