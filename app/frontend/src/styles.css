@@ -109,7 +109,7 @@ h2 {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -192,6 +192,18 @@ h2 {
 
 .ratio-panel {
   margin-bottom: 14px;
+}
+
+.prepaid-panel {
+  margin-bottom: 14px;
+}
+
+.prepaid-split {
+  gap: 0;
+}
+
+.prepaid-split > .table-wrap:first-child {
+  border-right: 1px solid #eef2f4;
 }
 
 .ratio-grid {

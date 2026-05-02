@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from profit_api.dashboard import AdminDashboardService
+from profit_api.supabase import SupabaseRestError
 
 
 class FakeSupabaseReader:
@@ -110,6 +111,31 @@ class FakeSupabaseReader:
                     "suggested_trigger_type": "tax_filed",
                 }
             ],
+            "profit_prepaid_liability_summary": [
+                {
+                    "current_total_prepaid_liability": 12500,
+                    "client_balance_count": 3,
+                    "last_updated": "2026-04-30",
+                }
+            ],
+            "profit_prepaid_liability_balances": [
+                {
+                    "anchor_relationship_id": "relationship-collectiv",
+                    "anchor_client_business_name": "Collectiv Inc.",
+                    "macro_service_type": "tax",
+                    "balance": 5000,
+                    "last_updated": "2026-04-30",
+                }
+            ],
+            "profit_prepaid_liability_ledger": [
+                {
+                    "anchor_relationship_id": "relationship-collectiv",
+                    "macro_service_type": "tax",
+                    "ledger_entry_type": "cash_collected",
+                    "amount_delta": 5000,
+                    "event_at": "2026-04-30",
+                }
+            ],
         }
         result = rows[view_name]
         if selected_period and view_name in {
@@ -173,8 +199,10 @@ class AdminDashboardServiceTests(unittest.TestCase):
                 {"period_month": "eq.2026-03-01", "limit": 1000},
             ),
         )
+
+        calls_by_view = {view_name: params for view_name, params in reader.calls}
         self.assertEqual(
-            reader.calls[4][1],
+            calls_by_view["profit_admin_client_gp_dashboard"],
             {
                 "period_month": "eq.2026-03-01",
                 "order": "low_gp_rank.asc,anchor_client_business_name.asc",
@@ -182,19 +210,19 @@ class AdminDashboardServiceTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            reader.calls[5][1],
+            calls_by_view["profit_admin_staff_gp_dashboard"],
             {"period_month": "eq.2026-03-01", "order": "staff_name.asc", "limit": 200},
         )
         self.assertEqual(
-            reader.calls[6][1],
+            calls_by_view["profit_admin_comp_kicker_ledger"],
             {"period_month": "eq.2026-03-01", "order": "staff_name.asc", "limit": 200},
         )
         self.assertEqual(
-            reader.calls[7][1],
+            calls_by_view["profit_admin_w2_candidates"],
             {"order": "period_month.desc,staff_name.asc", "limit": 100},
         )
         self.assertEqual(
-            reader.calls[8][1],
+            calls_by_view["profit_admin_fc_trigger_queue"],
             {"order": "completed_at.desc", "limit": 100},
         )
 
@@ -241,6 +269,40 @@ class AdminDashboardServiceTests(unittest.TestCase):
             snapshot["fixed_windows"]["fc_trigger_queue"],
             "Live FC trigger queue; not filtered by selected month.",
         )
+
+    def test_snapshot_includes_cash_basis_prepaid_liability(self) -> None:
+        snapshot = AdminDashboardService(FakeSupabaseReader()).snapshot()
+
+        self.assertEqual(
+            snapshot["prepaid_liability"]["summary"][
+                "current_total_prepaid_liability"
+            ],
+            12500,
+        )
+        self.assertEqual(len(snapshot["prepaid_liability"]["balances"]), 1)
+        self.assertEqual(len(snapshot["prepaid_liability"]["ledger"]), 1)
+        self.assertIn(
+            "cash collected but not yet recognized",
+            snapshot["prepaid_liability"]["basis_note"],
+        )
+
+    def test_snapshot_tolerates_missing_prepaid_liability_views_until_migration_runs(self) -> None:
+        class MissingPrepaidViewsReader(FakeSupabaseReader):
+            def read_view(self, view_name: str, **params: str | int) -> list[dict[str, object]]:
+                if view_name.startswith("profit_prepaid_liability_"):
+                    raise SupabaseRestError("missing view")
+                return super().read_view(view_name, **params)
+
+        snapshot = AdminDashboardService(MissingPrepaidViewsReader()).snapshot()
+
+        self.assertEqual(
+            snapshot["prepaid_liability"]["summary"][
+                "current_total_prepaid_liability"
+            ],
+            0,
+        )
+        self.assertEqual(snapshot["prepaid_liability"]["balances"], [])
+        self.assertEqual(snapshot["prepaid_liability"]["ledger"], [])
 
 
 if __name__ == "__main__":

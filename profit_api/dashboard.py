@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Protocol
 
+from profit_api.supabase import SupabaseRestError
+
 
 DashboardRow = dict[str, object]
 
@@ -62,6 +64,7 @@ class AdminDashboardService:
                 "w2_candidates": "Latest trailing 8-month W2 watch window; not filtered by selected month.",
                 "fc_trigger_queue": "Live FC trigger queue; not filtered by selected month.",
             },
+            "prepaid_liability": _read_prepaid_liability(self.reader),
             "client_gp": self.reader.read_view(
                 "profit_admin_client_gp_dashboard",
                 **period_params,
@@ -91,6 +94,47 @@ class AdminDashboardService:
                 limit=100,
             ),
         }
+
+
+def _read_prepaid_liability(reader: SupabaseReader) -> dict[str, object]:
+    basis_note = (
+        "Prepaid liability is cash collected but not yet recognized; invoice/AR "
+        "amounts are excluded until collection is allocated to revenue events."
+    )
+    default_summary = {
+        "current_total_prepaid_liability": 0,
+        "client_balance_count": 0,
+        "last_updated": None,
+    }
+
+    try:
+        summary_rows = reader.read_view("profit_prepaid_liability_summary", limit=1)
+        balances = reader.read_view(
+            "profit_prepaid_liability_balances",
+            order="balance.desc,anchor_client_business_name.asc",
+            limit=100,
+        )
+        ledger = reader.read_view(
+            "profit_prepaid_liability_ledger",
+            order="event_at.desc,anchor_relationship_id.asc",
+            limit=100,
+        )
+    except SupabaseRestError:
+        return {
+            "summary": default_summary,
+            "balances": [],
+            "ledger": [],
+            "basis_note": basis_note,
+            "migration_status": "missing_prepaid_liability_views",
+        }
+
+    return {
+        "summary": summary_rows[0] if summary_rows else default_summary,
+        "balances": balances,
+        "ledger": ledger,
+        "basis_note": basis_note,
+        "migration_status": "ready",
+    }
 
 
 def _latest_period(rows: list[DashboardRow]) -> str | None:

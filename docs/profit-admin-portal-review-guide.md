@@ -133,6 +133,30 @@ Current limitation:
 - Pending revenue is not yet broken down by client, service type, or reason in the top tile.
 - The tile does not yet let you click into the pending detail.
 
+## Prepaid Liability
+
+This tile shows the current cash-basis prepaid liability balance.
+
+Formula:
+
+```text
+Prepaid Liability = cash collected and allocated to revenue events - recognized drawdowns
+```
+
+Important: this is not based on invoices or A/R. A client balance only appears after a collected payment is loaded and allocated to one or more RevenueEvents.
+
+How to review it:
+
+- Use the tile value as the intended Deferred Revenue / Prepaid Liability JE support number in QBO.
+- Use the drilldown list to see which client/service balances make up the total.
+- Use the audit ledger to see cash additions and revenue-recognition drawdowns.
+- If the tile shows zero while you know prepaid tax cash exists, the collection feed/allocation loader is not populated yet.
+
+Current limitation:
+
+- The schema and dashboard surface exist, but the Anchor/QBO payment collection loader still needs to populate `profit_cash_collections` and `profit_collection_revenue_allocations`.
+- The portal does not yet provide a full per-client expandable audit page.
+
 ## Ratio Summary
 
 This block is the company-level operating layer between the top tiles and the per-client table. It helps explain why GP changed before you inspect individual clients.
@@ -379,7 +403,8 @@ These are the main items still being worked on or not yet built:
 - Filters by client, service type, owner, and issue type.
 - Trend arrows for ratio summary metrics.
 - Full FC trigger approval workflow from the portal.
-- Prepaid liability audit log surface.
+- Anchor/QBO collection feed and allocation loader for prepaid liability.
+- Full prepaid liability per-client audit page.
 - Admin load % detail by staff and by period.
 - Staff-facing portal.
 - Authentication via the existing app/Supabase auth model. Current protection is temporary Nginx basic auth.

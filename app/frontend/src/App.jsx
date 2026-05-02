@@ -5,6 +5,7 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   Gauge,
+  Landmark,
   RefreshCw,
   TableProperties,
   UserRoundCheck,
@@ -41,6 +42,15 @@ function monthLabel(value) {
   if (!value) return "n/a";
   return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
     month: "short",
+    year: "numeric",
+  });
+}
+
+function dateLabel(value) {
+  if (!value) return "n/a";
+  return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
     year: "numeric",
   });
 }
@@ -123,6 +133,71 @@ function ClientBadges({ row }) {
   );
 }
 
+function PrepaidLiabilityPanel({ prepaidLiability }) {
+  const balances = prepaidLiability?.balances ?? [];
+  const ledger = prepaidLiability?.ledger ?? [];
+
+  return (
+    <section className="panel prepaid-panel">
+      <div className="panel-title">
+        <Landmark size={18} aria-hidden="true" />
+        <h2>Prepaid Liability Drilldown</h2>
+      </div>
+      <p className="panel-note">
+        QBO helper: use the current total prepaid liability as the Deferred Revenue JE balance. Basis is cash collected but not yet recognized.
+      </p>
+      <div className="split prepaid-split">
+        <div className="table-wrap compact">
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Service</th>
+                <th>Balance</th>
+                <th>Last Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {balances.slice(0, 12).map((row, index) => (
+                <tr key={`${row.anchor_relationship_id}-${row.macro_service_type}-${index}`}>
+                  <td>{row.anchor_client_business_name ?? "Unmatched"}</td>
+                  <td>{row.macro_service_type ?? "n/a"}</td>
+                  <td>{formatMoney(row.balance)}</td>
+                  <td>{dateLabel(row.last_updated)}</td>
+                </tr>
+              ))}
+              {balances.length ? null : <EmptyRow colSpan={4} label="No prepaid liability balances loaded" />}
+            </tbody>
+          </table>
+        </div>
+        <div className="table-wrap compact">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Client</th>
+                <th>Delta</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.slice(0, 12).map((row, index) => (
+                <tr key={`${row.event_at}-${row.revenue_event_key}-${row.ledger_entry_type}-${index}`}>
+                  <td>{dateLabel(row.event_at)}</td>
+                  <td>{row.ledger_entry_type}</td>
+                  <td>{row.anchor_relationship_id ?? "Unmatched"}</td>
+                  <td>{formatMoney(row.amount_delta)}</td>
+                </tr>
+              ))}
+              {ledger.length ? null : <EmptyRow colSpan={4} label="No prepaid liability ledger rows loaded" />}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState("");
@@ -158,6 +233,8 @@ function App() {
   const staffRows = useMemo(() => snapshot?.staff_gp ?? [], [snapshot]);
   const availablePeriods = snapshot?.available_periods ?? [];
   const fixedWindows = snapshot?.fixed_windows ?? {};
+  const prepaidLiability = snapshot?.prepaid_liability ?? {};
+  const prepaidSummary = prepaidLiability.summary ?? {};
 
   return (
     <main className="page">
@@ -218,7 +295,15 @@ function App() {
           value={formatMoney(company.pending_revenue_amount)}
           detail={`${company.pending_revenue_event_count ?? 0} pending revenue events`}
         />
+        <Stat
+          icon={Landmark}
+          label="Prepaid Liability"
+          value={formatMoney(prepaidSummary.current_total_prepaid_liability)}
+          detail={`Deferred Revenue JE balance · ${prepaidSummary.client_balance_count ?? 0} clients`}
+        />
       </section>
+
+      <PrepaidLiabilityPanel prepaidLiability={prepaidLiability} />
 
       <RatioSummary ratios={snapshot?.ratio_summary} />
 
