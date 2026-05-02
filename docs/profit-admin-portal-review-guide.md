@@ -183,6 +183,21 @@ Current limitation:
 - The block does not yet show prior-period trend arrows.
 - It does not yet drill into the labor rows behind each ratio.
 
+## Company GP Trend
+
+This block shows the last 12 available months of recognition-basis Company GP %.
+
+How to review it:
+
+- Use it to tell whether a low or high month is isolated or part of a pattern.
+- Compare the selected month to nearby months before making staffing or pricing conclusions.
+- Watch for several months moving in the same direction; that is a better management signal than one noisy month.
+
+Current limitation:
+
+- This first trend view only charts Company GP %.
+- It does not yet show revenue versus labor, per-staff GP trends, or kicker accrual trends.
+
 ## Per-Client GP
 
 This is the main review table for client profitability.

@@ -60,6 +60,9 @@ class AdminDashboardService:
             ],
             "company": company,
             "ratio_summary": _ratio_summary(company_period, selected_period),
+            "trends": {
+                "company_gp": _company_gp_trend(available_periods),
+            },
             "fixed_windows": {
                 "w2_candidates": "Latest trailing 8-month W2 watch window; not filtered by selected month.",
                 "fc_trigger_queue": "Live FC trigger queue; not filtered by selected month.",
@@ -135,6 +138,19 @@ def _read_prepaid_liability(reader: SupabaseReader) -> dict[str, object]:
         "basis_note": basis_note,
         "migration_status": "ready",
     }
+
+
+def _company_gp_trend(rows: list[DashboardRow]) -> list[dict[str, object]]:
+    trend_rows = rows[:12]
+    return [
+        {
+            "period_month": row.get("period_month"),
+            "gp_pct": row.get("gp_pct"),
+            "recognized_revenue_amount": row.get("recognized_revenue_amount"),
+            "contractor_labor_cost": row.get("contractor_labor_cost"),
+        }
+        for row in reversed(trend_rows)
+    ]
 
 
 def _latest_period(rows: list[DashboardRow]) -> str | None:

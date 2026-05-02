@@ -304,6 +304,27 @@ class AdminDashboardServiceTests(unittest.TestCase):
         self.assertEqual(snapshot["prepaid_liability"]["balances"], [])
         self.assertEqual(snapshot["prepaid_liability"]["ledger"], [])
 
+    def test_snapshot_includes_company_gp_trend_from_available_periods(self) -> None:
+        snapshot = AdminDashboardService(FakeSupabaseReader()).snapshot()
+
+        self.assertEqual(
+            snapshot["trends"]["company_gp"],
+            [
+                {
+                    "period_month": "2026-03-01",
+                    "gp_pct": 0.58,
+                    "recognized_revenue_amount": 10000,
+                    "contractor_labor_cost": 4200,
+                },
+                {
+                    "period_month": "2026-04-01",
+                    "gp_pct": 0.6786486486486486,
+                    "recognized_revenue_amount": 4750,
+                    "contractor_labor_cost": 1526.42,
+                },
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

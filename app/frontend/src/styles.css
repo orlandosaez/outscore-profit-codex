@@ -206,6 +206,55 @@ h2 {
   border-right: 1px solid #eef2f4;
 }
 
+.trend-panel {
+  margin-bottom: 14px;
+}
+
+.trend-chart {
+  padding: 12px 14px 8px;
+}
+
+.trend-chart svg {
+  display: block;
+  width: 100%;
+  min-height: 180px;
+}
+
+.trend-grid-line {
+  stroke: #e8eef1;
+  stroke-width: 1;
+}
+
+.trend-line {
+  fill: none;
+  stroke: #1d6f86;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.trend-point {
+  fill: #ffffff;
+  stroke: #1d6f86;
+  stroke-width: 2;
+}
+
+.trend-label {
+  fill: #6a777f;
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+
+.trend-value {
+  fill: #24323b;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.panel-empty {
+  padding: 14px;
+}
+
 .ratio-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));

@@ -18,6 +18,8 @@ class ProfitAdminFrontendTests(unittest.TestCase):
         self.assertIn("Prepaid Liability", source)
         self.assertIn("Deferred Revenue JE balance", source)
         self.assertIn("Prepaid Liability Drilldown", source)
+        self.assertIn("Company GP Trend", source)
+        self.assertIn("Last 12 available months", source)
         self.assertIn("Period", source)
         self.assertIn("Ratio Summary", source)
         self.assertIn("Client Labor LER", source)

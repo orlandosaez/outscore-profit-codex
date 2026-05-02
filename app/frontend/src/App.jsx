@@ -198,6 +198,57 @@ function PrepaidLiabilityPanel({ prepaidLiability }) {
   );
 }
 
+function CompanyGpTrend({ rows }) {
+  const trendRows = rows ?? [];
+  const validRows = trendRows.filter((row) => row.gp_pct != null);
+  const width = 680;
+  const height = 180;
+  const padding = 24;
+  const maxPct = Math.max(0.7, ...validRows.map((row) => Number(row.gp_pct)));
+  const minPct = Math.min(0, ...validRows.map((row) => Number(row.gp_pct)));
+  const range = maxPct - minPct || 1;
+  const points = validRows.map((row, index) => {
+    const x = validRows.length === 1
+      ? width / 2
+      : padding + (index * (width - padding * 2)) / (validRows.length - 1);
+    const y = height - padding - ((Number(row.gp_pct) - minPct) / range) * (height - padding * 2);
+    return { ...row, x, y };
+  });
+  const line = points.map((point) => `${point.x},${point.y}`).join(" ");
+
+  return (
+    <section className="panel trend-panel">
+      <div className="panel-title">
+        <Gauge size={18} aria-hidden="true" />
+        <h2>Company GP Trend</h2>
+      </div>
+      <p className="panel-note">Last 12 available months · recognition-basis GP %</p>
+      {points.length ? (
+        <div className="trend-chart">
+          <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Company GP Trend">
+            <line className="trend-grid-line" x1={padding} x2={width - padding} y1={padding} y2={padding} />
+            <line className="trend-grid-line" x1={padding} x2={width - padding} y1={height - padding} y2={height - padding} />
+            <polyline className="trend-line" points={line} />
+            {points.map((point) => (
+              <g key={point.period_month}>
+                <circle className="trend-point" cx={point.x} cy={point.y} r="4" />
+                <text className="trend-label" x={point.x} y={height - 6} textAnchor="middle">
+                  {monthLabel(point.period_month)}
+                </text>
+                <text className="trend-value" x={point.x} y={Math.max(14, point.y - 9)} textAnchor="middle">
+                  {formatPct(point.gp_pct)}
+                </text>
+              </g>
+            ))}
+          </svg>
+        </div>
+      ) : (
+        <p className="empty panel-empty">No Company GP trend rows loaded</p>
+      )}
+    </section>
+  );
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState("");
@@ -304,6 +355,8 @@ function App() {
       </section>
 
       <PrepaidLiabilityPanel prepaidLiability={prepaidLiability} />
+
+      <CompanyGpTrend rows={snapshot?.trends?.company_gp} />
 
       <RatioSummary ratios={snapshot?.ratio_summary} />
 
