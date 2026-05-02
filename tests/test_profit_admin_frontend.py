@@ -15,11 +15,18 @@ class ProfitAdminFrontendTests(unittest.TestCase):
         self.assertIn("VITE_PROFIT_API_BASE", source)
         self.assertIn("/profit/admin/dashboard", source)
         self.assertIn("Company GP", source)
+        self.assertIn("Period", source)
+        self.assertIn("Ratio Summary", source)
+        self.assertIn("Client Labor LER", source)
+        self.assertIn("Admin Labor LER", source)
+        self.assertIn("Unmatched Labor LER", source)
+        self.assertIn("Total Labor LER", source)
+        self.assertIn("Client-Matched %", source)
         self.assertIn("Per-Client GP", source)
         self.assertIn("Per-Staff GP", source)
         self.assertIn("Comp Ledger", source)
-        self.assertIn("W2 Watch", source)
-        self.assertIn("FC Trigger Queue", source)
+        self.assertIn("W2 Watch · Trailing 8-month window", source)
+        self.assertIn("FC Trigger Queue · Live queue", source)
 
     def test_frontend_package_declares_profit_admin_app(self) -> None:
         package_path = ROOT / "app/frontend/package.json"

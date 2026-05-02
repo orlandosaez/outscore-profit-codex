@@ -24,8 +24,8 @@ def create_app() -> Any:
     )
 
     @app.get("/api/profit/admin/dashboard")
-    def admin_dashboard_snapshot() -> dict[str, object]:
-        return service.snapshot()
+    def admin_dashboard_snapshot(period: str | None = None) -> dict[str, object]:
+        return service.snapshot(period_month=period)
 
     return app
 

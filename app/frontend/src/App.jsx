@@ -33,6 +33,10 @@ function formatPct(value) {
   return value == null ? "n/a" : pct.format(Number(value));
 }
 
+function formatRatio(value) {
+  return value == null ? "No data" : pct.format(Number(value));
+}
+
 function monthLabel(value) {
   if (!value) return "n/a";
   return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
@@ -66,20 +70,79 @@ function EmptyRow({ colSpan, label }) {
   );
 }
 
+function RatioSummary({ ratios }) {
+  const items = [
+    ["Client Labor LER", ratios?.client_labor_ler],
+    ["Admin Labor LER", ratios?.admin_labor_ler],
+    ["Unmatched Labor LER", ratios?.unmatched_labor_ler],
+    ["Total Labor LER", ratios?.total_labor_ler],
+    ["Gross Margin %", ratios?.gross_margin_pct],
+    ["Client-Matched %", ratios?.client_matched_pct],
+    ["Admin Load %", ratios?.admin_load_pct],
+  ];
+
+  return (
+    <section className="panel ratio-panel" aria-label="Ratio Summary">
+      <div className="panel-title">
+        <Gauge size={18} aria-hidden="true" />
+        <h2>Ratio Summary</h2>
+      </div>
+      <div className="ratio-grid">
+        {items.map(([label, value]) => (
+          <div className="ratio-item" key={label}>
+            <span>{label}</span>
+            <strong>{formatRatio(value)}</strong>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ClientBadges({ row }) {
+  const revenue = Number(row.recognized_revenue_amount ?? 0);
+  const labor = Number(row.matched_labor_cost ?? 0);
+  const gp = Number(row.gp_amount ?? 0);
+  const service = row.macro_service_type ?? "other";
+  const badges = [];
+
+  if (revenue === 0 && labor > 0) badges.push("Labor no revenue");
+  if (gp < 0) badges.push("Negative GP");
+  if (service === "other") badges.push("Review service");
+
+  if (!badges.length) return null;
+
+  return (
+    <div className="badge-row">
+      {badges.map((badge) => (
+        <span className="review-badge" key={badge}>
+          {badge}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState(null);
+  const [selectedPeriod, setSelectedPeriod] = useState("");
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
-  async function loadDashboard() {
+  async function loadDashboard(period = selectedPeriod) {
     setStatus("loading");
     setError("");
     try {
-      const response = await fetch(endpoint);
+      const requestUrl = period ? `${endpoint}?period=${encodeURIComponent(period)}` : endpoint;
+      const response = await fetch(requestUrl);
       if (!response.ok) {
         throw new Error(`Dashboard request failed: ${response.status}`);
       }
-      setSnapshot(await response.json());
+      const payload = await response.json();
+      setSnapshot(payload);
+      if (!period && payload.selected_period_month) {
+        setSelectedPeriod(payload.selected_period_month);
+      }
       setStatus("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Dashboard request failed");
@@ -92,10 +155,9 @@ function App() {
   }, []);
 
   const company = snapshot?.company ?? {};
-  const latestStaffRows = useMemo(() => {
-    const period = company.latest_period_month;
-    return (snapshot?.staff_gp ?? []).filter((row) => row.period_month === period);
-  }, [company.latest_period_month, snapshot]);
+  const staffRows = useMemo(() => snapshot?.staff_gp ?? [], [snapshot]);
+  const availablePeriods = snapshot?.available_periods ?? [];
+  const fixedWindows = snapshot?.fixed_windows ?? {};
 
   return (
     <main className="page">
@@ -104,9 +166,27 @@ function App() {
           <p className="eyebrow">Outscore Advisory Group</p>
           <h1>Profit Admin</h1>
         </div>
-        <button className="icon-button" onClick={loadDashboard} type="button" title="Refresh dashboard">
-          <RefreshCw size={18} aria-hidden="true" />
-        </button>
+        <div className="topbar-actions">
+          <label className="period-control">
+            <span>Period</span>
+            <select
+              value={selectedPeriod}
+              onChange={(event) => {
+                setSelectedPeriod(event.target.value);
+                loadDashboard(event.target.value);
+              }}
+            >
+              {availablePeriods.map((row) => (
+                <option key={row.period_month} value={row.period_month}>
+                  {monthLabel(row.period_month)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="icon-button" onClick={() => loadDashboard(selectedPeriod)} type="button" title="Refresh dashboard">
+            <RefreshCw size={18} aria-hidden="true" />
+          </button>
+        </div>
       </header>
 
       {status === "error" ? <div className="error">{error}</div> : null}
@@ -136,9 +216,11 @@ function App() {
           icon={ClipboardCheck}
           label="Pending"
           value={formatMoney(company.pending_revenue_amount)}
-          detail={`${company.fc_ready_trigger_count ?? 0} ready FC triggers`}
+          detail={`${company.pending_revenue_event_count ?? 0} pending revenue events`}
         />
       </section>
+
+      <RatioSummary ratios={snapshot?.ratio_summary} />
 
       <section className="panel">
         <div className="panel-title">
@@ -163,9 +245,12 @@ function App() {
               {(snapshot?.client_gp ?? []).slice(0, 40).map((row, index) => (
                 <tr key={`${row.period_month}-${row.anchor_relationship_id}-${row.macro_service_type}-${index}`}>
                   <td>{monthLabel(row.period_month)}</td>
-                  <td>{row.anchor_client_business_name ?? "Unmatched"}</td>
+                  <td>
+                    <strong className="table-primary">{row.anchor_client_business_name ?? "Unmatched"}</strong>
+                    <ClientBadges row={row} />
+                  </td>
                   <td>{row.macro_service_type ?? "other"}</td>
-                  <td>{row.primary_owner_staff_name ?? "Unassigned"}</td>
+                  <td>{row.primary_owner_staff_name ?? "Needs owner mapping"}</td>
                   <td>{formatMoney(row.recognized_revenue_amount)}</td>
                   <td>{formatMoney(row.matched_labor_cost)}</td>
                   <td>{formatMoney(row.gp_amount)}</td>
@@ -196,7 +281,7 @@ function App() {
                 </tr>
               </thead>
               <tbody>
-                {latestStaffRows.map((row) => (
+                {staffRows.map((row) => (
                   <tr key={row.staff_name}>
                     <td>{row.staff_name}</td>
                     <td>{formatMoney(row.owned_recognized_revenue_amount)}</td>
@@ -205,7 +290,7 @@ function App() {
                     <td>{row.client_service_count ?? 0}</td>
                   </tr>
                 ))}
-                {latestStaffRows.length ? null : <EmptyRow colSpan={5} label="No staff GP rows loaded" />}
+                {staffRows.length ? null : <EmptyRow colSpan={5} label="No staff GP rows loaded" />}
               </tbody>
             </table>
           </div>
@@ -246,8 +331,9 @@ function App() {
         <div className="panel">
           <div className="panel-title">
             <AlertTriangle size={18} aria-hidden="true" />
-            <h2>W2 Watch</h2>
+            <h2>W2 Watch · Trailing 8-month window</h2>
           </div>
+          <p className="panel-note">{fixedWindows.w2_candidates}</p>
           <div className="table-wrap compact">
             <table>
               <thead>
@@ -276,8 +362,9 @@ function App() {
         <div className="panel">
           <div className="panel-title">
             <ClipboardCheck size={18} aria-hidden="true" />
-            <h2>FC Trigger Queue</h2>
+            <h2>FC Trigger Queue · Live queue</h2>
           </div>
+          <p className="panel-note">{fixedWindows.fc_trigger_queue}</p>
           <div className="queue-list">
             {(snapshot?.fc_trigger_queue ?? []).slice(0, 8).map((row, index) => (
               <article className="queue-item" key={`${row.completed_at}-${row.client_name}-${index}`}>

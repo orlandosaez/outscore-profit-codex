@@ -4,24 +4,36 @@ Purpose: this is a working reference for reviewing the current Profit Admin port
 
 Audience: Orlando, bookkeeper, and anyone helping review whether the dashboard is useful and trustworthy.
 
-Status: initial reference. The portal is live, but several surfaces are still review tools rather than final management reports.
+Status: V0.2 reference. The portal is live with a period selector, ratio summary, and review badges, but several surfaces are still review tools rather than final management reports.
 
 ## Monthly Review Workflow
 
 Use the portal in this order:
 
-1. Start with the top company tiles to confirm whether the month and quarter look directionally right.
-2. Review `Pending` and the `FC Trigger Queue` to see what work may be complete but not yet recognized.
-3. Review `Per-Client GP` for negative, missing-owner, missing-revenue, or `other` service rows.
-4. Review `Per-Staff GP` only after the client/service rows look reasonable.
-5. Review `Comp Ledger` after recognition and client-owner assignments are cleaned up.
-6. Review `W2 Watch` monthly as a staffing planning report, not as a payroll/legal conclusion.
+1. Choose the month in the `Period` selector.
+2. Start with the top company tiles to confirm whether the selected month and its quarter look directionally right.
+3. Review `Ratio Summary` to see whether the month is being driven by client labor, admin labor, unmatched labor, or mix.
+4. Review `Pending` and the `FC Trigger Queue` to see what work may be complete but not yet recognized.
+5. Review `Per-Client GP` for negative, missing-owner, missing-revenue, or `other` service rows.
+6. Review `Per-Staff GP` only after the client/service rows look reasonable.
+7. Review `Comp Ledger` after recognition and client-owner assignments are cleaned up.
+8. Review `W2 Watch` monthly as a staffing planning report, not as a payroll/legal conclusion.
 
 Important: if a client row looks wrong, do not assume the client is unprofitable yet. First check whether the row is missing recognized revenue, missing owner assignment, or sitting in the `other` service bucket.
 
 ## Top Header
 
 The header says `Outscore Advisory Group` and `Profit Admin`.
+
+The `Period` selector controls the month-based management blocks:
+
+- top company tiles,
+- Ratio Summary,
+- Per-Client GP,
+- Per-Staff GP,
+- Comp Ledger.
+
+It does not filter `FC Trigger Queue` or `W2 Watch`. Those blocks have their own fixed windows and are labeled directly in the portal.
 
 The refresh button reloads the dashboard data from the API. It does not run n8n syncs, reload Anchor, reload Financial Cents, or apply recognition. It only refreshes what is already in Supabase.
 
@@ -35,7 +47,7 @@ Still working on:
 
 ## Company GP
 
-This tile shows the latest monthly gross profit percentage.
+This tile shows the selected monthly gross profit percentage.
 
 Formula:
 
@@ -45,9 +57,9 @@ Company GP % = (recognized revenue - contractor labor cost) / recognized revenue
 
 What it currently tells you:
 
-- whether the latest recognized month is profitable after contractor labor,
+- whether the selected recognized month is profitable after contractor labor,
 - whether the company is directionally above or below the target profitability model,
-- the GP dollars for the same latest month.
+- the GP dollars for the same selected month.
 
 How to review it:
 
@@ -62,7 +74,7 @@ Current limitation:
 
 ## Quarter Gate
 
-This tile shows whether the company passed the compensation gate for the current quarter.
+This tile shows whether the company passed the compensation gate for the quarter containing the selected month.
 
 Current rule:
 
@@ -106,22 +118,46 @@ Current limitation:
 
 ## Pending
 
-This tile shows pending revenue and ready FC triggers.
+This tile shows pending revenue and pending revenue-event count for the selected month.
 
 Pending revenue means revenue event candidates exist but have not yet become recognized revenue.
-
-Ready FC triggers are Financial Cents task completions that appear ready to load into the recognition trigger process.
 
 How to review it:
 
 - Treat this as a work queue indicator.
 - A large pending revenue amount means the dashboard may be under-recognizing revenue until triggers are approved/applied.
-- A nonzero ready trigger count means there is likely completed work waiting to be moved into recognition.
+- A nonzero pending event count means there is likely revenue waiting on a recognition trigger, approval, or classification cleanup.
 
 Current limitation:
 
 - Pending revenue is not yet broken down by client, service type, or reason in the top tile.
 - The tile does not yet let you click into the pending detail.
+
+## Ratio Summary
+
+This block is the company-level operating layer between the top tiles and the per-client table. It helps explain why GP changed before you inspect individual clients.
+
+Ratios:
+
+- `Client Labor LER`: client-matched labor cost divided by recognized revenue.
+- `Admin Labor LER`: pure admin labor cost divided by recognized revenue.
+- `Unmatched Labor LER`: labor that is not confidently matched to a client divided by recognized revenue.
+- `Total Labor LER`: all contractor labor divided by recognized revenue.
+- `Gross Margin %`: recognized revenue minus total contractor labor, divided by recognized revenue.
+- `Client-Matched %`: client-matched labor divided by total contractor labor.
+- `Admin Load %`: admin hours divided by total hours.
+
+How to review it:
+
+- If `Client Labor LER` is high, client delivery may be too labor-heavy or revenue may be missing.
+- If `Admin Labor LER` is high, company overhead is creeping into the contractor cost base.
+- If `Unmatched Labor LER` is high, the time-entry matching process needs cleanup before judging profitability.
+- If `Client-Matched %` is low, the client/staff GP tables are less complete than they look.
+
+Current limitation:
+
+- The block does not yet show prior-period trend arrows.
+- It does not yet drill into the labor rows behind each ratio.
 
 ## Per-Client GP
 
@@ -146,13 +182,19 @@ Columns:
 - `GP`: recognized revenue minus labor.
 - `GP %`: GP divided by recognized revenue.
 
-How to explain `Unassigned`:
+How to explain `Needs owner mapping`:
 
-`Unassigned` means the dashboard could not find a primary owner for that exact Anchor client and service type. It does not mean no one worked on the client. It means the owner map is missing or not matched for that service bucket.
+`Needs owner mapping` means the dashboard could not find a primary owner for that exact Anchor client and service type. It does not mean no one worked on the client. It means the owner map is missing or not matched for that service bucket.
 
 How to explain `other`:
 
 `other` means the labor or revenue could not be confidently classified into bookkeeping, tax, payroll, or advisory. It is a review bucket. Rows in `other` should usually be cleaned up, reclassified, or intentionally marked as overhead/pass-through if appropriate.
+
+Current review badges:
+
+- `Labor no revenue`: labor exists for the selected client/service/month, but recognized revenue is zero.
+- `Negative GP`: labor exceeds recognized revenue.
+- `Review service`: the row is in the `other` service bucket and needs classification review.
 
 How to review client rows:
 
@@ -167,12 +209,11 @@ How to review client rows:
 
 Example interpretation:
 
-If `Collectiv Inc. / Apr 2026 / other` shows negative GP and owner `Unassigned`, that currently means labor was matched to Collectiv and classified as `other`, but no recognized revenue and no service-owner assignment exists for the `other` bucket. That is a cleanup/review signal before it is a profitability conclusion.
+If `Collectiv Inc. / Apr 2026 / other` shows negative GP and owner `Needs owner mapping`, that currently means labor was matched to Collectiv and classified as `other`, but no recognized revenue and no service-owner assignment exists for the `other` bucket. That is a cleanup/review signal before it is a profitability conclusion.
 
 Current limitations:
 
 - The table is not yet grouped by client-month with expandable service lines.
-- It does not yet show review badges like `Missing owner`, `No recognized revenue`, `Other labor`, or `Needs classification`.
 - It only shows the first visible slice of client GP rows, not a full paginated/searchable table.
 - There is no drill-down yet to the underlying TimeEntries or RevenueEvents.
 - It does not yet show whether a row is final, preliminary, or blocked by missing inputs.
@@ -237,6 +278,8 @@ Current limitation:
 
 This table shows contractor-to-W2 conversion signals.
 
+This block uses the latest trailing eight-month window. It is not filtered by the selected period.
+
 Current default logic:
 
 - cost trigger: annualized contractor cost above the threshold,
@@ -266,6 +309,8 @@ Current limitation:
 ## FC Trigger Queue
 
 This block shows Financial Cents completed tasks that may drive revenue recognition.
+
+This block shows the live trigger queue. It is not filtered by the selected period.
 
 Each item currently shows:
 
@@ -329,10 +374,10 @@ Decision: whether to accrue a payout
 These are the main items still being worked on or not yet built:
 
 - Client-month grouping with expandable service lines.
-- Review badges for missing owner, missing revenue, `other` labor, and blocked recognition.
 - Drill-down from client GP rows to TimeEntries.
 - Drill-down from client GP rows to RevenueEvents.
-- Filters by month, client, service type, owner, and issue type.
+- Filters by client, service type, owner, and issue type.
+- Trend arrows for ratio summary metrics.
 - Full FC trigger approval workflow from the portal.
 - Prepaid liability audit log surface.
 - Admin load % detail by staff and by period.
