@@ -286,6 +286,8 @@ function App() {
   const fixedWindows = snapshot?.fixed_windows ?? {};
   const prepaidLiability = snapshot?.prepaid_liability ?? {};
   const prepaidSummary = prepaidLiability.summary ?? {};
+  const isPrepaidFeedLoaded = prepaidLiability.collection_feed_status === "loaded";
+  const fcQueueCount = snapshot?.fc_trigger_queue?.length ?? 0;
 
   return (
     <main className="page">
@@ -349,8 +351,9 @@ function App() {
         <Stat
           icon={Landmark}
           label="Prepaid Liability"
-          value={formatMoney(prepaidSummary.current_total_prepaid_liability)}
-          detail={`Deferred Revenue JE balance · ${prepaidSummary.client_balance_count ?? 0} clients`}
+          value={isPrepaidFeedLoaded ? formatMoney(prepaidSummary.current_total_prepaid_liability) : "Collection feed not yet loaded"}
+          detail={isPrepaidFeedLoaded ? `Deferred Revenue JE balance · ${prepaidSummary.client_balance_count ?? 0} clients` : "Deferred Revenue JE not ready"}
+          tone={isPrepaidFeedLoaded ? "neutral" : "warn"}
         />
       </section>
 
@@ -500,7 +503,7 @@ function App() {
         <div className="panel">
           <div className="panel-title">
             <ClipboardCheck size={18} aria-hidden="true" />
-            <h2>FC Trigger Queue · Live queue</h2>
+            <h2>FC Trigger Queue · Live queue ({fcQueueCount})</h2>
           </div>
           <p className="panel-note">{fixedWindows.fc_trigger_queue}</p>
           <div className="queue-list">

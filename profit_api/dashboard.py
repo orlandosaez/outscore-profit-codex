@@ -107,6 +107,7 @@ def _read_prepaid_liability(reader: SupabaseReader) -> dict[str, object]:
     default_summary = {
         "current_total_prepaid_liability": 0,
         "client_balance_count": 0,
+        "collection_count": 0,
         "last_updated": None,
     }
 
@@ -129,14 +130,21 @@ def _read_prepaid_liability(reader: SupabaseReader) -> dict[str, object]:
             "ledger": [],
             "basis_note": basis_note,
             "migration_status": "missing_prepaid_liability_views",
+            "collection_feed_status": "not_loaded",
         }
 
+    summary = summary_rows[0] if summary_rows else default_summary
+    collection_feed_status = (
+        "loaded" if _number(summary.get("collection_count")) > 0 else "not_loaded"
+    )
+
     return {
-        "summary": summary_rows[0] if summary_rows else default_summary,
+        "summary": summary,
         "balances": balances,
         "ledger": ledger,
         "basis_note": basis_note,
         "migration_status": "ready",
+        "collection_feed_status": collection_feed_status,
     }
 
 

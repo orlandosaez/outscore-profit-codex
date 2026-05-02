@@ -158,8 +158,22 @@ group by 1, 2, 3
 having sum(ledger.amount_delta) <> 0;
 
 create or replace view profit_prepaid_liability_summary as
+with balance_summary as (
+  select
+    coalesce(sum(balance), 0)::numeric as current_total_prepaid_liability,
+    count(*)::integer as client_balance_count,
+    max(last_updated) as last_updated
+  from profit_prepaid_liability_balances
+),
+collection_summary as (
+  select
+    count(*)::integer as collection_count
+  from profit_cash_collections
+)
 select
-  coalesce(sum(balance), 0)::numeric as current_total_prepaid_liability,
-  count(*)::integer as client_balance_count,
-  max(last_updated) as last_updated
-from profit_prepaid_liability_balances;
+  balance_summary.current_total_prepaid_liability,
+  balance_summary.client_balance_count,
+  collection_summary.collection_count,
+  balance_summary.last_updated
+from balance_summary
+cross join collection_summary;

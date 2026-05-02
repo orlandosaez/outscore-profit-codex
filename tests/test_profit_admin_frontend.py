@@ -16,6 +16,8 @@ class ProfitAdminFrontendTests(unittest.TestCase):
         self.assertIn("/profit/admin/dashboard", source)
         self.assertIn("Company GP", source)
         self.assertIn("Prepaid Liability", source)
+        self.assertIn("Collection feed not yet loaded", source)
+        self.assertIn("Deferred Revenue JE not ready", source)
         self.assertIn("Deferred Revenue JE balance", source)
         self.assertIn("Prepaid Liability Drilldown", source)
         self.assertIn("Company GP Trend", source)
@@ -32,6 +34,7 @@ class ProfitAdminFrontendTests(unittest.TestCase):
         self.assertIn("Comp Ledger", source)
         self.assertIn("W2 Watch · Trailing 8-month window", source)
         self.assertIn("FC Trigger Queue · Live queue", source)
+        self.assertIn("fcQueueCount", source)
 
     def test_frontend_package_declares_profit_admin_app(self) -> None:
         package_path = ROOT / "app/frontend/package.json"

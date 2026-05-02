@@ -132,6 +132,7 @@ Current limitation:
 
 - Pending revenue is not yet broken down by client, service type, or reason in the top tile.
 - The tile does not yet let you click into the pending detail.
+- FC trigger readiness is no longer shown inside this tile. The live FC trigger count is shown in the `FC Trigger Queue` block header.
 
 ## Prepaid Liability
 
@@ -150,7 +151,8 @@ How to review it:
 - Use the tile value as the intended Deferred Revenue / Prepaid Liability JE support number in QBO.
 - Use the drilldown list to see which client/service balances make up the total.
 - Use the audit ledger to see cash additions and revenue-recognition drawdowns.
-- If the tile shows zero while you know prepaid tax cash exists, the collection feed/allocation loader is not populated yet.
+- If the collection feed/allocation loader is not populated yet, the tile explicitly says `Collection feed not yet loaded` and should not be used for a QBO journal entry.
+- A `$0` value should only be treated as a real zero after the collection feed is loaded.
 
 Current limitation:
 
@@ -350,6 +352,8 @@ Current limitation:
 This block shows Financial Cents completed tasks that may drive revenue recognition.
 
 This block shows the live trigger queue. It is not filtered by the selected period.
+
+The header includes the current number of loaded queue rows so the trigger count is still visible even though it was removed from the `Pending` tile.
 
 Each item currently shows:
 

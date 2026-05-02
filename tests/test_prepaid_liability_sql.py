@@ -25,6 +25,8 @@ class PrepaidLiabilitySqlTests(unittest.TestCase):
         self.assertIn("'revenue_recognized'::text as ledger_entry_type", sql)
         self.assertIn("create or replace view profit_prepaid_liability_balances", sql)
         self.assertIn("create or replace view profit_prepaid_liability_summary", sql)
+        self.assertIn("collection_count", sql)
+        self.assertIn("from profit_cash_collections", sql)
 
     def test_prepaid_liability_drawdown_is_capped_by_allocated_cash(self) -> None:
         sql_path = ROOT / "supabase/sql/010_profit_prepaid_liability.sql"

@@ -115,6 +115,7 @@ class FakeSupabaseReader:
                 {
                     "current_total_prepaid_liability": 12500,
                     "client_balance_count": 3,
+                    "collection_count": 4,
                     "last_updated": "2026-04-30",
                 }
             ],
@@ -281,6 +282,7 @@ class AdminDashboardServiceTests(unittest.TestCase):
         )
         self.assertEqual(len(snapshot["prepaid_liability"]["balances"]), 1)
         self.assertEqual(len(snapshot["prepaid_liability"]["ledger"]), 1)
+        self.assertEqual(snapshot["prepaid_liability"]["collection_feed_status"], "loaded")
         self.assertIn(
             "cash collected but not yet recognized",
             snapshot["prepaid_liability"]["basis_note"],
@@ -303,6 +305,10 @@ class AdminDashboardServiceTests(unittest.TestCase):
         )
         self.assertEqual(snapshot["prepaid_liability"]["balances"], [])
         self.assertEqual(snapshot["prepaid_liability"]["ledger"], [])
+        self.assertEqual(
+            snapshot["prepaid_liability"]["collection_feed_status"],
+            "not_loaded",
+        )
 
     def test_snapshot_includes_company_gp_trend_from_available_periods(self) -> None:
         snapshot = AdminDashboardService(FakeSupabaseReader()).snapshot()
