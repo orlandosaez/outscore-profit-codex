@@ -28,16 +28,72 @@ create table if not exists profit_collection_revenue_allocations (
   collection_key text not null references profit_cash_collections (collection_key),
   revenue_event_key text not null references profit_revenue_events (revenue_event_key),
   allocated_amount numeric not null check (allocated_amount >= 0),
+  rounding_delta numeric not null default 0,
   allocation_method text not null,
   loaded_at timestamptz not null default now(),
   unique (collection_key, revenue_event_key)
 );
+
+alter table profit_collection_revenue_allocations
+  add column if not exists rounding_delta numeric not null default 0;
 
 create index if not exists idx_profit_collection_allocations_collection
   on profit_collection_revenue_allocations (collection_key);
 
 create index if not exists idx_profit_collection_allocations_event
   on profit_collection_revenue_allocations (revenue_event_key);
+
+create or replace function profit_validate_collection_revenue_allocation()
+returns trigger
+language plpgsql
+as $$
+declare
+  collection_limit numeric;
+  collection_total numeric;
+  event_limit numeric;
+  event_total numeric;
+begin
+  select collected_amount
+  into collection_limit
+  from profit_cash_collections
+  where collection_key = new.collection_key;
+
+  select source_amount
+  into event_limit
+  from profit_revenue_events
+  where revenue_event_key = new.revenue_event_key;
+
+  select coalesce(sum(allocated_amount), 0)
+  into collection_total
+  from profit_collection_revenue_allocations
+  where collection_key = new.collection_key
+    and allocation_key <> new.allocation_key;
+
+  if collection_total + new.allocated_amount > collection_limit + 0.005 then
+    raise exception 'allocated amount exceeds collected cash';
+  end if;
+
+  select coalesce(sum(allocated_amount), 0)
+  into event_total
+  from profit_collection_revenue_allocations
+  where revenue_event_key = new.revenue_event_key
+    and allocation_key <> new.allocation_key;
+
+  if event_total + new.allocated_amount > event_limit + 0.005 then
+    raise exception 'allocated amount exceeds revenue event source amount';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_profit_validate_collection_revenue_allocation
+  on profit_collection_revenue_allocations;
+
+create trigger trg_profit_validate_collection_revenue_allocation
+  before insert or update on profit_collection_revenue_allocations
+  for each row
+  execute function profit_validate_collection_revenue_allocation();
 
 create or replace view profit_prepaid_liability_ledger as
 with event_allocations as (
@@ -63,6 +119,7 @@ cash_entries as (
     allocation.allocated_amount::numeric as amount_delta,
     allocation.allocated_amount::numeric as collected_amount,
     0::numeric as recognized_drawdown_amount,
+    allocation.rounding_delta::numeric as rounding_delta,
     allocation.allocation_method
   from profit_collection_revenue_allocations allocation
   join profit_cash_collections collection
@@ -94,6 +151,7 @@ recognition_entries as (
       event.recognized_amount
       * (allocation.allocated_amount / nullif(event_allocations.total_allocated_amount, 0))
     )::numeric as recognized_drawdown_amount,
+    0::numeric as rounding_delta,
     allocation.allocation_method
   from profit_collection_revenue_allocations allocation
   join profit_cash_collections collection
@@ -120,6 +178,7 @@ select
   amount_delta,
   collected_amount,
   recognized_drawdown_amount,
+  rounding_delta,
   allocation_method
 from cash_entries
 union all
@@ -138,6 +197,7 @@ select
   amount_delta,
   collected_amount,
   recognized_drawdown_amount,
+  rounding_delta,
   allocation_method
 from recognition_entries;
 
@@ -149,6 +209,7 @@ select
   sum(ledger.amount_delta)::numeric as balance,
   sum(ledger.collected_amount)::numeric as collected_amount,
   sum(ledger.recognized_drawdown_amount)::numeric as recognized_drawdown_amount,
+  sum(ledger.rounding_delta)::numeric as rounding_delta,
   max(ledger.event_at) as last_updated,
   count(*)::integer as ledger_entry_count
 from profit_prepaid_liability_ledger ledger
@@ -177,3 +238,36 @@ select
   balance_summary.last_updated
 from balance_summary
 cross join collection_summary;
+
+create or replace view profit_unallocated_cash_collections as
+with allocation_summary as (
+  select
+    allocation.collection_key,
+    sum(allocation.allocated_amount)::numeric as allocated_amount
+  from profit_collection_revenue_allocations allocation
+  group by 1
+)
+select
+  collection.collection_key,
+  collection.source_system,
+  collection.source_payment_id,
+  collection.anchor_invoice_id,
+  collection.anchor_relationship_id,
+  agreement.client_business_name as anchor_client_business_name,
+  collection.qbo_payment_id,
+  collection.collected_at,
+  collection.collected_amount,
+  coalesce(allocation_summary.allocated_amount, 0)::numeric as allocated_amount,
+  (collection.collected_amount - coalesce(allocation_summary.allocated_amount, 0))::numeric as unallocated_amount,
+  case
+    when coalesce(allocation_summary.allocated_amount, 0) = 0 then 'unmatched_payment'
+    else 'partially_allocated'
+  end::text as review_status,
+  collection.raw_payload,
+  collection.loaded_at
+from profit_cash_collections collection
+left join allocation_summary
+  on allocation_summary.collection_key = collection.collection_key
+left join profit_anchor_agreements agreement
+  on agreement.anchor_relationship_id = collection.anchor_relationship_id
+where collection.collected_amount - coalesce(allocation_summary.allocated_amount, 0) > 0.005;
