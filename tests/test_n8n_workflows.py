@@ -185,6 +185,7 @@ class N8nWorkflowTests(unittest.TestCase):
         workflow_path = ROOT / "n8n/workflows/profit-24-qbo-collection-loader.json"
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
         serialized = json.dumps(workflow)
+        nodes_by_name = {node["name"]: node for node in workflow["nodes"]}
 
         self.assertIn("quickbooks", serialized.lower())
         self.assertIn("profit_cash_collections?on_conflict=collection_key", serialized)
@@ -193,6 +194,10 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("profit_revenue_events", serialized)
         self.assertIn("customer_amount_date_window", serialized)
         self.assertIn("rounding_delta", serialized)
+        self.assertEqual(
+            nodes_by_name["Fetch QuickBooks Payments"]["credentials"]["quickBooksOAuth2Api"]["name"],
+            "QBO - Outscore Firm Books (Production)",
+        )
 
     def test_qbo_collection_loader_collapses_batch_fetches_between_http_nodes(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-24-qbo-collection-loader.json"
@@ -248,7 +253,29 @@ class N8nWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(
             connections["Collapse Cash Collection Upsert"]["main"][0][0]["node"],
+            "Has Allocation Rows",
+        )
+        self.assertEqual(
+            connections["Has Allocation Rows"]["main"][0][0]["node"],
             "Upsert Collection Allocations",
+        )
+        self.assertEqual(
+            connections["Has Allocation Rows"]["main"][1][0]["node"],
+            "Summarize QBO Collection Load",
+        )
+        self.assertTrue(nodes_by_name["Fetch Existing Allocations"]["alwaysOutputData"])
+        self.assertIn("allocationRows.length", json.dumps(nodes_by_name["Has Allocation Rows"]))
+        self.assertIn(
+            "if (!row.revenue_event_key) return acc;",
+            nodes_by_name["Build Cash Collections And Allocations"]["parameters"]["jsCode"],
+        )
+        self.assertIn(
+            "event.already_allocated_amount = allocationsByEvent[allocation.revenue_event_key];",
+            nodes_by_name["Build Cash Collections And Allocations"]["parameters"]["jsCode"],
+        )
+        self.assertIn(
+            "try {",
+            nodes_by_name["Summarize QBO Collection Load"]["parameters"]["jsCode"],
         )
 
 
