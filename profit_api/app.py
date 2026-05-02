@@ -4,12 +4,13 @@ import os
 from typing import Any
 
 from profit_api.dashboard import AdminDashboardService
+from profit_api.periods import validate_period_month
 from profit_api.supabase import SupabaseRestClient
 
 
 def create_app() -> Any:
     try:
-        from fastapi import FastAPI
+        from fastapi import FastAPI, HTTPException
     except ModuleNotFoundError as exc:
         raise RuntimeError(
             "FastAPI is not installed. Install app/backend requirements before serving."
@@ -25,7 +26,11 @@ def create_app() -> Any:
 
     @app.get("/api/profit/admin/dashboard")
     def admin_dashboard_snapshot(period: str | None = None) -> dict[str, object]:
-        return service.snapshot(period_month=period)
+        try:
+            period_month = validate_period_month(period)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return service.snapshot(period_month=period_month)
 
     return app
 

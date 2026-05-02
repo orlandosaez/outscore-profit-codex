@@ -40,6 +40,9 @@ Fixed-window/current-state blocks:
 - [x] Add failing tests showing `AdminDashboardService.snapshot(period_month="2026-03-01")` filters month-controlled views with `period_month=eq.2026-03-01`, reads the selected quarter gate, and leaves FC/W2 blocks unfiltered.
 - [x] Run `python3 -m unittest tests.test_profit_api_dashboard -v` and confirm the new tests fail because `snapshot()` has no period argument and no fixed-window metadata.
 - [x] Implement selected-period resolution from `profit_company_monthly_gp_recognition_basis`, defaulting to the latest available month when no period is supplied.
+- [x] Return `available_periods` from `profit_company_monthly_gp_recognition_basis` so the frontend selector has an explicit source.
+- [x] Derive the quarter gate from the quarter containing the selected month, not today's/current quarter.
+- [x] Validate `period` query values as `YYYY-MM-01` and return a clear `422` for malformed input.
 - [x] Add API route query parameter `period: str | None = None` and pass it to `snapshot(period_month=period)`.
 - [x] Re-run backend tests and confirm they pass.
 
@@ -54,6 +57,7 @@ Fixed-window/current-state blocks:
   - `client_matched_pct = matched_labor_cost / contractor_labor_cost`
   - `admin_load_pct = admin_load_pct`
 - [x] Run backend tests and confirm the ratio test fails before implementation.
+- [x] Verify `admin_load_pct` exists in `profit_company_monthly_gp_recognition_basis`; it is computed as `admin_hours / total_hours`.
 - [x] Implement safe division helpers that return `None` when the denominator is zero or missing.
 - [x] Include raw amount fields in `ratio_summary` so the UI can later explain variance without another API change.
 - [x] Re-run backend tests and confirm they pass.
