@@ -38,7 +38,7 @@ class PrepaidLiabilitySqlTests(unittest.TestCase):
         self.assertIn("event.recognized_amount", sql)
         self.assertIn("total_allocated_amount", sql)
         self.assertIn("create or replace function profit_validate_collection_revenue_allocation()", sql)
-        self.assertIn("create trigger trg_profit_validate_collection_revenue_allocation", sql)
+        self.assertIn("create or replace trigger trg_profit_validate_collection_revenue_allocation", sql)
         self.assertIn("allocated amount exceeds collected cash", sql)
         self.assertIn("allocated amount exceeds revenue event source amount", sql)
 

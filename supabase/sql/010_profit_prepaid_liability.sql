@@ -87,10 +87,7 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_profit_validate_collection_revenue_allocation
-  on profit_collection_revenue_allocations;
-
-create trigger trg_profit_validate_collection_revenue_allocation
+create or replace trigger trg_profit_validate_collection_revenue_allocation
   before insert or update on profit_collection_revenue_allocations
   for each row
   execute function profit_validate_collection_revenue_allocation();
