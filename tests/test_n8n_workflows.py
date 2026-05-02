@@ -181,6 +181,19 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("profit_fc_tasks?select=fc_task_id", serialized)
         self.assertIn("fcClientCount", serialized)
 
+    def test_qbo_collection_loader_writes_cash_and_allocation_tables(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-24-qbo-collection-loader.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertIn("quickbooks", serialized.lower())
+        self.assertIn("profit_cash_collections?on_conflict=collection_key", serialized)
+        self.assertIn("profit_collection_revenue_allocations?on_conflict=collection_key,revenue_event_key", serialized)
+        self.assertIn("profit_anchor_invoices", serialized)
+        self.assertIn("profit_revenue_events", serialized)
+        self.assertIn("customer_amount_date_window", serialized)
+        self.assertIn("rounding_delta", serialized)
+
 
 if __name__ == "__main__":
     unittest.main()

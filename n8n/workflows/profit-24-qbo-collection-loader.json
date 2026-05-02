@@ -1,0 +1,405 @@
+{
+  "id": "QboCollectionLoaderV24",
+  "name": "Profit - 24 QBO Collection Loader",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c65a0e14-6249-443e-9ad4-6b467bbbe376",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "resource": "payment",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 1000,
+        "filters": {
+          "query": "={{ \"WHERE TxnDate >= '\" + ($json.startDate ?? '2025-09-15') + \"'\" }}"
+        }
+      },
+      "type": "n8n-nodes-base.quickbooks",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "id": "69187bb5-0627-4363-8c21-4f6491be168d",
+      "name": "Fetch QuickBooks Payments"
+    },
+    {
+      "parameters": {
+        "jsCode": "function parseMoney(value) {\n  if (value === undefined || value === null || value === '') return 0;\n  const parsed = Number(String(value).replace(/[$,]/g, ''));\n  return Number.isFinite(parsed) ? Math.round((parsed + Number.EPSILON) * 100) / 100 : 0;\n}\n\nfunction linkedInvoiceIds(payment) {\n  const ids = [];\n  for (const line of payment.Line ?? []) {\n    for (const txn of line.LinkedTxn ?? []) {\n      if (String(txn.TxnType ?? '').toLowerCase() === 'invoice' && txn.TxnId) ids.push(String(txn.TxnId));\n    }\n  }\n  const memo = `${payment.PrivateNote ?? ''} ${payment.PaymentRefNum ?? ''}`;\n  const anchorIds = memo.match(/invoice-[A-Za-z0-9_-]+/g) ?? [];\n  return [...new Set([...ids, ...anchorIds])];\n}\n\nconst payments = $input.all().map((item) => item.json).filter((payment) => payment?.Id);\nconst normalizedPayments = payments.map((payment) => ({\n  qbo_payment_id: String(payment.Id),\n  txn_date: payment.TxnDate ?? null,\n  total_amount: parseMoney(payment.TotalAmt),\n  customer_name: payment.CustomerRef?.name ?? payment.CustomerRef?.value ?? '',\n  memo: payment.PrivateNote ?? payment.PaymentRefNum ?? '',\n  linked_invoice_ids: linkedInvoiceIds(payment),\n  raw_payload: payment,\n}));\n\nreturn [{ json: { normalizedPayments, qboPaymentCount: normalizedPayments.length } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "e67dd638-702d-4831-8c6e-675423c91f35",
+      "name": "Normalize QBO Payments"
+    },
+    {
+      "parameters": {
+        "resource": "invoice",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 1000,
+        "filters": {
+          "query": "={{ \"WHERE TxnDate >= '\" + ($json.startDate ?? '2025-09-15') + \"'\" }}"
+        }
+      },
+      "type": "n8n-nodes-base.quickbooks",
+      "typeVersion": 1,
+      "position": [
+        780,
+        0
+      ],
+      "id": "17810f03-dfaa-4766-95c7-b95f888599ea",
+      "name": "Fetch QuickBooks Invoices"
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoices = $input.all().map((item) => item.json).filter((invoice) => invoice?.Id);\nconst normalizedQboInvoices = invoices.map((invoice) => ({\n  qbo_invoice_id: String(invoice.Id),\n  doc_number: invoice.DocNumber ? String(invoice.DocNumber) : null,\n  txn_date: invoice.TxnDate ?? null,\n  total_amount: Number(invoice.TotalAmt ?? 0),\n  customer_name: invoice.CustomerRef?.name ?? invoice.CustomerRef?.value ?? '',\n}));\nreturn [{ json: { normalizedQboInvoices, qboInvoiceCount: normalizedQboInvoices.length } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "0a3a5ac2-acd5-4ceb-b07d-f4463899cd39",
+      "name": "Normalize QBO Invoices"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_invoices?select=anchor_invoice_id,anchor_relationship_id,invoice_number,total_amount,issue_date,due_date&limit=5000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        -240
+      ],
+      "id": "83d4d29e-f1af-48e3-a973-f422a5be1bcb",
+      "name": "Fetch Anchor Invoices",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_agreements?select=anchor_relationship_id,client_business_name&limit=5000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        -80
+      ],
+      "id": "3167f8db-09b8-4b63-a83d-7d86e4ef4e40",
+      "name": "Fetch Anchor Agreements",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_revenue_events?select=revenue_event_key,anchor_invoice_id,source_amount&order=anchor_invoice_id.asc&limit=5000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        80
+      ],
+      "id": "c615ea0d-f6fc-4a07-bc22-a1452299921b",
+      "name": "Fetch Revenue Events",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_collection_revenue_allocations?select=revenue_event_key,allocated_amount&limit=5000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        240
+      ],
+      "id": "9af0f141-e87f-4882-a189-9f41dcf1d0c",
+      "name": "Fetch Existing Allocations",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function money(value) {\n  const parsed = Number(value ?? 0);\n  return Number.isFinite(parsed) ? Math.round((parsed + Number.EPSILON) * 100) / 100 : 0;\n}\n\nfunction normalizeClientName(value) {\n  let text = String(value ?? '').toLowerCase().replace(/&/g, ' and ');\n  text = text.replace(/\\([^)]*\\)/g, ' ');\n  const tokens = text.replace(/[^a-z0-9]+/g, ' ').split(/\\s+/).filter((token) => token && !['and', 'the'].includes(token));\n  let joined = tokens.join('');\n  const suffixes = ['limitedliabilitycompany', 'corporation', 'company', 'incorporated', 'llc', 'inc', 'corp', 'co', 'pa'];\n  let changed = true;\n  while (changed) {\n    changed = false;\n    for (const suffix of suffixes) {\n      if (joined.endsWith(suffix) && joined.length > suffix.length) {\n        joined = joined.slice(0, -suffix.length);\n        changed = true;\n        break;\n      }\n    }\n  }\n  return joined;\n}\n\nfunction parseDate(value) {\n  if (!value) return null;\n  const date = new Date(value);\n  return Number.isNaN(date.getTime()) ? null : date;\n}\n\nfunction dateWithin(paymentDateValue, invoice, windowDays = 14) {\n  const paymentDate = parseDate(paymentDateValue);\n  const invoiceDate = parseDate(invoice.issue_date ?? invoice.due_date);\n  if (!paymentDate || !invoiceDate) return false;\n  return Math.abs(paymentDate.getTime() - invoiceDate.getTime()) <= windowDays * 24 * 60 * 60 * 1000;\n}\n\nfunction customerMatches(payment, invoice) {\n  const customer = normalizeClientName(payment.customer_name);\n  const invoiceCustomer = normalizeClientName(invoice.anchor_client_business_name);\n  return Boolean(customer && invoiceCustomer && (customer === invoiceCustomer || invoiceCustomer.includes(customer)));\n}\n\nfunction amountMatches(payment, invoice) {\n  return Math.abs(money(payment.total_amount) - money(invoice.total_amount)) <= 0.01;\n}\n\nfunction findMatch(payment, invoicesById, invoicesByNumber, qboInvoicesById, invoices) {\n  for (const invoiceId of payment.linked_invoice_ids ?? []) {\n    const qboInvoice = qboInvoicesById[invoiceId];\n    const invoiceByDocNumber = qboInvoice?.doc_number ? invoicesByNumber[qboInvoice.doc_number] : null;\n    if (invoiceByDocNumber) {\n      return { match_status: 'matched', match_reason: 'linked_qbo_invoice_doc_number', invoice: invoiceByDocNumber, candidate_count: 1 };\n    }\n    if (invoicesById[invoiceId]) {\n      return { match_status: 'matched', match_reason: 'linked_invoice_id', invoice: invoicesById[invoiceId], candidate_count: 1 };\n    }\n  }\n  const candidates = invoices.filter((invoice) => customerMatches(payment, invoice) && amountMatches(payment, invoice) && dateWithin(payment.txn_date, invoice, 14));\n  if (candidates.length === 1) return { match_status: 'matched', match_reason: 'customer_amount_date_window', invoice: candidates[0], candidate_count: 1 };\n  if (candidates.length > 1) return { match_status: 'ambiguous', match_reason: 'multiple_customer_amount_date_window', invoice: null, candidate_count: candidates.length };\n  return { match_status: 'unmatched', match_reason: 'no_invoice_match', invoice: null, candidate_count: 0 };\n}\n\nfunction allocate(collectionKey, collectedAmount, events) {\n  const remainingEvents = events\n    .map((event) => ({ ...event, remaining_amount: money(Number(event.source_amount ?? 0) - Number(event.already_allocated_amount ?? 0)) }))\n    .filter((event) => event.remaining_amount > 0);\n  const totalRemaining = money(remainingEvents.reduce((sum, event) => sum + event.remaining_amount, 0));\n  const targetTotal = money(Math.min(collectedAmount, totalRemaining));\n  if (targetTotal <= 0 || totalRemaining <= 0) return [];\n\n  const rows = [];\n  let allocatedSoFar = 0;\n  remainingEvents.forEach((event, index) => {\n    const isFinal = index === remainingEvents.length - 1;\n    const exact = targetTotal * (event.remaining_amount / totalRemaining);\n    let rounded = money(exact);\n    let roundingDelta = 0;\n    if (isFinal) {\n      const finalAllocation = money(targetTotal - allocatedSoFar);\n      roundingDelta = money(finalAllocation - rounded);\n      rounded = finalAllocation;\n    } else {\n      allocatedSoFar = money(allocatedSoFar + rounded);\n    }\n    if (rounded > 0) {\n      rows.push({\n        allocation_key: `alloc_${collectionKey}_${event.revenue_event_key}`,\n        collection_key: collectionKey,\n        revenue_event_key: event.revenue_event_key,\n        allocated_amount: rounded,\n        allocation_method: 'invoice_prorata_by_remaining_source_amount',\n        rounding_delta: roundingDelta,\n      });\n    }\n  });\n  return rows;\n}\n\nconst payments = $('Normalize QBO Payments').first().json.normalizedPayments ?? [];\nconst qboInvoices = $('Normalize QBO Invoices').first().json.normalizedQboInvoices ?? [];\nconst qboInvoicesById = Object.fromEntries(qboInvoices.map((invoice) => [invoice.qbo_invoice_id, invoice]));\nconst agreements = $('Fetch Anchor Agreements').all().map((item) => item.json);\nconst agreementByRelationship = Object.fromEntries(agreements.map((agreement) => [agreement.anchor_relationship_id, agreement]));\nconst invoices = $('Fetch Anchor Invoices').all().map((item) => ({\n  ...item.json,\n  anchor_client_business_name: agreementByRelationship[item.json.anchor_relationship_id]?.client_business_name ?? null,\n}));\nconst invoicesById = Object.fromEntries(invoices.map((invoice) => [invoice.anchor_invoice_id, invoice]));\nconst invoicesByNumber = Object.fromEntries(invoices.filter((invoice) => invoice.invoice_number).map((invoice) => [String(invoice.invoice_number), invoice]));\nconst allocationsByEvent = $('Fetch Existing Allocations').all().reduce((acc, item) => {\n  const row = item.json;\n  acc[row.revenue_event_key] = money((acc[row.revenue_event_key] ?? 0) + Number(row.allocated_amount ?? 0));\n  return acc;\n}, {});\nconst eventsByInvoice = {};\nfor (const item of $('Fetch Revenue Events').all()) {\n  const event = item.json;\n  if (!event.anchor_invoice_id) continue;\n  (eventsByInvoice[event.anchor_invoice_id] ??= []).push({\n    ...event,\n    already_allocated_amount: allocationsByEvent[event.revenue_event_key] ?? 0,\n  });\n}\n\nconst collectionRows = [];\nconst allocationRows = [];\nconst matchCounts = {};\nfor (const payment of payments) {\n  const match = findMatch(payment, invoicesById, invoicesByNumber, qboInvoicesById, invoices);\n  matchCounts[match.match_status] = (matchCounts[match.match_status] ?? 0) + 1;\n  const invoice = match.invoice;\n  const collectionKey = `qbo_payment_${payment.qbo_payment_id}`;\n  collectionRows.push({\n    collection_key: collectionKey,\n    source_system: 'qbo',\n    source_payment_id: payment.qbo_payment_id,\n    anchor_invoice_id: invoice?.anchor_invoice_id ?? null,\n    anchor_relationship_id: invoice?.anchor_relationship_id ?? null,\n    qbo_payment_id: payment.qbo_payment_id,\n    collected_at: payment.txn_date,\n    collected_amount: money(payment.total_amount),\n    currency: 'USD',\n    collection_status: 'collected',\n    raw_payload: {\n      ...payment.raw_payload,\n      profit_match_status: match.match_status,\n      profit_match_reason: match.match_reason,\n      profit_candidate_count: match.candidate_count,\n    },\n  });\n  if (invoice?.anchor_invoice_id) {\n    allocationRows.push(...allocate(collectionKey, money(payment.total_amount), eventsByInvoice[invoice.anchor_invoice_id] ?? []));\n  }\n}\n\nreturn [{\n  json: {\n    collectionRows,\n    allocationRows,\n    summary: {\n      qboPaymentCount: payments.length,\n      qboInvoiceCount: qboInvoices.length,\n      cashCollectionRowCount: collectionRows.length,\n      allocationRowCount: allocationRows.length,\n      matchCounts,\n      allocationAmount: money(allocationRows.reduce((sum, row) => sum + row.allocated_amount, 0)),\n      note: 'QBO is the cash source of truth. Unmatched or ambiguous payments are inserted without Anchor invoice allocation and surface in profit_unallocated_cash_collections.',\n    },\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "id": "d339f48c-c5a6-4855-ac9d-32ad724bfbfc",
+      "name": "Build Cash Collections And Allocations"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_cash_collections?on_conflict=collection_key",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.collectionRows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        0
+      ],
+      "id": "903756fe-5376-4f71-b753-823a7f9d3784",
+      "name": "Upsert Cash Collections",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_collection_revenue_allocations?on_conflict=collection_key,revenue_event_key",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $('Build Cash Collections And Allocations').first().json.allocationRows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        0
+      ],
+      "id": "decd5177-485e-432d-8167-9ff9333d1a59",
+      "name": "Upsert Collection Allocations",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const summary = $('Build Cash Collections And Allocations').first().json.summary;\nconst cashRows = $('Upsert Cash Collections').all().map((item) => item.json);\nconst allocationRows = $input.all().map((item) => item.json);\nreturn [{\n  json: {\n    status: 'ok',\n    ...summary,\n    upsertedCashCollectionCount: cashRows.length,\n    upsertedAllocationCount: allocationRows.length,\n    sampleCashCollections: cashRows.slice(0, 10),\n    sampleAllocations: allocationRows.slice(0, 10),\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        0
+      ],
+      "id": "26d7d6f4-df3a-4924-a6d4-f610ef35f356",
+      "name": "Summarize QBO Collection Load"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch QuickBooks Payments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch QuickBooks Payments": {
+      "main": [
+        [
+          {
+            "node": "Normalize QBO Payments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize QBO Payments": {
+      "main": [
+        [
+          {
+            "node": "Fetch QuickBooks Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch QuickBooks Invoices": {
+      "main": [
+        [
+          {
+            "node": "Normalize QBO Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize QBO Invoices": {
+      "main": [
+        [
+          {
+            "node": "Fetch Anchor Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Anchor Invoices": {
+      "main": [
+        [
+          {
+            "node": "Fetch Anchor Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Anchor Agreements": {
+      "main": [
+        [
+          {
+            "node": "Fetch Revenue Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Revenue Events": {
+      "main": [
+        [
+          {
+            "node": "Fetch Existing Allocations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Existing Allocations": {
+      "main": [
+        [
+          {
+            "node": "Build Cash Collections And Allocations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Cash Collections And Allocations": {
+      "main": [
+        [
+          {
+            "node": "Upsert Cash Collections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Cash Collections": {
+      "main": [
+        [
+          {
+            "node": "Upsert Collection Allocations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Collection Allocations": {
+      "main": [
+        [
+          {
+            "node": "Summarize QBO Collection Load",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

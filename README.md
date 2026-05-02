@@ -50,3 +50,4 @@ Approved FC task completions are loaded into `profit_recognition_triggers` throu
 Use `Profit - 20 FC Completion Trigger Inspect` to review FC trigger candidates and `Profit - 21 Approve Matched FC Tax Filed Triggers` for the conservative matched-tax-filed starter approval path.
 Comp/W2 reporting starts with `supabase/sql/008_profit_comp_w2.sql` and inspect workflow `Profit - 22 Comp W2 Inspect`.
 Admin dashboard read surfaces start with `supabase/sql/009_profit_admin_dashboard_views.sql` and inspect workflow `Profit - 23 Admin Dashboard Inspect`.
+Prepaid liability starts with `supabase/sql/010_profit_prepaid_liability.sql`; QBO cash collections are loaded by `Profit - 24 QBO Collection Loader` after a QuickBooks Online OAuth2 credential is added in n8n.
