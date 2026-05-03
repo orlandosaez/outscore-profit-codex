@@ -1,0 +1,3 @@
+# Tech Debt
+
+- Anchor invoice voids do not propagate to profit_revenue_events.recognition_status. Voided/cancelled invoices' revenue event candidates remain eligible for recognition unless manually excluded. The recognition-ready view (profit_revenue_events_ready_for_recognition from 005_profit_recognition_triggers.sql) does not join profit_anchor_invoices or filter on display_status / qbo_status. Structural fix options: (a) extend the ready view to filter display_status NOT IN ('voided', 'cancelled'); OR (b) have the Anchor sync flag candidates from voided invoices with a non-pending recognition_status at sync time. Discovered during Collectiv SBC-00015 cleanup (resolved manually 2026-05-02). Implement before next major Anchor billing cycle to avoid recurrence.
