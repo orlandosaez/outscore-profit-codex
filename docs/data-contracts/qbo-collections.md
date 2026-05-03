@@ -51,3 +51,11 @@ The workflow also uses the existing Supabase credential:
   - Split by `service_category`: `tax_deferred_revenue`, `pending_recognition_trigger`, or `recognized`.
 - `profit_prepaid_liability_ledger`
 - `profit_unallocated_cash_collections`
+
+## API Surfaces
+
+- `GET /api/profit/admin/dashboard`: includes `prepaid_liability.summary` for the top tile.
+- `GET /api/profit/admin/prepaid/balances`: returns point-in-time per-client/service balances.
+- `GET /api/profit/admin/prepaid/ledger?anchor_relationship_id=X&macro_service_type=Y`: returns full-history ledger rows for a selected client/service.
+
+Prepaid endpoints do not accept `period`; balances are point-in-time. Ledger period filtering is deferred to V0.5.

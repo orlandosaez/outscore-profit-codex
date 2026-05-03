@@ -293,13 +293,30 @@ class AdminDashboardServiceTests(unittest.TestCase):
             "not a QBO liability entry",
             snapshot["prepaid_liability"]["summary"]["trigger_backlog_note"],
         )
-        self.assertEqual(len(snapshot["prepaid_liability"]["balances"]), 1)
-        self.assertEqual(len(snapshot["prepaid_liability"]["ledger"]), 1)
+        self.assertNotIn("balances", snapshot["prepaid_liability"])
+        self.assertNotIn("ledger", snapshot["prepaid_liability"])
         self.assertEqual(snapshot["prepaid_liability"]["collection_feed_status"], "loaded")
         self.assertIn(
             "cash collected but not yet recognized",
             snapshot["prepaid_liability"]["basis_note"],
         )
+
+    def test_snapshot_includes_point_in_time_prepaid_summary_only(self) -> None:
+        snapshot = AdminDashboardService(FakeSupabaseReader()).snapshot(
+            period_month="2026-03-01"
+        )
+
+        prepaid = snapshot["prepaid_liability"]
+        self.assertEqual(
+            prepaid["window_label"],
+            "Point-in-time balance; not filtered by selected month.",
+        )
+        self.assertEqual(prepaid["summary"]["tax_deferred_revenue_balance"], 5000)
+        self.assertEqual(prepaid["summary"]["trigger_backlog_balance"], 7500)
+        self.assertEqual(prepaid["summary"]["total_prepaid_liability_balance"], 12500)
+        self.assertEqual(prepaid["summary"]["last_updated"], "2026-04-30")
+        self.assertNotIn("balances", prepaid)
+        self.assertNotIn("ledger", prepaid)
 
     def test_snapshot_tolerates_missing_prepaid_liability_views_until_migration_runs(self) -> None:
         class MissingPrepaidViewsReader(FakeSupabaseReader):
@@ -322,8 +339,8 @@ class AdminDashboardServiceTests(unittest.TestCase):
             snapshot["prepaid_liability"]["summary"]["total_prepaid_liability_balance"],
             0,
         )
-        self.assertEqual(snapshot["prepaid_liability"]["balances"], [])
-        self.assertEqual(snapshot["prepaid_liability"]["ledger"], [])
+        self.assertNotIn("balances", snapshot["prepaid_liability"])
+        self.assertNotIn("ledger", snapshot["prepaid_liability"])
         self.assertEqual(
             snapshot["prepaid_liability"]["collection_feed_status"],
             "not_loaded",

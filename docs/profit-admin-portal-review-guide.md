@@ -159,6 +159,12 @@ Current limitation:
 - The schema and dashboard surface exist, but the Anchor/QBO payment collection loader still needs to populate `profit_cash_collections` and `profit_collection_revenue_allocations`.
 - The portal does not yet provide a full per-client expandable audit page.
 
+## V0.4 Prepaid Liability
+
+The V0.4 prepaid block is a point-in-time block and ignores the `Period` selector. Use `Tax Deferred Revenue` as the exact QBO Deferred Revenue journal-entry support number; do not use `Trigger Backlog` or `Total reference` as the JE amount. `Trigger Backlog` is delivered service waiting on FC completion-trigger approval, and `Total reference` is informational only.
+
+The drill-down table defaults to non-recognized rows and can be filtered by `All`, `Tax Deferred`, or `Trigger Backlog`. Select a client/service row to open the audit ledger, which is the reconciliation trail showing cash collected, revenue-recognition drawdowns, source references, and running balance.
+
 ## Ratio Summary
 
 This block is the company-level operating layer between the top tiles and the per-client table. It helps explain why GP changed before you inspect individual clients.

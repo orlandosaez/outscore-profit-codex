@@ -18,6 +18,27 @@ class AdminDashboardService:
     def __init__(self, reader: SupabaseReader) -> None:
         self.reader = reader
 
+    def prepaid_balances(self) -> list[DashboardRow]:
+        return self.reader.read_view(
+            "profit_prepaid_liability_balances",
+            order="balance.desc,anchor_client_business_name.asc",
+            limit=1000,
+        )
+
+    def prepaid_ledger(
+        self,
+        *,
+        anchor_relationship_id: str,
+        macro_service_type: str,
+    ) -> list[DashboardRow]:
+        return self.reader.read_view(
+            "profit_prepaid_liability_ledger",
+            anchor_relationship_id=f"eq.{anchor_relationship_id}",
+            macro_service_type=f"eq.{macro_service_type}",
+            order="event_at.desc,ledger_entry_type.asc",
+            limit=1000,
+        )
+
     def snapshot(self, period_month: str | None = None) -> dict[str, object]:
         available_periods = self.reader.read_view(
             "profit_company_monthly_gp_recognition_basis",
@@ -119,22 +140,11 @@ def _read_prepaid_liability(reader: SupabaseReader) -> dict[str, object]:
 
     try:
         summary_rows = reader.read_view("profit_prepaid_liability_summary", limit=1)
-        balances = reader.read_view(
-            "profit_prepaid_liability_balances",
-            order="balance.desc,anchor_client_business_name.asc",
-            limit=100,
-        )
-        ledger = reader.read_view(
-            "profit_prepaid_liability_ledger",
-            order="event_at.desc,anchor_relationship_id.asc",
-            limit=100,
-        )
     except SupabaseRestError:
         return {
             "summary": default_summary,
-            "balances": [],
-            "ledger": [],
             "basis_note": basis_note,
+            "window_label": "Point-in-time balance; not filtered by selected month.",
             "migration_status": "missing_prepaid_liability_views",
             "collection_feed_status": "not_loaded",
         }
@@ -146,9 +156,8 @@ def _read_prepaid_liability(reader: SupabaseReader) -> dict[str, object]:
 
     return {
         "summary": summary,
-        "balances": balances,
-        "ledger": ledger,
         "basis_note": basis_note,
+        "window_label": "Point-in-time balance; not filtered by selected month.",
         "migration_status": "ready",
         "collection_feed_status": collection_feed_status,
     }

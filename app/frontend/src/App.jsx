@@ -14,6 +14,14 @@ import {
 
 const apiBase = import.meta.env.VITE_PROFIT_API_BASE ?? "/api";
 const endpoint = `${apiBase}/profit/admin/dashboard`;
+const prepaidBalancesEndpoint = `${apiBase}/profit/admin/prepaid/balances`;
+const prepaidLedgerEndpoint = `${apiBase}/profit/admin/prepaid/ledger`;
+
+const SERVICE_CATEGORY_LABEL = {
+  tax_deferred_revenue: "Tax Deferred",
+  pending_recognition_trigger: "Trigger Backlog",
+  recognized: "Recognized",
+};
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -48,10 +56,22 @@ function monthLabel(value) {
 
 function dateLabel(value) {
   if (!value) return "n/a";
-  return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
+  const dateValue = String(value).includes("T") ? value : `${value}T00:00:00`;
+  return new Date(dateValue).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+  });
+}
+
+function dateTimeLabel(value) {
+  if (!value) return "n/a";
+  return new Date(value).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
@@ -77,6 +97,67 @@ function EmptyRow({ colSpan, label }) {
         {label}
       </td>
     </tr>
+  );
+}
+
+function withRunningBalances(rows) {
+  let running = 0;
+  return [...rows]
+    .sort((a, b) => String(a.event_at ?? "").localeCompare(String(b.event_at ?? "")))
+    .map((row) => {
+      running += Number(row.amount_delta ?? 0);
+      return { ...row, running_balance: running };
+    })
+    .sort((a, b) => String(b.event_at ?? "").localeCompare(String(a.event_at ?? "")));
+}
+
+const triggerBacklogFallback = "Delivered services with no recognition trigger loaded — not a QBO liability entry. Clears when FC completion triggers are approved.";
+
+function PrepaidLiabilityTile({ prepaidLiability }) {
+  const summary = prepaidLiability?.summary ?? {};
+  const isLoaded = prepaidLiability?.collection_feed_status === "loaded";
+
+  if (!isLoaded) {
+    return (
+      <section className="stat stat-warn prepaid-stat">
+        <div className="stat-icon">
+          <Landmark size={18} aria-hidden="true" />
+        </div>
+        <div className="prepaid-stat-body">
+          <p>Prepaid Liability · point-in-time</p>
+          <strong>Collection feed not yet loaded</strong>
+          <span>Deferred Revenue JE not ready</span>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="stat prepaid-stat">
+      <div className="stat-icon">
+        <Landmark size={18} aria-hidden="true" />
+      </div>
+      <div className="prepaid-stat-body">
+        <p>Prepaid Liability · point-in-time</p>
+        <div className="prepaid-stat-row" title="Record this exact amount as Deferred Revenue in QuickBooks. Tax retainers held until return is filed or extended.">
+          <span>Tax Deferred Revenue</span>
+          <strong>{formatMoney(summary.tax_deferred_revenue_balance)}</strong>
+        </div>
+        <div className="prepaid-stat-row" title={summary.trigger_backlog_note ?? triggerBacklogFallback}>
+          <span>Trigger Backlog</span>
+          <strong>{formatMoney(summary.trigger_backlog_balance)}</strong>
+        </div>
+        <div className="prepaid-stat-row reference" title="Sum of both buckets. Do not record this as a single QBO entry.">
+          <span>Total reference</span>
+          <strong>{formatMoney(summary.total_prepaid_liability_balance)}</strong>
+        </div>
+        <small>
+          {summary.last_updated
+            ? `Current balance as of ${dateTimeLabel(summary.last_updated)}`
+            : "Current point-in-time balance"}
+        </small>
+      </div>
+    </section>
   );
 }
 
@@ -133,10 +214,21 @@ function ClientBadges({ row }) {
   );
 }
 
-function PrepaidLiabilityPanel({ prepaidLiability }) {
+function PrepaidLiabilityPanel({
+  prepaidLiability,
+  balances,
+  prepaidFilter,
+  setPrepaidFilter,
+  selectedRow,
+  onSelectRow,
+  ledgerRows,
+}) {
   const summary = prepaidLiability?.summary ?? {};
-  const balances = prepaidLiability?.balances ?? [];
-  const ledger = prepaidLiability?.ledger ?? [];
+  const filterItems = [
+    ["all", "All"],
+    ["tax", SERVICE_CATEGORY_LABEL.tax_deferred_revenue],
+    ["trigger", SERVICE_CATEGORY_LABEL.pending_recognition_trigger],
+  ];
 
   return (
     <section className="panel prepaid-panel">
@@ -146,26 +238,42 @@ function PrepaidLiabilityPanel({ prepaidLiability }) {
       </div>
       <p className="panel-note">
         Tax Deferred Revenue: {formatMoney(summary.tax_deferred_revenue_balance)}. Record this as Deferred Revenue in QBO.
-        Pending Triggers: {formatMoney(summary.trigger_backlog_balance)}. Clears when completion triggers are approved; not a QBO entry.
+        Trigger Backlog: {formatMoney(summary.trigger_backlog_balance)}. Clears when completion triggers are approved; not a QBO entry.
       </p>
+      <div className="filter-row" aria-label="Prepaid liability filters">
+        {filterItems.map(([value, label]) => (
+          <button
+            className={prepaidFilter === value ? "filter-chip active" : "filter-chip"}
+            key={value}
+            onClick={() => setPrepaidFilter(value)}
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="split prepaid-split">
         <div className="table-wrap compact">
           <table>
             <thead>
               <tr>
                 <th>Client</th>
-                <th>Service</th>
-                <th>Category</th>
+                <th>Service category</th>
+                <th>Macro service</th>
                 <th>Balance</th>
                 <th>Last Updated</th>
               </tr>
             </thead>
             <tbody>
-              {balances.slice(0, 12).map((row, index) => (
-                <tr key={`${row.anchor_relationship_id}-${row.macro_service_type}-${index}`}>
+              {balances.map((row, index) => (
+                <tr
+                  className={selectedRow === row ? "selected-row" : ""}
+                  key={`${row.anchor_relationship_id}-${row.macro_service_type}-${row.service_category}-${index}`}
+                  onClick={() => onSelectRow(row)}
+                >
                   <td>{row.anchor_client_business_name ?? "Unmatched"}</td>
+                  <td>{SERVICE_CATEGORY_LABEL[row.service_category] ?? row.service_category ?? "n/a"}</td>
                   <td>{row.macro_service_type ?? "n/a"}</td>
-                  <td>{row.service_category ?? "n/a"}</td>
                   <td>{formatMoney(row.balance)}</td>
                   <td>{dateLabel(row.last_updated)}</td>
                 </tr>
@@ -174,26 +282,31 @@ function PrepaidLiabilityPanel({ prepaidLiability }) {
             </tbody>
           </table>
         </div>
-        <div className="table-wrap compact">
+        <div className="table-wrap compact ledger-table-wrap">
+          <p className="ledger-note">
+            QBO journal entry reconciliation trail. Cash collected increases the balance; revenue recognized draws it down.
+          </p>
           <table>
             <thead>
               <tr>
                 <th>Date</th>
                 <th>Type</th>
-                <th>Client</th>
-                <th>Delta</th>
+                <th>Amount</th>
+                <th>Source ref</th>
+                <th>Running balance</th>
               </tr>
             </thead>
             <tbody>
-              {ledger.slice(0, 12).map((row, index) => (
+              {ledgerRows.map((row, index) => (
                 <tr key={`${row.event_at}-${row.revenue_event_key}-${row.ledger_entry_type}-${index}`}>
                   <td>{dateLabel(row.event_at)}</td>
                   <td>{row.ledger_entry_type}</td>
-                  <td>{row.anchor_relationship_id ?? "Unmatched"}</td>
                   <td>{formatMoney(row.amount_delta)}</td>
+                  <td>{row.ledger_entry_type === "cash_collected" ? row.source_payment_id : row.revenue_event_key}</td>
+                  <td>{formatMoney(row.running_balance)}</td>
                 </tr>
               ))}
-              {ledger.length ? null : <EmptyRow colSpan={4} label="No prepaid liability ledger rows loaded" />}
+              {ledgerRows.length ? null : <EmptyRow colSpan={5} label="Select a client balance to load the audit ledger" />}
             </tbody>
           </table>
         </div>
@@ -258,6 +371,10 @@ function App() {
   const [selectedPeriod, setSelectedPeriod] = useState("");
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
+  const [prepaidBalances, setPrepaidBalances] = useState([]);
+  const [prepaidFilter, setPrepaidFilter] = useState("all");
+  const [selectedPrepaidRow, setSelectedPrepaidRow] = useState(null);
+  const [prepaidLedgerRows, setPrepaidLedgerRows] = useState([]);
 
   async function loadDashboard(period = selectedPeriod) {
     setStatus("loading");
@@ -273,11 +390,35 @@ function App() {
       if (!period && payload.selected_period_month) {
         setSelectedPeriod(payload.selected_period_month);
       }
+      await loadPrepaidBalances();
       setStatus("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Dashboard request failed");
       setStatus("error");
     }
+  }
+
+  async function loadPrepaidBalances() {
+    const response = await fetch(prepaidBalancesEndpoint);
+    if (!response.ok) {
+      throw new Error(`Prepaid balances request failed: ${response.status}`);
+    }
+    const payload = await response.json();
+    setPrepaidBalances(payload.rows ?? []);
+  }
+
+  async function loadPrepaidLedger(row) {
+    setSelectedPrepaidRow(row);
+    const params = new URLSearchParams({
+      anchor_relationship_id: row.anchor_relationship_id,
+      macro_service_type: row.macro_service_type,
+    });
+    const response = await fetch(`${prepaidLedgerEndpoint}?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Prepaid ledger request failed: ${response.status}`);
+    }
+    const payload = await response.json();
+    setPrepaidLedgerRows(withRunningBalances(payload.rows ?? []));
   }
 
   useEffect(() => {
@@ -289,9 +430,17 @@ function App() {
   const availablePeriods = snapshot?.available_periods ?? [];
   const fixedWindows = snapshot?.fixed_windows ?? {};
   const prepaidLiability = snapshot?.prepaid_liability ?? {};
-  const prepaidSummary = prepaidLiability.summary ?? {};
-  const isPrepaidFeedLoaded = prepaidLiability.collection_feed_status === "loaded";
   const fcQueueCount = snapshot?.fc_trigger_queue?.length ?? 0;
+  const visiblePrepaidBalances = useMemo(
+    () => prepaidBalances
+      .filter((row) => row.service_category !== "recognized")
+      .filter((row) => {
+        if (prepaidFilter === "tax") return row.service_category === "tax_deferred_revenue";
+        if (prepaidFilter === "trigger") return row.service_category === "pending_recognition_trigger";
+        return true;
+      }),
+    [prepaidBalances, prepaidFilter],
+  );
 
   return (
     <main className="page">
@@ -352,16 +501,18 @@ function App() {
           value={formatMoney(company.pending_revenue_amount)}
           detail={`${company.pending_revenue_event_count ?? 0} pending revenue events`}
         />
-        <Stat
-          icon={Landmark}
-          label="Prepaid Liability"
-          value={isPrepaidFeedLoaded ? formatMoney(prepaidSummary.tax_deferred_revenue_balance) : "Collection feed not yet loaded"}
-          detail={isPrepaidFeedLoaded ? `Record this as Deferred Revenue in QBO · ${prepaidSummary.client_balance_count ?? 0} clients` : "Deferred Revenue JE not ready"}
-          tone={isPrepaidFeedLoaded ? "neutral" : "warn"}
-        />
+        <PrepaidLiabilityTile prepaidLiability={prepaidLiability} />
       </section>
 
-      <PrepaidLiabilityPanel prepaidLiability={prepaidLiability} />
+      <PrepaidLiabilityPanel
+        balances={visiblePrepaidBalances}
+        ledgerRows={prepaidLedgerRows}
+        onSelectRow={loadPrepaidLedger}
+        prepaidFilter={prepaidFilter}
+        prepaidLiability={prepaidLiability}
+        selectedRow={selectedPrepaidRow}
+        setPrepaidFilter={setPrepaidFilter}
+      />
 
       <CompanyGpTrend rows={snapshot?.trends?.company_gp} />
 

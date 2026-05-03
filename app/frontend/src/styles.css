@@ -109,7 +109,7 @@ h2 {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -168,6 +168,54 @@ h2 {
   font-size: 0.82rem;
 }
 
+.prepaid-stat {
+  grid-column: span 2;
+}
+
+.prepaid-stat-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.prepaid-stat-body > strong {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 2px 0;
+  font-size: 1.1rem;
+  line-height: 1.1;
+}
+
+.prepaid-stat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.prepaid-stat-row span {
+  overflow-wrap: anywhere;
+}
+
+.prepaid-stat-row strong {
+  color: #17242d;
+  font-size: 0.95rem;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.prepaid-stat-row.reference {
+  border-top: 1px solid #e3e9ec;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.prepaid-stat small {
+  color: #66757d;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
 .panel {
   min-width: 0;
   margin-bottom: 14px;
@@ -204,6 +252,47 @@ h2 {
 
 .prepaid-split > .table-wrap:first-child {
   border-right: 1px solid #eef2f4;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #eef2f4;
+}
+
+.filter-chip {
+  min-height: 32px;
+  border: 1px solid #cfd8dd;
+  border-radius: 999px;
+  padding: 0 12px;
+  color: #4f5e66;
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.filter-chip.active {
+  border-color: #1d6f86;
+  color: #145c70;
+  background: #e8f3f6;
+}
+
+.selected-row td {
+  background: #f0f8fa;
+}
+
+.ledger-table-wrap {
+  min-width: 0;
+}
+
+.ledger-note {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef2f4;
+  color: #697780;
+  font-size: 0.78rem;
 }
 
 .trend-panel {
@@ -392,6 +481,10 @@ td:nth-last-child(-n + 4) {
   .split,
   .ratio-grid {
     grid-template-columns: 1fr;
+  }
+
+  .prepaid-stat {
+    grid-column: span 1;
   }
 
   .ratio-item {
