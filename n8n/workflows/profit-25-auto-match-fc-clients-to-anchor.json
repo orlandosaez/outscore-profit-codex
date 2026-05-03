@@ -1,0 +1,150 @@
+{
+  "name": "Profit - 25 Auto-Match FC Clients To Anchor",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "363d0414-9d51-4e9d-bd70-3def2d055087",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_client_anchor_match_candidates?select=fc_client_id,fc_client_name,anchor_relationship_id,anchor_client_business_name,match_status,match_confidence&match_status=eq.auto_exact&order=fc_client_name.asc&limit=10000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "57e18b6c-c8c2-43a4-8c1e-598a61d96cd1",
+      "name": "Fetch Auto Exact FC Client Matches",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const candidates = $input.all().map((item) => item.json);\nconst loadedAt = new Date().toISOString();\nconst rows = candidates.map((row) => ({\n  fc_client_id: Number(row.fc_client_id),\n  fc_client_name: row.fc_client_name,\n  anchor_relationship_id: row.anchor_relationship_id,\n  anchor_client_business_name: row.anchor_client_business_name,\n  match_status: 'auto_exact',\n  match_confidence: Number(row.match_confidence ?? 1),\n  notes: 'Auto-loaded from profit_fc_client_anchor_match_candidates where match_status = auto_exact.',\n  loaded_at: loadedAt,\n}));\nreturn [{\n  json: {\n    rows,\n    summary: {\n      candidateCount: candidates.length,\n      upsertCount: rows.length,\n      byMatchStatus: candidates.reduce((acc, row) => {\n        const key = row.match_status ?? 'unknown';\n        acc[key] = (acc[key] ?? 0) + 1;\n        return acc;\n      }, {}),\n      samples: candidates.slice(0, 20),\n    },\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "e72b308c-dd13-49b6-950f-ef797ff22151",
+      "name": "Build FC Client Match Rows"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_client_anchor_matches?on_conflict=fc_client_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "e0d8e8ac-2b89-4066-bffc-7ca71808d9df",
+      "name": "Upsert FC Client Anchor Matches",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [{\n  json: {\n    status: 'ok',\n    upsertedFcClientMatchCount: rows.length,\n    sample: rows.slice(0, 20),\n    note: 'Only auto_exact FC-to-Anchor client matches were upserted.',\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "8688728b-4b4d-4a17-b5e0-fe34025f2c89",
+      "name": "Summarize FC Client Match Upsert"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Auto Exact FC Client Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Auto Exact FC Client Matches": {
+      "main": [
+        [
+          {
+            "node": "Build FC Client Match Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build FC Client Match Rows": {
+      "main": [
+        [
+          {
+            "node": "Upsert FC Client Anchor Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert FC Client Anchor Matches": {
+      "main": [
+        [
+          {
+            "node": "Summarize FC Client Match Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

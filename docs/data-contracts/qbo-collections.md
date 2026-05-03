@@ -43,6 +43,11 @@ The workflow also uses the existing Supabase credential:
 ## Review Views
 
 - `profit_prepaid_liability_summary`
+  - `tax_deferred_revenue_balance`: QBO Deferred Revenue JE number.
+  - `trigger_backlog_balance`: delivered services waiting on FC completion triggers; not a QBO liability entry.
+  - `total_prepaid_liability_balance`: reference total only; do not use as a JE amount.
+  - `trigger_backlog_note`: fixed UI/help text for the trigger backlog bucket.
 - `profit_prepaid_liability_balances`
+  - Split by `service_category`: `tax_deferred_revenue`, `pending_recognition_trigger`, or `recognized`.
 - `profit_prepaid_liability_ledger`
 - `profit_unallocated_cash_collections`

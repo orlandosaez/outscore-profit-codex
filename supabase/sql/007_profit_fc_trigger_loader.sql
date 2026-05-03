@@ -50,6 +50,8 @@ select
   match.anchor_client_business_name,
   match.match_status,
   case
+    when task.project_title ilike '%Monthly Bookkeeping%'
+      and task.title ilike '%close the books%' then 'bookkeeping_complete'
     when task.title ilike '%bookkeep%' and task.title ilike '%complete%' then 'bookkeeping_complete'
     when task.title ilike '%payroll%'
       and task.title not ilike '%provision%'
@@ -63,12 +65,19 @@ select
     else 'manual_review'
   end as suggested_trigger_type,
   case
+    when task.project_title ilike '%Monthly Bookkeeping%'
+      and task.title ilike '%close the books%' then 'bookkeeping'
     when task.title ilike '%bookkeep%' then 'bookkeeping'
     when task.title ilike '%payroll%' or task.project_title ilike '%payroll%' then 'payroll'
     when task.title ilike '%extension%' or task.title ilike '%return%' or task.project_title ilike '%tax%' then 'tax'
     else null
   end as suggested_macro_service_type,
-  date_trunc('month', coalesce(task.completed_at, task.due_date, task.updated_at))::date as suggested_service_period_month
+  case
+    when task.project_title ilike '%Monthly Bookkeeping%'
+      and task.title ilike '%close the books%'
+      then date_trunc('month', coalesce(task.completed_at, task.due_date, task.updated_at) - interval '1 month')::date
+    else date_trunc('month', coalesce(task.completed_at, task.due_date, task.updated_at))::date
+  end as suggested_service_period_month
 from profit_fc_tasks task
 left join profit_fc_client_anchor_matches match
   on match.fc_client_id = task.fc_client_id

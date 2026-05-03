@@ -113,7 +113,10 @@ class FakeSupabaseReader:
             ],
             "profit_prepaid_liability_summary": [
                 {
-                    "current_total_prepaid_liability": 12500,
+                    "tax_deferred_revenue_balance": 5000,
+                    "trigger_backlog_balance": 7500,
+                    "total_prepaid_liability_balance": 12500,
+                    "trigger_backlog_note": "Delivered services with no recognition trigger loaded — not a QBO liability entry. Clears when FC completion triggers are approved.",
                     "client_balance_count": 3,
                     "collection_count": 4,
                     "last_updated": "2026-04-30",
@@ -275,10 +278,20 @@ class AdminDashboardServiceTests(unittest.TestCase):
         snapshot = AdminDashboardService(FakeSupabaseReader()).snapshot()
 
         self.assertEqual(
-            snapshot["prepaid_liability"]["summary"][
-                "current_total_prepaid_liability"
-            ],
+            snapshot["prepaid_liability"]["summary"]["tax_deferred_revenue_balance"],
+            5000,
+        )
+        self.assertEqual(
+            snapshot["prepaid_liability"]["summary"]["trigger_backlog_balance"],
+            7500,
+        )
+        self.assertEqual(
+            snapshot["prepaid_liability"]["summary"]["total_prepaid_liability_balance"],
             12500,
+        )
+        self.assertIn(
+            "not a QBO liability entry",
+            snapshot["prepaid_liability"]["summary"]["trigger_backlog_note"],
         )
         self.assertEqual(len(snapshot["prepaid_liability"]["balances"]), 1)
         self.assertEqual(len(snapshot["prepaid_liability"]["ledger"]), 1)
@@ -298,9 +311,15 @@ class AdminDashboardServiceTests(unittest.TestCase):
         snapshot = AdminDashboardService(MissingPrepaidViewsReader()).snapshot()
 
         self.assertEqual(
-            snapshot["prepaid_liability"]["summary"][
-                "current_total_prepaid_liability"
-            ],
+            snapshot["prepaid_liability"]["summary"]["tax_deferred_revenue_balance"],
+            0,
+        )
+        self.assertEqual(
+            snapshot["prepaid_liability"]["summary"]["trigger_backlog_balance"],
+            0,
+        )
+        self.assertEqual(
+            snapshot["prepaid_liability"]["summary"]["total_prepaid_liability_balance"],
             0,
         )
         self.assertEqual(snapshot["prepaid_liability"]["balances"], [])

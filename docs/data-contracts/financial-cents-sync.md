@@ -82,3 +82,5 @@ Helper workflows:
 
 - `Profit - 20 FC Completion Trigger Inspect` summarizes client match/candidate/ready counts.
 - `Profit - 21 Approve Matched FC Tax Filed Triggers` approves only matched `tax_filed` candidates.
+- `Profit - 22 Approve Matched FC Bookkeeping Complete Triggers` approves only matched past-period `bookkeeping_complete` candidates after dry-run review.
+- Re-sync FC or manually patch after FC support review for close-books tasks with no client linkage: `fc_task_id IN (75996366, 75998974, 83198301)`.

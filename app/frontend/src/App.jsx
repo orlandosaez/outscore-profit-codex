@@ -134,6 +134,7 @@ function ClientBadges({ row }) {
 }
 
 function PrepaidLiabilityPanel({ prepaidLiability }) {
+  const summary = prepaidLiability?.summary ?? {};
   const balances = prepaidLiability?.balances ?? [];
   const ledger = prepaidLiability?.ledger ?? [];
 
@@ -144,7 +145,8 @@ function PrepaidLiabilityPanel({ prepaidLiability }) {
         <h2>Prepaid Liability Drilldown</h2>
       </div>
       <p className="panel-note">
-        QBO helper: use the current total prepaid liability as the Deferred Revenue JE balance. Basis is cash collected but not yet recognized.
+        Tax Deferred Revenue: {formatMoney(summary.tax_deferred_revenue_balance)}. Record this as Deferred Revenue in QBO.
+        Pending Triggers: {formatMoney(summary.trigger_backlog_balance)}. Clears when completion triggers are approved; not a QBO entry.
       </p>
       <div className="split prepaid-split">
         <div className="table-wrap compact">
@@ -153,6 +155,7 @@ function PrepaidLiabilityPanel({ prepaidLiability }) {
               <tr>
                 <th>Client</th>
                 <th>Service</th>
+                <th>Category</th>
                 <th>Balance</th>
                 <th>Last Updated</th>
               </tr>
@@ -162,11 +165,12 @@ function PrepaidLiabilityPanel({ prepaidLiability }) {
                 <tr key={`${row.anchor_relationship_id}-${row.macro_service_type}-${index}`}>
                   <td>{row.anchor_client_business_name ?? "Unmatched"}</td>
                   <td>{row.macro_service_type ?? "n/a"}</td>
+                  <td>{row.service_category ?? "n/a"}</td>
                   <td>{formatMoney(row.balance)}</td>
                   <td>{dateLabel(row.last_updated)}</td>
                 </tr>
               ))}
-              {balances.length ? null : <EmptyRow colSpan={4} label="No prepaid liability balances loaded" />}
+              {balances.length ? null : <EmptyRow colSpan={5} label="No prepaid liability balances loaded" />}
             </tbody>
           </table>
         </div>
@@ -351,8 +355,8 @@ function App() {
         <Stat
           icon={Landmark}
           label="Prepaid Liability"
-          value={isPrepaidFeedLoaded ? formatMoney(prepaidSummary.current_total_prepaid_liability) : "Collection feed not yet loaded"}
-          detail={isPrepaidFeedLoaded ? `Deferred Revenue JE balance · ${prepaidSummary.client_balance_count ?? 0} clients` : "Deferred Revenue JE not ready"}
+          value={isPrepaidFeedLoaded ? formatMoney(prepaidSummary.tax_deferred_revenue_balance) : "Collection feed not yet loaded"}
+          detail={isPrepaidFeedLoaded ? `Record this as Deferred Revenue in QBO · ${prepaidSummary.client_balance_count ?? 0} clients` : "Deferred Revenue JE not ready"}
           tone={isPrepaidFeedLoaded ? "neutral" : "warn"}
         />
       </section>

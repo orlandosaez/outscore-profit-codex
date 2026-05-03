@@ -100,3 +100,8 @@ This workflow summarizes FC client match status, completion trigger candidate st
 - File: `n8n/workflows/profit-21-approve-matched-fc-tax-filed-triggers.json`
 
 This is a conservative starter approval workflow. It approves only pending FC tasks where the suggested trigger is `tax_filed`, the trigger type is `tax_filed`, and the task already has a resolved Anchor relationship and macro service type.
+
+- `Profit - 22 Approve Matched FC Bookkeeping Complete Triggers`
+- File: `n8n/workflows/profit-22-approve-matched-fc-bookkeeping-complete-triggers.json`
+
+This follows the same conservative approval pattern for `bookkeeping_complete`, but also requires a resolved service period before today. Run a read-only dry run grouped by client and period before executing it.

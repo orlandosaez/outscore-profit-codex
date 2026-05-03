@@ -41,6 +41,26 @@ class FinancialCentsSqlTests(unittest.TestCase):
         self.assertIn("not ilike '%provision%'", sql)
         self.assertIn("file the tax return", sql)
 
+    def test_financial_cents_trigger_loader_detects_monthly_bookkeeping_close_books_prior_period(self) -> None:
+        sql_path = ROOT / "supabase/sql/007_profit_fc_trigger_loader.sql"
+        sql = sql_path.read_text(encoding="utf-8").lower()
+
+        self.assertIn("task.project_title ilike '%monthly bookkeeping%'", sql)
+        self.assertIn("task.title ilike '%close the books%'", sql)
+        self.assertIn("then 'bookkeeping_complete'", sql)
+        self.assertIn("then 'bookkeeping'", sql)
+        self.assertIn("- interval '1 month'", sql)
+
+    def test_client_anchor_match_method_migration_adds_auto_and_manual_methods(self) -> None:
+        sql_path = ROOT / "supabase/sql/012_profit_fc_client_anchor_matches_method.sql"
+        sql = sql_path.read_text(encoding="utf-8").lower()
+
+        self.assertIn("add column if not exists match_method text", sql)
+        self.assertIn("set match_method = match_status", sql)
+        self.assertIn("'auto_exact'", sql)
+        self.assertIn("'manual_override'", sql)
+        self.assertIn("chk_profit_fc_client_anchor_matches_method", sql)
+
 
 if __name__ == "__main__":
     unittest.main()

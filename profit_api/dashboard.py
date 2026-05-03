@@ -105,7 +105,13 @@ def _read_prepaid_liability(reader: SupabaseReader) -> dict[str, object]:
         "amounts are excluded until collection is allocated to revenue events."
     )
     default_summary = {
-        "current_total_prepaid_liability": 0,
+        "tax_deferred_revenue_balance": 0,
+        "trigger_backlog_balance": 0,
+        "total_prepaid_liability_balance": 0,
+        "trigger_backlog_note": (
+            "Delivered services with no recognition trigger loaded — not a QBO "
+            "liability entry. Clears when FC completion triggers are approved."
+        ),
         "client_balance_count": 0,
         "collection_count": 0,
         "last_updated": None,

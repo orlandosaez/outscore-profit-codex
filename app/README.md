@@ -61,6 +61,8 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
+For migrations and admin queries, also set `SUPABASE_DB_URL` in `/opt/agents/outscore_profit/.env` with file mode `600`, then source it with `set -a; . /opt/agents/outscore_profit/.env; set +a` before running `psql`. Run tests with `PYTHONPATH=. uvx --with-requirements requirements-dev.txt pytest`.
+
 Also create an Nginx basic-auth file before enabling `/profit` publicly:
 
 ```bash

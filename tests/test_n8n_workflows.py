@@ -69,6 +69,26 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("profit_fc_task_trigger_approvals?on_conflict=fc_task_id", serialized)
         self.assertIn("approval_status: 'approved'", serialized)
 
+    def test_fc_bookkeeping_complete_approval_workflow_only_approves_past_matched_tasks(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-22-approve-matched-fc-bookkeeping-complete-triggers.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertEqual(
+            workflow["name"],
+            "Profit - 22 Approve Matched FC Bookkeeping Complete Triggers",
+        )
+        self.assertIn("profit_fc_completion_trigger_candidates", serialized)
+        self.assertIn("suggested_trigger_type=eq.bookkeeping_complete", serialized)
+        self.assertIn("trigger_type=eq.bookkeeping_complete", serialized)
+        self.assertIn("anchor_relationship_id=not.is.null", serialized)
+        self.assertIn("macro_service_type=not.is.null", serialized)
+        self.assertIn("service_period_month=lt.", serialized)
+        self.assertIn("approval_status=eq.pending", serialized)
+        self.assertIn("profit_fc_task_trigger_approvals?on_conflict=fc_task_id", serialized)
+        self.assertIn("approval_status: 'approved'", serialized)
+        self.assertIn("codex_conservative_bookkeeping_complete_loader", serialized)
+
     def test_comp_w2_inspect_workflow_reads_comp_and_w2_views(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-22-comp-w2-inspect.json"
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
@@ -277,6 +297,19 @@ class N8nWorkflowTests(unittest.TestCase):
             "try {",
             nodes_by_name["Summarize QBO Collection Load"]["parameters"]["jsCode"],
         )
+
+    def test_fc_auto_match_workflow_only_upserts_auto_exact_client_matches(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-25-auto-match-fc-clients-to-anchor.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertEqual(workflow["name"], "Profit - 25 Auto-Match FC Clients To Anchor")
+        self.assertIn("profit_fc_client_anchor_match_candidates", serialized)
+        self.assertIn("match_status=eq.auto_exact", serialized)
+        self.assertIn("profit_fc_client_anchor_matches?on_conflict=fc_client_id", serialized)
+        self.assertIn("resolution=merge-duplicates,return=representation", serialized)
+        self.assertIn("match_status: 'auto_exact'", serialized)
+        self.assertNotIn("manual_override", serialized)
 
 
 if __name__ == "__main__":

@@ -50,6 +50,33 @@ class PrepaidLiabilitySqlTests(unittest.TestCase):
         self.assertIn("sum(ledger.rounding_delta)", sql)
         self.assertIn("rounding_delta", sql)
 
+    def test_prepaid_liability_views_split_tax_deferred_from_trigger_backlog(self) -> None:
+        sql_path = ROOT / "supabase/sql/010_profit_prepaid_liability.sql"
+        sql = sql_path.read_text(encoding="utf-8").lower()
+
+        self.assertIn("service_category", sql)
+        self.assertIn("'tax_deferred_revenue'::text", sql)
+        self.assertIn("'pending_recognition_trigger'::text", sql)
+        self.assertIn("'recognized'::text", sql)
+        self.assertIn("tax_deferred_revenue_balance", sql)
+        self.assertIn("trigger_backlog_balance", sql)
+        self.assertIn("total_prepaid_liability_balance", sql)
+        self.assertIn("trigger_backlog_note", sql)
+        self.assertIn("delivered services with no recognition trigger loaded", sql)
+        self.assertNotIn("pending_trigger_balance", sql)
+
+    def test_prepaid_liability_sql_does_not_reference_missing_revenue_event_period_column(self) -> None:
+        sql_files = sorted((ROOT / "supabase/sql").glob("*.sql"))
+        offenders: list[str] = []
+        for sql_path in sql_files:
+            sql = sql_path.read_text(encoding="utf-8").lower()
+            if "profit_revenue_events.service_period_month" in sql:
+                offenders.append(str(sql_path.relative_to(ROOT)))
+            if "event.service_period_month" in sql:
+                offenders.append(str(sql_path.relative_to(ROOT)))
+
+        self.assertEqual(offenders, [])
+
 
 if __name__ == "__main__":
     unittest.main()
