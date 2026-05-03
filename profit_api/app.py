@@ -18,6 +18,13 @@ class ManualOverridePayload(BaseModel):
     reference: str | None = None
 
 
+class ManualOverrideBatchPayload(BaseModel):
+    revenue_event_keys: list[str]
+    reason_code: str
+    notes: str
+    reference: str | None = None
+
+
 def create_app(
     service: AdminDashboardService | None = None,
     manual_recognition_service: ManualRecognitionService | None = None,
@@ -107,6 +114,20 @@ def create_app(
         except ManualRecognitionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {"event": event}
+
+    @app.post("/api/profit/admin/recognition/manual-override-batch")
+    def manual_recognition_override_batch(
+        payload: ManualOverrideBatchPayload,
+    ) -> dict[str, object]:
+        try:
+            return recognition_service.apply_manual_recognition_batch(
+                revenue_event_keys=payload.revenue_event_keys,
+                reason_code=payload.reason_code,
+                notes=payload.notes,
+                reference=payload.reference,
+            )
+        except ManualRecognitionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/profit/admin/recognition/manual-overrides")
     def recent_manual_recognition_overrides(limit: int = 50) -> dict[str, object]:

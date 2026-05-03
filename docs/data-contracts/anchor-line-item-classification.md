@@ -5,7 +5,7 @@ Purpose: classify synced Anchor invoice line items into macro service buckets fo
 ## Inputs
 
 - `profit_anchor_invoice_line_items` from n8n workflow `Profit - 07 Anchor Invoices Sync`
-- `QBO ProductsServicesList_SBC_Accounting_and_Tax,_LLC_4_26_2026.csv`
+- `docs/data-references/qbo-product-services.csv`
 
 ## Rules
 

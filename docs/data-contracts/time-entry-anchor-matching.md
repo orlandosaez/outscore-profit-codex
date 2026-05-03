@@ -5,7 +5,7 @@ Purpose: map normalized contractor timesheet rows to Anchor relationships before
 ## Inputs
 
 - `timesheets/*.xlsx`
-- `Client-staff assignments.xlsx`
+- `docs/data-references/client-staff-assignments.xlsx`
 - live/exported Anchor agreements CSV
 
 ## Matching Rules

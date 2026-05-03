@@ -78,6 +78,17 @@ class SupabaseRestClient:
         endpoint = f"{self.url}/rest/v1/{table_name}?{urlencode(query_items)}"
         return self._write_json(endpoint, "PATCH", payload)
 
+    def delete_rows(
+        self,
+        table_name: str,
+        *,
+        filters: dict[str, str | int],
+    ) -> list[dict[str, object]]:
+        query_items: list[tuple[str, str | int]] = [("select", "*")]
+        query_items.extend(filters.items())
+        endpoint = f"{self.url}/rest/v1/{table_name}?{urlencode(query_items)}"
+        return self._write_json(endpoint, "DELETE", None)
+
     def _write_json(
         self,
         endpoint: str,
@@ -86,7 +97,7 @@ class SupabaseRestClient:
     ) -> list[dict[str, object]]:
         request = Request(
             endpoint,
-            data=json.dumps(payload).encode("utf-8"),
+            data=None if payload is None else json.dumps(payload).encode("utf-8"),
             headers={
                 "apikey": self.service_role_key,
                 "Authorization": f"Bearer {self.service_role_key}",

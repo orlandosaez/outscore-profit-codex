@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class RevenueClassificationTests(unittest.TestCase):
     def test_parse_qbo_products_maps_income_categories_to_macro_service_types(self) -> None:
-        products = parse_qbo_products_csv(ROOT / "QBO ProductsServicesList_SBC_Accounting_and_Tax,_LLC_4_26_2026.csv")
+        products = parse_qbo_products_csv(ROOT / "docs/data-references/qbo-product-services.csv")
 
         self.assertEqual(products["accounting plus"].macro_service_type, "bookkeeping")
         self.assertEqual(products["1120 plus"].macro_service_type, "tax")
@@ -29,7 +29,7 @@ class RevenueClassificationTests(unittest.TestCase):
         self.assertEqual(normalize_qbo_product_name("Payroll:Payroll Service"), "payroll service")
 
     def test_classify_invoice_line_items_uses_children_not_bundle_parent(self) -> None:
-        products = parse_qbo_products_csv(ROOT / "QBO ProductsServicesList_SBC_Accounting_and_Tax,_LLC_4_26_2026.csv")
+        products = parse_qbo_products_csv(ROOT / "docs/data-references/qbo-product-services.csv")
         rows = [
             {
                 "anchor_line_item_id": "parent-1",
@@ -123,6 +123,16 @@ class RevenueClassificationTests(unittest.TestCase):
         self.assertEqual(classified[0].macro_service_type, "advisory")
         self.assertTrue(classified[0].include_in_revenue_allocation)
         self.assertEqual(classified[0].classification_reason, "qbo_category_prefix")
+
+    def test_anchor_line_item_classifier_uses_service_rule_names(self) -> None:
+        workflow = (ROOT / "n8n/workflows/profit-11-classify-anchor-invoice-line-items.json").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("service_name", workflow)
+        self.assertIn("Sales Tax Compliance", workflow)
+        self.assertIn("sales_tax", workflow)
+        self.assertIn("profit_service_recognition_rules", workflow)
 
 
 if __name__ == "__main__":

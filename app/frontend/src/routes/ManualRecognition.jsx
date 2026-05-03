@@ -4,6 +4,7 @@ import { CheckCircle2, FileCheck2, RefreshCw, Search, X } from "lucide-react";
 const apiBase = import.meta.env.VITE_PROFIT_API_BASE ?? "/api";
 const pendingEndpoint = `${apiBase}/profit/admin/recognition/pending`;
 const overrideEndpoint = `${apiBase}/profit/admin/recognition/manual-override`;
+const overrideBatchEndpoint = `${apiBase}/profit/admin/recognition/manual-override-batch`;
 const overridesEndpoint = `${apiBase}/profit/admin/recognition/manual-overrides`;
 
 const REASON_OPTIONS = [
@@ -27,7 +28,19 @@ const STATUS_LABEL = {
   excluded_voided_invoice: "Excluded (void)",
 };
 
+const SERVICE_LABEL = {
+  bookkeeping: "bookkeeping",
+  payroll: "payroll",
+  tax: "tax",
+  advisory: "advisory",
+  other: "other",
+};
+
 const consolidatedTooltip = "One of N revenue events under the same Anchor relationship, service type, and period. Common when one Anchor invoice covers multiple FC entities (e.g., DVH Investing billed for three separate tax returns). Match by source amount when recognizing.";
+const toastExamples = [
+  "Recognized DVH Investing LLC tax (Apr 2026) for $350",
+  "Recognized 3 events for DVH Investing LLC totaling $1,350",
+];
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -56,6 +69,18 @@ function shortKey(key) {
   return key.length > 12 ? `…${key.slice(-8)}` : key;
 }
 
+function formatRecognitionToast(payload) {
+  const events = payload.events ?? (payload.event ? [payload.event] : []);
+  if (events.length > 1) {
+    const first = events[0];
+    const total = events.reduce((sum, row) => sum + Number(row.source_amount ?? 0), 0);
+    return `Recognized ${events.length} events for ${first.anchor_client_business_name ?? "Unassigned"} totaling ${formatMoney(total)}`;
+  }
+  const event = events[0];
+  if (!event) return "Recognition complete";
+  return `Recognized ${event.anchor_client_business_name ?? "Unassigned"} ${SERVICE_LABEL[event.macro_service_type] ?? event.macro_service_type} (${monthLabel(event.candidate_period_month)}) for ${formatMoney(event.source_amount)}`;
+}
+
 export default function ManualRecognition() {
   const [pendingRows, setPendingRows] = useState([]);
   const [recentOverrides, setRecentOverrides] = useState([]);
@@ -66,8 +91,10 @@ export default function ManualRecognition() {
   const [selectedReason, setSelectedReason] = useState("");
   const [notes, setNotes] = useState("");
   const [reference, setReference] = useState("");
+  const [checkedSiblingKeys, setCheckedSiblingKeys] = useState([]);
   const [showReasonLegend, setShowReasonLegend] = useState(false);
   const [showTaxDeferred, setShowTaxDeferred] = useState(false);
+  const [showZeroAmount, setShowZeroAmount] = useState(false);
   const [showRecognitionPatterns, setShowRecognitionPatterns] = useState(false);
   const [toast, setToast] = useState("");
   const [error, setError] = useState("");
@@ -113,8 +140,20 @@ export default function ManualRecognition() {
     refreshPage();
   }, []);
 
+  function applyFilters() {
+    refreshPage();
+  }
+
+  function handleFilterKeyDown(event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      applyFilters();
+    }
+  }
+
   function openEvent(row) {
     setSelectedEvent(row);
+    setCheckedSiblingKeys([row.revenue_event_key]);
     resetApprovalForm();
     setToast("");
     setError("");
@@ -129,6 +168,7 @@ export default function ManualRecognition() {
 
   function dismissPanel() {
     setSelectedEvent(null);
+    setCheckedSiblingKeys([]);
     resetApprovalForm();
   }
 
@@ -149,15 +189,31 @@ export default function ManualRecognition() {
     return REASON_OPTIONS.find(([optionValue]) => optionValue === value)?.[2] ?? "";
   }
 
+  function toggleSiblingKey(key, checked) {
+    setCheckedSiblingKeys((current) => {
+      if (checked) return Array.from(new Set([...current, key]));
+      return current.filter((value) => value !== key || value === selectedEvent?.revenue_event_key);
+    });
+  }
+
   async function approveSelectedEvent() {
     if (approveDisabled) return;
+    const selectedKeys = checkedSiblingKeys.length
+      ? checkedSiblingKeys
+      : [selectedEvent.revenue_event_key];
+    const isBatch = selectedKeys.length > 1;
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(overrideEndpoint, {
+      const response = await fetch(isBatch ? overrideBatchEndpoint : overrideEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify(isBatch ? {
+          revenue_event_keys: selectedKeys,
+          reason_code: selectedReason,
+          notes,
+          reference: reference || null,
+        } : {
           revenue_event_key: selectedEvent.revenue_event_key,
           reason_code: selectedReason,
           notes,
@@ -166,7 +222,7 @@ export default function ManualRecognition() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.detail ?? "Manual override failed");
-      setToast(`Recognized ${payload.event.revenue_event_key} as ${payload.event.recognition_status}`);
+      setToast(formatRecognitionToast(payload));
       dismissPanel();
       await refreshPage();
     } catch (err) {
@@ -176,14 +232,16 @@ export default function ManualRecognition() {
     }
   }
 
-  const eventCountLabel = useMemo(
-    () => `${pendingRows.filter((row) => showTaxDeferred || row.recognition_status !== "pending_tax_completion").length} pending events`,
-    [pendingRows, showTaxDeferred],
+  const visiblePendingRows = useMemo(
+    () => pendingRows
+      .filter((row) => showTaxDeferred || row.recognition_status !== "pending_tax_completion")
+      .filter((row) => showZeroAmount || Number(row.source_amount ?? 0) > 0),
+    [pendingRows, showTaxDeferred, showZeroAmount],
   );
 
-  const visiblePendingRows = useMemo(
-    () => pendingRows.filter((row) => showTaxDeferred || row.recognition_status !== "pending_tax_completion"),
-    [pendingRows, showTaxDeferred],
+  const eventCountLabel = useMemo(
+    () => `${visiblePendingRows.length} pending events`,
+    [visiblePendingRows],
   );
 
   const hasConsolidated = useMemo(
@@ -202,13 +260,14 @@ export default function ManualRecognition() {
       return [];
     }
     return pendingRows
+      .filter((row) => showZeroAmount || Number(row.source_amount ?? 0) > 0)
       .filter((row) => (
         row.anchor_relationship_id === selectedEvent.anchor_relationship_id
         && row.macro_service_type === selectedEvent.macro_service_type
         && row.candidate_period_month === selectedEvent.candidate_period_month
       ))
       .sort((a, b) => Number(b.source_amount ?? 0) - Number(a.source_amount ?? 0));
-  }, [pendingRows, selectedEvent]);
+  }, [pendingRows, selectedEvent, showZeroAmount]);
 
   return (
     <main className="manual-recognition-page">
@@ -234,7 +293,7 @@ export default function ManualRecognition() {
           <span>{eventCountLabel}</span>
         </div>
         <div className="manual-filters">
-          <input value={clientFilter} onChange={(event) => setClientFilter(event.target.value)} placeholder="Client" />
+          <input value={clientFilter} onChange={(event) => setClientFilter(event.target.value)} onKeyDown={handleFilterKeyDown} placeholder="Client" />
           <select value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)}>
             <option value="">All services</option>
             <option value="bookkeeping">Bookkeeping</option>
@@ -243,8 +302,8 @@ export default function ManualRecognition() {
             <option value="advisory">Advisory</option>
             <option value="other">Other</option>
           </select>
-          <input value={periodFilter} onChange={(event) => setPeriodFilter(event.target.value)} placeholder="YYYY-MM-01" />
-          <button onClick={refreshPage} disabled={loading} type="button">Apply filters</button>
+          <input value={periodFilter} onChange={(event) => setPeriodFilter(event.target.value)} onKeyDown={handleFilterKeyDown} placeholder="YYYY-MM-01" />
+          <button onClick={applyFilters} disabled={loading} type="button">Apply filters</button>
         </div>
         <div className="manual-filter-options">
           <label className="inline-toggle">
@@ -256,6 +315,15 @@ export default function ManualRecognition() {
             Show tax-deferred events
           </label>
           <span>Tax-deferred events are hidden by default because they usually need filing/extension confirmation, not manual override.</span>
+          <label className="inline-toggle">
+            <input
+              checked={showZeroAmount}
+              onChange={(event) => setShowZeroAmount(event.target.checked)}
+              type="checkbox"
+            />
+            Show $0 and negative-amount events
+          </label>
+          <span>$0 events are usually classification artifacts. Negative-amount events are typically credit memos or adjustments from Anchor and rarely need manual recognition. Toggle on if you need to inspect either.</span>
         </div>
         <p className="panel-note">
           Prefer FC trigger approval for normal bookkeeping, payroll, tax, and advisory completion rows. Use manual recognition only when a system trigger cannot reasonably fire.
@@ -347,6 +415,12 @@ export default function ManualRecognition() {
                     className={row.revenue_event_key === selectedEvent.revenue_event_key ? "selected-sibling-event" : ""}
                     key={row.revenue_event_key}
                   >
+                    <input
+                      checked={checkedSiblingKeys.includes(row.revenue_event_key)}
+                      disabled={row.revenue_event_key === selectedEvent.revenue_event_key}
+                      onChange={(event) => toggleSiblingKey(row.revenue_event_key, event.target.checked)}
+                      type="checkbox"
+                    />
                     <strong>{formatMoney(row.source_amount)}</strong>
                     <span className="key-value" title={row.revenue_event_key}>{shortKey(row.revenue_event_key)}</span>
                     {row.revenue_event_key === selectedEvent.revenue_event_key ? <em><span aria-hidden="true">●</span> selected</em> : null}
@@ -392,7 +466,9 @@ export default function ManualRecognition() {
           </label>
           <div className="manual-action-row">
             <button onClick={dismissPanel} type="button">Cancel</button>
-            <button onClick={approveSelectedEvent} disabled={approveDisabled} type="button">Approve and Recognize</button>
+            <button onClick={approveSelectedEvent} disabled={approveDisabled} type="button">
+              Approve and Recognize ({Math.max(1, checkedSiblingKeys.length)})
+            </button>
           </div>
         </aside>
       ) : null}

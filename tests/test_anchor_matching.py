@@ -25,8 +25,8 @@ class AnchorMatchingTests(unittest.TestCase):
         self.assertEqual(normalize_client_name("B & W Services LLC"), "bwservices")
 
     def test_match_owner_assignments_to_anchor_uses_normalized_business_name(self) -> None:
-        agreements = parse_anchor_agreements_csv(ROOT / "anchor_agreements_export_1777160122406.csv")
-        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "Client-staff assignments.xlsx"))
+        agreements = parse_anchor_agreements_csv(ROOT / "docs/data-references/anchor-agreeements-snapshot.csv")
+        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "docs/data-references/client-staff-assignments.xlsx"))
         matches = match_owner_assignments_to_anchor(assignments, agreements)
 
         kar_kraft = next(
@@ -49,8 +49,8 @@ class AnchorMatchingTests(unittest.TestCase):
         self.assertIsNone(unmatched.anchor_relationship_id)
 
     def test_build_owner_load_rows_collapses_to_relationship_macro_owner(self) -> None:
-        agreements = parse_anchor_agreements_csv(ROOT / "anchor_agreements_export_1777160122406.csv")
-        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "Client-staff assignments.xlsx"))
+        agreements = parse_anchor_agreements_csv(ROOT / "docs/data-references/anchor-agreeements-snapshot.csv")
+        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "docs/data-references/client-staff-assignments.xlsx"))
         matches = match_owner_assignments_to_anchor(assignments, agreements)
         load_rows = build_owner_load_rows(matches)
 
@@ -93,8 +93,8 @@ class AnchorMatchingTests(unittest.TestCase):
         self.assertIn("on conflict (anchor_relationship_id, macro_service_type, effective_from)", sql)
 
     def test_summary_and_csv_export_are_machine_readable(self) -> None:
-        agreements = parse_anchor_agreements_csv(ROOT / "anchor_agreements_export_1777160122406.csv")
-        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "Client-staff assignments.xlsx"))
+        agreements = parse_anchor_agreements_csv(ROOT / "docs/data-references/anchor-agreeements-snapshot.csv")
+        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "docs/data-references/client-staff-assignments.xlsx"))
         matches = match_owner_assignments_to_anchor(assignments, agreements)
         summary = summarize_owner_matches(matches)
 

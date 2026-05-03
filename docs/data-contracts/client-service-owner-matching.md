@@ -1,11 +1,11 @@
 # Client Service Owner Matching Contract
 
-`scripts/match_client_assignments.py` links service-owner assignments from `Client-staff assignments.xlsx` to Anchor relationship IDs.
+`scripts/match_client_assignments.py` links service-owner assignments from `docs/data-references/client-staff-assignments.xlsx` to Anchor relationship IDs.
 
 ## Inputs
 
-- Client owner workbook: `Client-staff assignments.xlsx`
-- Anchor agreement list: either `anchor_agreements_export_1777160122406.csv` or a live Supabase export from `Profit - 08 Supabase Anchor Agreements Export`
+- Client owner workbook: `docs/data-references/client-staff-assignments.xlsx`
+- Anchor agreement list: either `docs/data-references/anchor-agreeements-snapshot.csv` or a live Supabase export from `Profit - 08 Supabase Anchor Agreements Export`
 
 ## Match Rule
 

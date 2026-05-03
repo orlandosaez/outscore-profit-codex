@@ -1,6 +1,6 @@
 # Client Service Owner Staging Contract
 
-`profit_import.assignments` converts `Client-staff assignments.xlsx` into one row per client service owner assignment for Workstream B profit sharing.
+`profit_import.assignments` converts `docs/data-references/client-staff-assignments.xlsx` into one row per client service owner assignment for Workstream B profit sharing.
 
 ## Output Columns
 

@@ -88,10 +88,26 @@ class FakeManualRecognitionStore:
         self.read_calls: list[tuple[str, dict[str, object]]] = []
         self.inserted: list[tuple[str, list[dict[str, object]], str | None]] = []
         self.patched: list[tuple[str, dict[str, str | int], dict[str, object]]] = []
+        self.deleted: list[tuple[str, dict[str, str | int]]] = []
 
     def read_view(self, view_name: str, **params: str | int) -> list[dict[str, object]]:
         self.read_calls.append((view_name, params))
         if view_name == "profit_manual_recognition_pending_events":
+            key_filter = params.get("revenue_event_key")
+            if isinstance(key_filter, str) and key_filter.startswith("in.("):
+                keys = set(key_filter.removeprefix("in.(").removesuffix(")").split(","))
+                return [
+                    row
+                    for row in self.pending_rows
+                    if str(row.get("revenue_event_key")) in keys
+                ]
+            if isinstance(key_filter, str) and key_filter.startswith("eq."):
+                key = key_filter.removeprefix("eq.")
+                return [
+                    row
+                    for row in self.pending_rows
+                    if row.get("revenue_event_key") == key
+                ]
             return self.pending_rows
         if view_name == "profit_revenue_events_ready_for_recognition":
             return []
@@ -123,6 +139,15 @@ class FakeManualRecognitionStore:
                 "revenue_event_key": str(filters["revenue_event_key"]).replace("eq.", ""),
             }
         ]
+
+    def delete_rows(
+        self,
+        table_name: str,
+        *,
+        filters: dict[str, str | int],
+    ) -> list[dict[str, object]]:
+        self.deleted.append((table_name, filters))
+        return []
 
 
 class ManualRecognitionValidationTest(unittest.TestCase):
@@ -290,6 +315,179 @@ class ManualRecognitionApplyTest(unittest.TestCase):
         )
         self.assertEqual(result["revenue_event_key"], "rev_manual")
 
+    def test_apply_manual_recognition_batch_rejects_mixed_sibling_groups(self) -> None:
+        store = FakeManualRecognitionStore(
+            [
+                {
+                    "revenue_event_key": "rev_a",
+                    "anchor_relationship_id": "relationship-dvh",
+                    "macro_service_type": "tax",
+                    "candidate_period_month": "2026-04-01",
+                    "source_amount": 650,
+                    "recognition_status": "pending_tax_completion",
+                },
+                {
+                    "revenue_event_key": "rev_b",
+                    "anchor_relationship_id": "relationship-dvh",
+                    "macro_service_type": "bookkeeping",
+                    "candidate_period_month": "2026-04-01",
+                    "source_amount": 350,
+                    "recognition_status": "pending_bookkeeping_completion",
+                },
+            ]
+        )
+        service = ManualRecognitionService(store)
+
+        with self.assertRaisesRegex(ManualRecognitionError, "same sibling group"):
+            service.apply_manual_recognition_batch(
+                revenue_event_keys=["rev_a", "rev_b"],
+                reason_code="client_operational_change",
+                notes="Veena email approved consolidated filing batch.",
+                reference=None,
+            )
+
+    def test_apply_manual_recognition_batch_uses_one_batch_id_for_all_triggers(self) -> None:
+        store = BatchReadyStore()
+        service = ManualRecognitionService(store)
+
+        result = service.apply_manual_recognition_batch(
+            revenue_event_keys=["rev_650", "rev_350"],
+            reason_code="client_operational_change",
+            notes="Veena email 2026-04-26 approved consolidated filing batch.",
+            reference="Veena email",
+        )
+
+        trigger_rows = store.inserted[0][1]
+        batch_ids = {row["manual_override_batch_id"] for row in trigger_rows}
+        self.assertEqual(len(batch_ids), 1)
+        self.assertTrue(next(iter(batch_ids)))
+        self.assertEqual(result["manual_override_batch_id"], next(iter(batch_ids)))
+
+    def test_apply_manual_recognition_batch_prefixes_each_note_with_source_amount(self) -> None:
+        store = BatchReadyStore()
+        service = ManualRecognitionService(store)
+
+        service.apply_manual_recognition_batch(
+            revenue_event_keys=["rev_650", "rev_350"],
+            reason_code="client_operational_change",
+            notes="Veena email 2026-04-26 approved consolidated $1,000 batch.",
+            reference=None,
+        )
+
+        notes = {
+            row["source_record_id"]: row["manual_override_notes"]
+            for row in store.inserted[0][1]
+        }
+        self.assertEqual(
+            notes["rev_650"],
+            "[$650] Veena email 2026-04-26 approved consolidated $1,000 batch.",
+        )
+        self.assertEqual(
+            notes["rev_350"],
+            "[$350] Veena email 2026-04-26 approved consolidated $1,000 batch.",
+        )
+
+    def test_apply_manual_recognition_batch_rolls_back_when_apply_fails(self) -> None:
+        store = BatchReadyStore(fail_patch_for="rev_350")
+        service = ManualRecognitionService(store)
+
+        with self.assertRaisesRegex(ManualRecognitionError, "batch recognition failed"):
+            service.apply_manual_recognition_batch(
+                revenue_event_keys=["rev_650", "rev_350"],
+                reason_code="client_operational_change",
+                notes="Veena email 2026-04-26 approved consolidated filing batch.",
+                reference=None,
+            )
+
+        self.assertEqual(store.deleted[0][0], "profit_recognition_triggers")
+        self.assertIn("manual_override_batch_id", store.deleted[0][1])
+        self.assertEqual(store.patched[-1][0], "profit_revenue_events")
+        self.assertEqual(
+            store.patched[-1][2]["recognition_status"],
+            "pending_tax_completion",
+        )
+
+    def test_apply_manual_recognition_batch_returns_recognized_events(self) -> None:
+        store = BatchReadyStore()
+        service = ManualRecognitionService(store)
+
+        result = service.apply_manual_recognition_batch(
+            revenue_event_keys=["rev_650", "rev_350"],
+            reason_code="client_operational_change",
+            notes="Veena email 2026-04-26 approved consolidated filing batch.",
+            reference=None,
+        )
+
+        self.assertEqual(
+            [row["revenue_event_key"] for row in result["events"]],
+            ["rev_650", "rev_350"],
+        )
+        self.assertEqual(result["events"][0]["anchor_client_business_name"], "DVH Investing LLC")
+
+
+class BatchReadyStore(FakeManualRecognitionStore):
+    def __init__(self, fail_patch_for: str | None = None) -> None:
+        super().__init__(
+            [
+                {
+                    "revenue_event_key": "rev_650",
+                    "anchor_relationship_id": "relationship-dvh",
+                    "anchor_client_business_name": "DVH Investing LLC",
+                    "macro_service_type": "tax",
+                    "candidate_period_month": "2026-04-01",
+                    "source_amount": 650,
+                    "recognition_status": "pending_tax_completion",
+                },
+                {
+                    "revenue_event_key": "rev_350",
+                    "anchor_relationship_id": "relationship-dvh",
+                    "anchor_client_business_name": "DVH Investing LLC",
+                    "macro_service_type": "tax",
+                    "candidate_period_month": "2026-04-01",
+                    "source_amount": 350,
+                    "recognition_status": "pending_tax_completion",
+                },
+            ]
+        )
+        self.fail_patch_for = fail_patch_for
+
+    def read_view(
+        self,
+        view_name: str,
+        **params: str | int,
+    ) -> list[dict[str, object]]:
+        self.read_calls.append((view_name, params))
+        if view_name == "profit_manual_recognition_pending_events":
+            return FakeManualRecognitionStore.read_view(self, view_name, **params)
+        if view_name == "profit_revenue_events_ready_for_recognition":
+            key = str(params.get("revenue_event_key", "")).replace("eq.", "")
+            source = next(row for row in self.pending_rows if row["revenue_event_key"] == key)
+            return [
+                {
+                    "revenue_event_key": key,
+                    "recognized_amount_to_apply": source["source_amount"],
+                    "recognition_date_to_apply": "2026-05-03",
+                    "recognition_period_month_to_apply": "2026-05-01",
+                    "next_recognition_status": "recognized_by_manual_override",
+                    "trigger_reference_to_apply": f"manual_override:{key}",
+                }
+            ]
+        return []
+
+    def patch_rows(
+        self,
+        table_name: str,
+        *,
+        filters: dict[str, str | int],
+        payload: dict[str, object],
+    ) -> list[dict[str, object]]:
+        key = str(filters["revenue_event_key"]).replace("eq.", "")
+        if key == self.fail_patch_for and payload.get("recognition_status") == "recognized_by_manual_override":
+            return []
+        self.patched.append((table_name, filters, payload))
+        source = next((row for row in self.pending_rows if row["revenue_event_key"] == key), {})
+        return [{**source, **payload, "revenue_event_key": key}]
+
 
 class FakeRouteService:
     def __init__(self) -> None:
@@ -310,6 +508,21 @@ class FakeRouteService:
         return {
             "revenue_event_key": kwargs["revenue_event_key"],
             "recognition_status": "recognized_by_manual_override",
+        }
+
+    def apply_manual_recognition_batch(self, **kwargs: object) -> dict[str, object]:
+        self.apply_calls.append(kwargs)
+        if len(kwargs["revenue_event_keys"]) < 2:
+            raise ManualRecognitionError("batch recognition requires at least two events")
+        return {
+            "manual_override_batch_id": "batch-123",
+            "events": [
+                {
+                    "revenue_event_key": key,
+                    "recognition_status": "recognized_by_manual_override",
+                }
+                for key in kwargs["revenue_event_keys"]
+            ],
         }
 
 
@@ -403,6 +616,50 @@ class ManualRecognitionRouteTest(unittest.TestCase):
             response.json()["event"]["recognition_status"],
             "recognized_by_manual_override",
         )
+
+    def test_manual_override_batch_endpoint_returns_recognized_events(self) -> None:
+        import profit_api.app as app_module
+
+        app = app_module.create_app(
+            service=object(),
+            manual_recognition_service=FakeRouteService(),
+        )
+        client = TestClient(app)
+
+        response = client.post(
+            "/api/profit/admin/recognition/manual-override-batch",
+            json={
+                "revenue_event_keys": ["rev_a", "rev_b"],
+                "reason_code": "client_operational_change",
+                "notes": "Veena email 2026-04-26 approved consolidated $1,350 tax filing batch",
+                "reference": None,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["manual_override_batch_id"], "batch-123")
+        self.assertEqual(len(response.json()["events"]), 2)
+
+    def test_manual_override_batch_endpoint_rejects_single_event(self) -> None:
+        import profit_api.app as app_module
+
+        app = app_module.create_app(
+            service=object(),
+            manual_recognition_service=FakeRouteService(),
+        )
+        client = TestClient(app)
+
+        response = client.post(
+            "/api/profit/admin/recognition/manual-override-batch",
+            json={
+                "revenue_event_keys": ["rev_a"],
+                "reason_code": "client_operational_change",
+                "notes": "Veena email 2026-04-26 approved consolidated filing batch",
+                "reference": None,
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
 
     def test_recent_overrides_endpoint_returns_rows(self) -> None:
         import profit_api.app as app_module

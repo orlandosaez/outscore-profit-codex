@@ -22,10 +22,16 @@ from profit_import.assignments import expand_service_owner_assignments, parse_as
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Match client service owners to Anchor relationship IDs.")
-    parser.add_argument("--assignments", default="Client-staff assignments.xlsx", help="Client/staff assignment workbook.")
+    parser.add_argument(
+        "--assignments",
+        default=ROOT / "docs/data-references/client-staff-assignments.xlsx",
+        type=Path,
+        help="Client/staff assignment workbook.",
+    )
     parser.add_argument(
         "--agreements",
-        default="anchor_agreements_export_1777160122406.csv",
+        default=ROOT / "docs/data-references/anchor-agreeements-snapshot.csv",
+        type=Path,
         help="Anchor agreements CSV export.",
     )
     parser.add_argument(

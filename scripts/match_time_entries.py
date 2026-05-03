@@ -24,8 +24,8 @@ from profit_import.timesheets import parse_timesheet_folder
 def main() -> int:
     parser = argparse.ArgumentParser(description="Match normalized timesheet rows to Anchor relationship IDs.")
     parser.add_argument("--timesheets", default=ROOT / "timesheets", type=Path)
-    parser.add_argument("--agreements", default=ROOT / "anchor_agreements_export_1777160122406.csv", type=Path)
-    parser.add_argument("--assignments", default=ROOT / "Client-staff assignments.xlsx", type=Path)
+    parser.add_argument("--agreements", default=ROOT / "docs/data-references/anchor-agreeements-snapshot.csv", type=Path)
+    parser.add_argument("--assignments", default=ROOT / "docs/data-references/client-staff-assignments.xlsx", type=Path)
     parser.add_argument("--review-output", default=ROOT / "build/time_entry_anchor_matches_review.csv", type=Path)
     parser.add_argument("--summary", default=ROOT / "build/time_entry_anchor_matches_summary.json", type=Path)
     parser.add_argument("--load-output", default=ROOT / "build/time_entry_anchor_matches_load.json", type=Path)

@@ -119,3 +119,35 @@ Required manual fields:
 - `approved_at`: timestamp of approval.
 
 The API inserts the manual trigger, reads `profit_revenue_events_ready_for_recognition`, and patches the selected event with the ready-view output. Manual overrides produce `recognition_status = recognized_by_manual_override`. The ready view requires `trigger.source_record_id = event.revenue_event_key` for manual overrides so one manual approval cannot recognize sibling events in the same client/service/month. The audit surface reads `profit_manual_recognition_override_audit`, latest approvals first.
+
+### Manual Override Batch ID
+
+`manual_override_batch_id` is nullable and is populated only when multiple sibling revenue events are approved through the V0.5.1 batch path. Each recognized event still receives its own `profit_recognition_triggers` row and its own reason/notes audit trail. Rows in the same batch share one UUID-like batch id so the approval can be reviewed as a group.
+
+## V0.5.2 Service-Aware Tax Recognition
+
+Tax completion triggers (`tax_filed`, `tax_extension_filed`) do not require month equality between `profit_recognition_triggers.service_period_month` and `profit_revenue_events.candidate_period_month`.
+
+For tax triggers, `profit_revenue_events_ready_for_recognition` matches by:
+
+1. `anchor_relationship_id`
+2. `macro_service_type = tax`
+3. tax form type parsed from FC trigger context (`1040`, `1065`, `1120`, `990`, `990-EZ`, `990-T`)
+4. `profit_revenue_events.service_name` joined to `profit_service_recognition_rules.form_type_pattern`
+5. invoice-note scope when `profit_anchor_invoices.invoice_note` contains `TY:YYYY`, `FY:YYYY-MM`, or `Amended`
+
+If multiple same-form pending events remain possible and no invoice note disambiguates the target, the ready view does not expose an auto-recognition row. The candidates surface through `profit_tax_recognition_ambiguities` for V0.5.3 run-log review.
+
+`profit_service_recognition_rules.source` and `last_synced_at` are forward-compatible sync metadata. V0.5.2 seeds this table from `docs/service-recognition-rules.md` with `source = manual_seed`; a future Anchor service sync should upsert the same table with `source = anchor_api_sync`.
+
+## V0.5.2.1 Service Crosswalk
+
+`profit_service_recognition_rules` includes three nullable crosswalk columns:
+
+- `fc_tag`: exact Financial Cents tag string from the Anchor service catalog.
+- `qbo_category_path`: full QBO product/service category hierarchy from the QBO export.
+- `qbo_product_name`: exact QBO product/service name, stored separately from Anchor `service_name` for drift detection.
+
+Shared umbrella tags are valid. `S BILL` maps to Billable Expenses, Remote Desktop Access, and Remote QBD Access, so `fc_tag` must not be unique.
+
+`profit_anchor_services_without_tag` lists configured services without an FC tag and is intended for V0.5.3 pipeline run logs. Missing tags do not block recognition in V0.5.2.1 because recognition still uses `service_name`.

@@ -722,13 +722,17 @@ td:nth-last-child(-n + 4) {
 
 .sibling-events-panel li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
   border-radius: 4px;
   padding: 5px 6px;
   color: #3e4a52;
   font-size: 0.8rem;
+}
+
+.sibling-events-panel input {
+  width: auto;
 }
 
 .sibling-events-panel li span {

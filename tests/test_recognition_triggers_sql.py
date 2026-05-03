@@ -27,6 +27,42 @@ class RecognitionTriggersSqlTests(unittest.TestCase):
         self.assertIn("recognized_amount_to_apply", sql)
         self.assertIn("next_recognition_status", sql)
 
+    def test_tax_form_type_matching_migration_updates_ready_view(self) -> None:
+        sql_path = ROOT / "supabase/sql/017_profit_tax_form_type_matching.sql"
+        sql = sql_path.read_text(encoding="utf-8")
+
+        self.assertIn("create or replace function profit_extract_tax_form_type", sql)
+        self.assertIn("create or replace function profit_extract_anchor_invoice_note_scope", sql)
+        self.assertIn("profit_tax_recognition_ambiguities", sql)
+        self.assertIn("tax_filed", sql)
+        self.assertIn("tax_extension_filed", sql)
+        self.assertIn("form_type_pattern", sql)
+        self.assertIn("invoice_note", sql)
+        self.assertIn("TY:", sql)
+        self.assertIn("FY:", sql)
+        self.assertIn("Amended", sql)
+        self.assertIn("service_period_month", sql)
+        self.assertIn("candidate_period_month", sql)
+
+    def test_tax_matching_has_ambiguity_guard_instead_of_blind_oldest_match(self) -> None:
+        sql_path = ROOT / "supabase/sql/017_profit_tax_form_type_matching.sql"
+        sql = sql_path.read_text(encoding="utf-8").lower()
+
+        self.assertIn("count(*) over", sql)
+        self.assertIn("candidate_rank", sql)
+        self.assertIn("ambiguous", sql)
+        self.assertIn("where candidate_count = 1", sql)
+
+    def test_tax_matching_documents_form_type_cases(self) -> None:
+        sql_path = ROOT / "supabase/sql/017_profit_tax_form_type_matching.sql"
+        sql = sql_path.read_text(encoding="utf-8")
+
+        self.assertIn("990-T", sql)
+        self.assertIn("990-EZ", sql)
+        self.assertIn("1120", sql)
+        self.assertIn("1065", sql)
+        self.assertIn("1040", sql)
+
 
 if __name__ == "__main__":
     unittest.main()

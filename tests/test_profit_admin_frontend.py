@@ -222,6 +222,51 @@ class ProfitAdminFrontendTests(unittest.TestCase):
 
         self.assertNotIn("Back to dashboard", route_source)
 
+    def test_manual_recognition_filters_submit_on_enter(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/ManualRecognition.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("handleFilterKeyDown", route_source)
+        self.assertIn('event.key === "Enter"', route_source)
+        self.assertIn("onKeyDown={handleFilterKeyDown}", route_source)
+
+    def test_manual_recognition_supports_sibling_batch_selection(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/ManualRecognition.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("checkedSiblingKeys", route_source)
+        self.assertIn("manual-override-batch", route_source)
+        self.assertIn("Approve and Recognize (", route_source)
+        self.assertIn("disabled", route_source)
+
+    def test_manual_recognition_has_friendly_toast_formatter(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/ManualRecognition.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("formatRecognitionToast", route_source)
+        self.assertIn(
+            "Recognized DVH Investing LLC tax (Apr 2026) for $350",
+            route_source,
+        )
+        self.assertIn(
+            "Recognized 3 events for DVH Investing LLC totaling $1,350",
+            route_source,
+        )
+
+    def test_manual_recognition_hides_zero_amount_events_by_default(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/ManualRecognition.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("showZeroAmount", route_source)
+        self.assertIn("setShowZeroAmount", route_source)
+        self.assertIn("Show $0 and negative-amount events", route_source)
+        self.assertIn("Number(row.source_amount ?? 0) > 0", route_source)
+        self.assertIn("typically credit memos or adjustments", route_source)
+
     def test_frontend_package_declares_profit_admin_app(self) -> None:
         package_path = ROOT / "app/frontend/package.json"
         source = package_path.read_text(encoding="utf-8")

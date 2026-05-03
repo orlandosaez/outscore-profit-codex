@@ -18,7 +18,12 @@ from profit_import.assignments import (
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Normalize client/staff service-owner assignments.")
-    parser.add_argument("--input", default="Client-staff assignments.xlsx", help="Client/staff assignment workbook.")
+    parser.add_argument(
+        "--input",
+        default=ROOT / "docs/data-references/client-staff-assignments.xlsx",
+        type=Path,
+        help="Client/staff assignment workbook.",
+    )
     parser.add_argument("--output", default="build/client_service_owners_staging.csv", help="CSV output path.")
     parser.add_argument(
         "--summary",

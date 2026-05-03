@@ -64,7 +64,7 @@ class RevenueClassificationCliTests(unittest.TestCase):
                 "--line-items",
                 str(source_path),
                 "--qbo-products",
-                str(ROOT / "QBO ProductsServicesList_SBC_Accounting_and_Tax,_LLC_4_26_2026.csv"),
+                str(ROOT / "docs/data-references/qbo-product-services.csv"),
                 "--review-output",
                 str(review_path),
                 "--sql-output",

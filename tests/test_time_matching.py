@@ -43,8 +43,8 @@ class TimeMatchingTests(unittest.TestCase):
         self.assertTrue(stable_time_entry_key(entry).startswith("te_"))
 
     def test_aliases_from_owner_matches_help_match_timesheet_short_names(self) -> None:
-        agreements = parse_anchor_agreements_csv(ROOT / "anchor_agreements_export_1777160122406.csv")
-        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "Client-staff assignments.xlsx"))
+        agreements = parse_anchor_agreements_csv(ROOT / "docs/data-references/anchor-agreeements-snapshot.csv")
+        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "docs/data-references/client-staff-assignments.xlsx"))
         owner_matches = match_owner_assignments_to_anchor(assignments, agreements)
         aliases = build_client_aliases_from_owner_matches(owner_matches)
 
@@ -93,8 +93,8 @@ class TimeMatchingTests(unittest.TestCase):
         self.assertEqual(matches[0].macro_service_type, "admin")
 
     def test_unique_context_tokens_from_owner_workbook_match_common_short_names(self) -> None:
-        agreements = parse_anchor_agreements_csv(ROOT / "anchor_agreements_export_1777160122406.csv")
-        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "Client-staff assignments.xlsx"))
+        agreements = parse_anchor_agreements_csv(ROOT / "docs/data-references/anchor-agreeements-snapshot.csv")
+        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "docs/data-references/client-staff-assignments.xlsx"))
         owner_matches = match_owner_assignments_to_anchor(assignments, agreements)
         aliases = build_client_aliases_from_owner_matches(owner_matches)
 
@@ -136,7 +136,7 @@ class TimeMatchingTests(unittest.TestCase):
         self.assertEqual(matches[1].match_status, "unmatched")
 
     def test_unique_agreement_abbreviations_match_yv_short_names(self) -> None:
-        agreements = parse_anchor_agreements_csv(ROOT / "anchor_agreements_export_1777160122406.csv")
+        agreements = parse_anchor_agreements_csv(ROOT / "docs/data-references/anchor-agreeements-snapshot.csv")
         entry = TimeEntry(
             staff_name="Julie",
             entry_date=date(2026, 3, 17),
@@ -159,8 +159,8 @@ class TimeMatchingTests(unittest.TestCase):
         self.assertEqual(matches[0].match_reason, "agreement_abbreviation")
 
     def test_build_owner_rows_still_has_no_conflicting_owner_for_matched_relationship_macro(self) -> None:
-        agreements = parse_anchor_agreements_csv(ROOT / "anchor_agreements_export_1777160122406.csv")
-        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "Client-staff assignments.xlsx"))
+        agreements = parse_anchor_agreements_csv(ROOT / "docs/data-references/anchor-agreeements-snapshot.csv")
+        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "docs/data-references/client-staff-assignments.xlsx"))
         owner_matches = match_owner_assignments_to_anchor(assignments, agreements)
         owner_rows = build_owner_load_rows(owner_matches)
 
@@ -182,8 +182,8 @@ class TimeMatchingTests(unittest.TestCase):
             source_sheet="3.31. TS",
             source_row=7,
         )
-        agreements = parse_anchor_agreements_csv(ROOT / "anchor_agreements_export_1777160122406.csv")
-        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "Client-staff assignments.xlsx"))
+        agreements = parse_anchor_agreements_csv(ROOT / "docs/data-references/anchor-agreeements-snapshot.csv")
+        assignments = expand_service_owner_assignments(parse_assignment_workbook(ROOT / "docs/data-references/client-staff-assignments.xlsx"))
         owner_matches = match_owner_assignments_to_anchor(assignments, agreements)
         aliases = build_client_aliases_from_owner_matches(owner_matches)
         match = match_time_entries_to_anchor([entry], agreements, aliases)[0]

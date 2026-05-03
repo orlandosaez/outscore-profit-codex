@@ -450,6 +450,16 @@ Hovering the `Consolidated (N)` badge explains that it is one of multiple revenu
 
 A manual override is a one-shot per revenue event. If the wrong reason code or notes were entered, contact the admin to exclude the event manually (same pattern as SBC-00015) before re-attempting recognition. Reversing a manual override is intentionally out of scope.
 
+### V0.5.1 Usability Refinements
+
+The client and period filters submit when Enter is pressed, matching the Apply filters button.
+
+Zero and negative pending events are hidden by default because there is usually nothing to recognize. `$0` events are usually classification artifacts. Negative-amount events are typically credit memos or adjustments from Anchor. Turn on `Show $0 and negative-amount events` only when reviewing source data quality.
+
+For consolidated billing groups, the sibling list supports selecting multiple sibling events and approving them as one batch. The selected row is always included and locked. One reason code, notes field, and reference apply to every checked event. The system still writes one trigger row per revenue event and stores a shared `manual_override_batch_id`, with each row's notes prefixed by that row's source amount.
+
+Batch approval is only allowed for true sibling events under the same Anchor relationship, service type, and period. Mixed groups are rejected.
+
 ## Available Routes
 
 - `/profit/`: main dashboard with Company GP, Prepaid Liability, Per-Client GP, Per-Staff GP, Comp Ledger, FC Trigger Queue, and W2 Watch.

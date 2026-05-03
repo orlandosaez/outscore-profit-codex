@@ -18,24 +18,24 @@ This document is operating doctrine. V0.5.2 should encode these rules in a confi
 
 For recurring monthly operational services, the service period rule is always **previous month** unless explicitly noted. A May completion task usually recognizes April revenue.
 
-| Anchor service name | Macro service type | Monthly price | Service period rule | Default SLA day | Recognition rule / notes |
-| --- | --- | ---: | --- | --- | --- |
-| Accounting Advanced | bookkeeping | $900 | previous month | day 10 default | Recognize from FC bookkeeping completion for the prior month. Per-engagement SLA override allowed. |
-| Accounting Plus | bookkeeping | $650 | previous month | day 10 | Recognize from FC bookkeeping completion for the prior month. |
-| Accounting Essential | bookkeeping | $350 | previous month | day 20 | Recognize from FC bookkeeping completion for the prior month. |
-| Sales Tax Compliance | tax | $30 | previous month | day 20 | Recognize from FC sales-tax filing/completion trigger for the prior month. V0.5.2 should avoid treating this as annual income-tax work. |
-| Payroll Service | payroll | $110 | previous month | per cadence | Recognize by payroll processed trigger. SLA follows payroll cadence, not a fixed calendar day. |
-| Tangible Property Tax | tax | $20 | previous month | TBD | Flag for review in V0.5.2; monthly billing exists but annual tangible-property filing cadence may require special treatment. |
-| Audit Protection Business | insurance_accrual | $30 | previous month | no SLA | Insurance-style accrual. Do not wait on FC service completion. V0.5.2 should decide whether this is recognized monthly on coverage passage. |
-| Audit Protection Individual | insurance_accrual | $5 | previous month | no SLA | Insurance-style accrual. Do not wait on FC service completion. V0.5.2 should decide whether this is recognized monthly on coverage passage. |
-| Fractional CFO | advisory | $1,500-$4,500 | previous month | monthly meeting cadence | Recognize on advisory delivery/monthly meeting cadence. Price varies by tier: Starter $1,500, Growth $2,500, Scale $4,500. |
-| 1099 Preparation | tax | $0 | previous month | review | Edge case for review. Anchor service is monthly at $0 but actual pricing is per-form/late-rate; V0.5.2 should require explicit classification before automatic recognition. |
+| Anchor service name | FC tag | Macro service type | Monthly price | Service period rule | Default SLA day | Recognition rule / notes |
+| --- | --- | --- | ---: | --- | --- | --- |
+| Accounting Advanced | S BOOKA | bookkeeping | $900 | previous month | day 10 default | Recognize from FC bookkeeping completion for the prior month. Per-engagement SLA override allowed. |
+| Accounting Plus | S BOOKP | bookkeeping | $650 | previous month | day 10 | Recognize from FC bookkeeping completion for the prior month. |
+| Accounting Essential | S BOOKE | bookkeeping | $350 | previous month | day 20 | Recognize from FC bookkeeping completion for the prior month. |
+| Sales Tax Compliance | S SALESTAX | tax | $30 | previous month | day 20 | Recognize from FC sales-tax filing/completion trigger for the prior month. V0.5.2 should avoid treating this as annual income-tax work. |
+| Payroll Service | S PAYROLL | payroll | $110 | previous month | per cadence | Recognize by payroll processed trigger. SLA follows payroll cadence, not a fixed calendar day. |
+| Tangible Property Tax | S TPP | tax | $20 | previous month | TBD | Flag for review in V0.5.2; monthly billing exists but annual tangible-property filing cadence may require special treatment. |
+| Audit Protection Business | S AUDITB | other | $30 | previous month | no SLA | V0.5.2 seeds this as `other` + `manual_review` because the macro enum does not yet include `insurance_accrual`. Future direction: add an explicit insurance/accrual macro when this product is automated. |
+| Audit Protection Individual | S AUDITI | other | $5 | previous month | no SLA | V0.5.2 seeds this as `other` + `manual_review` because the macro enum does not yet include `insurance_accrual`. Future direction: add an explicit insurance/accrual macro when this product is automated. |
+| Fractional CFO | S CFO | advisory | $1,500-$4,500 | previous month | monthly meeting cadence | Recognize on advisory delivery/monthly meeting cadence. Price varies by tier: Starter $1,500, Growth $2,500, Scale $4,500. |
+| 1099 Preparation | S 1099 | tax | $0 | previous month | review | Edge case for review. Anchor service is monthly at $0 but actual pricing is per-form/late-rate; V0.5.2 should require explicit classification before automatic recognition. |
 
 ## Quarterly Services
 
-| Anchor service name | Macro service type | Price | Service period rule | Default SLA | Recognition rule / notes |
-| --- | --- | ---: | --- | --- | --- |
-| Payroll Tax Compliance | payroll | $85 quarterly | quarter just completed | federal/state deadline-driven | Recognize from FC payroll-tax filing/compliance trigger. Deadline is driven by federal/state quarterly payroll filing due dates, not a monthly close day. |
+| Anchor service name | FC tag | Macro service type | Price | Service period rule | Default SLA | Recognition rule / notes |
+| --- | --- | --- | ---: | --- | --- | --- |
+| Payroll Tax Compliance | S PAYTAX | payroll | $85 quarterly | quarter just completed | federal/state deadline-driven | Recognize from FC payroll-tax filing/compliance trigger. Deadline is driven by federal/state quarterly payroll filing due dates, not a monthly close day. |
 
 ## Annual / Engagement-Driven Tax Services
 
@@ -47,47 +47,47 @@ The FC trigger service period may be the completion month. For annual tax events
 
 Tier names (`Essential`, `Plus`, `Advanced`) represent complexity and price. They do **not** affect recognition timing.
 
-| Anchor service name | Macro service type | Price | Form type pattern | Recognition rule / notes |
-| --- | --- | ---: | --- | --- |
-| 1040 Essentials | tax | $200 | 1040 | Match FC `tax_filed` for individual return to oldest pending 1040 revenue event under same Anchor relationship. |
-| 1040 Plus | tax | $350 | 1040 | Match FC `tax_filed` for individual return to oldest pending 1040 revenue event under same Anchor relationship. |
-| 1040 Advanced | tax | $650 | 1040 | Match FC `tax_filed` for individual return to oldest pending 1040 revenue event under same Anchor relationship. |
-| 1065 Essential | tax | $350 | 1065 | Match FC `tax_filed` for partnership return to oldest pending 1065 revenue event under same Anchor relationship. |
-| 1065 Plus | tax | $650 | 1065 | Match FC `tax_filed` for partnership return to oldest pending 1065 revenue event under same Anchor relationship. |
-| 1065 Advanced | tax | $1,100 | 1065 | Match FC `tax_filed` for partnership return to oldest pending 1065 revenue event under same Anchor relationship. |
-| 1120 Essential | tax | $350 | 1120 / 1120S | Match FC `tax_filed` for corporate return to oldest pending 1120/1120S revenue event under same Anchor relationship. |
-| 1120 Plus | tax | $550 | 1120 / 1120S | Match FC `tax_filed` for corporate return to oldest pending 1120/1120S revenue event under same Anchor relationship. |
-| 1120 Advanced | tax | $1,100 | 1120 / 1120S | Match FC `tax_filed` for corporate return to oldest pending 1120/1120S revenue event under same Anchor relationship. |
-| 990-EZ Short Form | tax | $350 | 990-EZ | Match FC `tax_filed` for nonprofit return to oldest pending 990-EZ revenue event under same Anchor relationship. |
-| 990 Full Return Essential | tax | $600 | 990 | Match FC `tax_filed` for nonprofit return to oldest pending 990 revenue event under same Anchor relationship. |
-| 990 Full Return Plus | tax | $1,200 | 990 | Match FC `tax_filed` for nonprofit return to oldest pending 990 revenue event under same Anchor relationship. |
-| 990-T Unrelated Business | tax | $450 | 990-T | Match FC `tax_filed` for unrelated-business income return to oldest pending 990-T revenue event under same Anchor relationship. |
-| Annual Estimate Tax Review | tax | $200 | estimate review | One-time delivery. Recognize when estimate review is delivered/completed, not on annual filing trigger. |
+| Anchor service name | FC tag | Macro service type | Price | Form type pattern | Recognition rule / notes |
+| --- | --- | --- | ---: | --- | --- |
+| 1040 Essentials | S 1040E | tax | $200 | 1040 | Match FC `tax_filed` for individual return to oldest pending 1040 revenue event under same Anchor relationship. |
+| 1040 Plus | S 1040P | tax | $350 | 1040 | Match FC `tax_filed` for individual return to oldest pending 1040 revenue event under same Anchor relationship. |
+| 1040 Advanced | S 1040A | tax | $650 | 1040 | Match FC `tax_filed` for individual return to oldest pending 1040 revenue event under same Anchor relationship. |
+| 1065 Essential | S 1065E | tax | $350 | 1065 | Match FC `tax_filed` for partnership return to oldest pending 1065 revenue event under same Anchor relationship. |
+| 1065 Plus | S 1065P | tax | $650 | 1065 | Match FC `tax_filed` for partnership return to oldest pending 1065 revenue event under same Anchor relationship. |
+| 1065 Advanced | S 1065A | tax | $1,100 | 1065 | Match FC `tax_filed` for partnership return to oldest pending 1065 revenue event under same Anchor relationship. |
+| 1120 Essential | S 1120E | tax | $350 | 1120 / 1120S | Match FC `tax_filed` for corporate return to oldest pending 1120/1120S revenue event under same Anchor relationship. |
+| 1120 Plus | S 1120P | tax | $550 | 1120 / 1120S | Match FC `tax_filed` for corporate return to oldest pending 1120/1120S revenue event under same Anchor relationship. |
+| 1120 Advanced | S 1120A | tax | $1,100 | 1120 / 1120S | Match FC `tax_filed` for corporate return to oldest pending 1120/1120S revenue event under same Anchor relationship. |
+| 990-EZ Short Form | S 990EZ | tax | $350 | 990-EZ | Match FC `tax_filed` for nonprofit return to oldest pending 990-EZ revenue event under same Anchor relationship. |
+| 990 Full Return Essential | S 990E | tax | $600 | 990 | Match FC `tax_filed` for nonprofit return to oldest pending 990 revenue event under same Anchor relationship. |
+| 990 Full Return Plus | S 990P | tax | $1,200 | 990 | Match FC `tax_filed` for nonprofit return to oldest pending 990 revenue event under same Anchor relationship. |
+| 990-T Unrelated Business | S 990T | tax | $450 | 990-T | Match FC `tax_filed` for unrelated-business income return to oldest pending 990-T revenue event under same Anchor relationship. |
+| Annual Estimate Tax Review | S ETP | tax | $200 | estimate review | One-time delivery. Recognize when estimate review is delivered/completed, not on annual filing trigger. |
 
 ## One-Time / Project Services
 
 Default recognition rule: recognize at delivery or billing when the project is completed and no continuing service obligation remains.
 
-| Anchor service name | Macro service type | Price | Recognition rule / notes |
-| --- | --- | ---: | --- |
-| Advisory | advisory | $225/hr | Recognize at delivery. Hourly project/ad-hoc advisory, billed in 15-minute increments. |
-| Setup and Onboarding | advisory | $850 | Recognize at onboarding delivery/completion. |
-| Audit Support Service | advisory | $125/hr | Recognize at delivery. Audit support is work performed, not audit-protection insurance accrual. |
-| Specialized Services | advisory | varies / $0 default | Recognize at delivery/billing after explicit review. Default $0 requires review before automated recognition. |
-| Year End Accounting Close | bookkeeping | varies / $0 default | Recognize at delivery of year-end close package. Default $0 requires review before automated recognition. |
-| Work Comp Tax | payroll | varies / $0 default | Recognize at delivery. Although named "tax," this is workers' comp/payroll-adjacent compliance; V0.5.2 should require explicit rule/config review. |
+| Anchor service name | FC tag | Macro service type | Price | Recognition rule / notes |
+| --- | --- | --- | ---: | --- |
+| Advisory | S ADV | advisory | $225/hr | Recognize at delivery. Hourly project/ad-hoc advisory, billed in 15-minute increments. |
+| Setup and Onboarding | S SETUP | advisory | $850 | Recognize at onboarding delivery/completion. |
+| Audit Support Service | S AUDITS | advisory | $125/hr | Recognize at delivery. Audit support is work performed, not audit-protection insurance accrual. |
+| Specialized Services |  | advisory | varies / $0 default | Recognize at delivery/billing after explicit review. Default $0 requires review before automated recognition. |
+| Year End Accounting Close | S YECLOSE | bookkeeping | varies / $0 default | Recognize at delivery of year-end close package. Default $0 requires review before automated recognition. |
+| Work Comp Tax | S WORKERS | payroll | varies / $0 default | Recognize at delivery. Although named "tax," this is workers' comp/payroll-adjacent compliance; V0.5.2 should require explicit rule/config review. |
 
 ## Pass-Through / Non-Revenue Services
 
 These services use `macro_service_type = pass_through` and are excluded from the recognition pipeline entirely. They should not create revenue events for GP or prepaid liability.
 
-| Anchor service name | Macro service type | Price | Rule |
-| --- | --- | ---: | --- |
-| Billable Expenses | pass_through | $0 | Exclude. Out-of-pocket reimbursement/pass-through. |
-| Other Income | pass_through | $0 | Exclude from service recognition. Review separately if management wants non-service income reporting. |
-| Remote Desktop Access | pass_through | $200 yearly | Exclude. Client reimbursement / access cost recovery. |
-| Remote QBD Access | pass_through | $200 yearly | Exclude. Client reimbursement / access cost recovery. |
-| Services | pass_through | $0 | Exclude by default. Generic product should not enter recognition pipeline without explicit classification. |
+| Anchor service name | FC tag | Macro service type | Price | Rule |
+| --- | --- | --- | ---: | --- |
+| Billable Expenses | S BILL | pass_through | $0 | Exclude. Out-of-pocket reimbursement/pass-through. |
+| Other Income |  | pass_through | $0 | Exclude from service recognition. Review separately if management wants non-service income reporting. |
+| Remote Desktop Access | S BILL | pass_through | $200 yearly | Exclude. Client reimbursement / access cost recovery. |
+| Remote QBD Access | S BILL | pass_through | $200 yearly | Exclude. Client reimbursement / access cost recovery. |
+| Services |  | pass_through | $0 | Exclude by default. Generic product should not enter recognition pipeline without explicit classification. |
 
 ## Implicit Rules
 
@@ -97,6 +97,7 @@ These services use `macro_service_type = pass_through` and are excluded from the
 - The config table seed should be treated as an executable copy of this doctrine; drift between the seed and this document is a bug.
 - Services with `$0` default pricing are not automatically non-revenue. Some are true edge-case service products and must be reviewed before recognition automation.
 - Pass-through services are different from `$0` service products. Pass-through items are excluded from recognition; `$0` service products are classification gaps until reviewed.
+- Shared umbrella tags are valid. `S BILL` currently maps to Billable Expenses, Remote Desktop Access, and Remote QBD Access; `fc_tag` is not unique and should never receive a unique constraint.
 
 ## Related Docs
 

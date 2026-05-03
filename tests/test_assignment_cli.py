@@ -20,7 +20,7 @@ class ClientAssignmentCliTests(unittest.TestCase):
                 sys.executable,
                 str(ROOT / "scripts/parse_client_assignments.py"),
                 "--input",
-                str(ROOT / "Client-staff assignments.xlsx"),
+                str(ROOT / "docs/data-references/client-staff-assignments.xlsx"),
                 "--output",
                 str(output_path),
                 "--summary",

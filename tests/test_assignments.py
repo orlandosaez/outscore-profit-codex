@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class ClientAssignmentParserTests(unittest.TestCase):
     def test_parse_assignment_workbook_preserves_client_rows_and_group_tokens(self) -> None:
-        rows = parse_assignment_workbook(ROOT / "Client-staff assignments.xlsx")
+        rows = parse_assignment_workbook(ROOT / "docs/data-references/client-staff-assignments.xlsx")
 
         self.assertEqual(len(rows), 126)
         first = rows[0]
@@ -29,7 +29,7 @@ class ClientAssignmentParserTests(unittest.TestCase):
         self.assertEqual(first.source_row, 2)
 
     def test_expand_service_owner_assignments_maps_service_codes_to_macro_types(self) -> None:
-        rows = parse_assignment_workbook(ROOT / "Client-staff assignments.xlsx")
+        rows = parse_assignment_workbook(ROOT / "docs/data-references/client-staff-assignments.xlsx")
         owners = expand_service_owner_assignments(rows)
 
         self.assertEqual(len(owners), 159)
@@ -60,7 +60,7 @@ class ClientAssignmentParserTests(unittest.TestCase):
         self.assertEqual(service_code_details("S 1040E"), ("1040E", "tax", "essential"))
 
     def test_summary_and_csv_export_are_machine_readable(self) -> None:
-        rows = parse_assignment_workbook(ROOT / "Client-staff assignments.xlsx")
+        rows = parse_assignment_workbook(ROOT / "docs/data-references/client-staff-assignments.xlsx")
         owners = expand_service_owner_assignments(rows)
         summary = summarize_owner_assignments(owners)
 

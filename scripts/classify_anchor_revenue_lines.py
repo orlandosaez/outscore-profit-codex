@@ -23,7 +23,7 @@ def main() -> int:
     parser.add_argument("--line-items", default=ROOT / "build/live_anchor_invoice_line_items.csv", type=Path)
     parser.add_argument(
         "--qbo-products",
-        default=ROOT / "QBO ProductsServicesList_SBC_Accounting_and_Tax,_LLC_4_26_2026.csv",
+        default=ROOT / "docs/data-references/qbo-product-services.csv",
         type=Path,
     )
     parser.add_argument("--review-output", default=ROOT / "build/anchor_line_item_classifications_review.csv", type=Path)

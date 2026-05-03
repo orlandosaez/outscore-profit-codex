@@ -279,6 +279,7 @@ class N8nWorkflowTests(unittest.TestCase):
             connections["Has Allocation Rows"]["main"][0][0]["node"],
             "Upsert Collection Allocations",
         )
+
         self.assertEqual(
             connections["Has Allocation Rows"]["main"][1][0]["node"],
             "Summarize QBO Collection Load",
@@ -297,6 +298,22 @@ class N8nWorkflowTests(unittest.TestCase):
             "try {",
             nodes_by_name["Summarize QBO Collection Load"]["parameters"]["jsCode"],
         )
+
+    def test_anchor_invoice_sync_captures_invoice_note_and_service_name(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-07-anchor-invoices-sync.json"
+        workflow = workflow_path.read_text(encoding="utf-8")
+
+        self.assertIn("invoice_note", workflow)
+        self.assertIn("invoice.note", workflow)
+        self.assertIn("service_name", workflow)
+        self.assertIn("lineItem.name", workflow)
+
+    def test_revenue_event_loader_carries_service_name(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-15-load-revenue-event-candidates.json"
+        workflow = workflow_path.read_text(encoding="utf-8")
+
+        self.assertIn("service_name", workflow)
+        self.assertIn("profit_revenue_events", workflow)
 
     def test_fc_auto_match_workflow_only_upserts_auto_exact_client_matches(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-25-auto-match-fc-clients-to-anchor.json"
