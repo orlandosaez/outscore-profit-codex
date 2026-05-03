@@ -53,3 +53,59 @@ class SupabaseRestClient:
             )
         return payload
 
+    def insert_rows(
+        self,
+        table_name: str,
+        rows: list[dict[str, object]],
+        *,
+        on_conflict: str | None = None,
+    ) -> list[dict[str, object]]:
+        query_items: list[tuple[str, str | int]] = [("select", "*")]
+        if on_conflict:
+            query_items.append(("on_conflict", on_conflict))
+        endpoint = f"{self.url}/rest/v1/{table_name}?{urlencode(query_items)}"
+        return self._write_json(endpoint, "POST", rows)
+
+    def patch_rows(
+        self,
+        table_name: str,
+        *,
+        filters: dict[str, str | int],
+        payload: dict[str, object],
+    ) -> list[dict[str, object]]:
+        query_items: list[tuple[str, str | int]] = [("select", "*")]
+        query_items.extend(filters.items())
+        endpoint = f"{self.url}/rest/v1/{table_name}?{urlencode(query_items)}"
+        return self._write_json(endpoint, "PATCH", payload)
+
+    def _write_json(
+        self,
+        endpoint: str,
+        method: str,
+        payload: object,
+    ) -> list[dict[str, object]]:
+        request = Request(
+            endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "apikey": self.service_role_key,
+                "Authorization": f"Bearer {self.service_role_key}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Prefer": "return=representation",
+            },
+            method=method,
+        )
+
+        try:
+            with self.opener(request, timeout=self.timeout) as response:
+                body = response.read().decode("utf-8")
+                response_payload = json.loads(body) if body else []
+        except (HTTPError, URLError, TimeoutError) as exc:
+            raise SupabaseRestError(
+                f"Supabase REST write request failed: {exc}"
+            ) from exc
+
+        if not isinstance(response_payload, list):
+            raise SupabaseRestError("Expected list payload from Supabase REST write")
+        return response_payload

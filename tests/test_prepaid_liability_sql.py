@@ -77,6 +77,41 @@ class PrepaidLiabilitySqlTests(unittest.TestCase):
 
         self.assertEqual(offenders, [])
 
+    def test_manual_recognition_migration_defines_reason_codes_and_views(self) -> None:
+        sql_path = ROOT / "supabase/sql/013_profit_manual_recognition_override.sql"
+        sql = sql_path.read_text(encoding="utf-8")
+
+        for reason_code in [
+            "backbill_pre_engagement",
+            "client_operational_change",
+            "entity_restructure",
+            "service_outside_fc_scope",
+            "fc_classifier_gap",
+            "voided_invoice_replacement",
+            "billing_amount_adjustment",
+            "other",
+        ]:
+            self.assertIn(reason_code, sql)
+
+        self.assertIn("manual_override_reason_code", sql)
+        self.assertIn("manual_override_notes", sql)
+        self.assertIn("manual_override_reference", sql)
+        self.assertIn("approved_by", sql)
+        self.assertIn("approved_at", sql)
+        self.assertIn("manual_recognition_approved", sql)
+        self.assertIn("recognized_by_manual_override", sql)
+        self.assertIn("profit_manual_recognition_pending_events", sql)
+        self.assertIn("profit_manual_recognition_override_audit", sql)
+        self.assertIn("recognition_status like 'pending_%'", sql.lower())
+        self.assertIn("trigger.source_record_id = event.revenue_event_key", sql)
+
+    def test_consolidated_billing_migration_extends_pending_view(self) -> None:
+        sql_path = ROOT / "supabase/sql/014_profit_manual_recognition_consolidated_billing.sql"
+        sql = sql_path.read_text(encoding="utf-8")
+
+        self.assertIn("sibling_event_count", sql)
+        self.assertIn("profit_manual_recognition_pending_events", sql)
+
 
 if __name__ == "__main__":
     unittest.main()

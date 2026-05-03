@@ -105,3 +105,17 @@ This is a conservative starter approval workflow. It approves only pending FC ta
 - File: `n8n/workflows/profit-22-approve-matched-fc-bookkeeping-complete-triggers.json`
 
 This follows the same conservative approval pattern for `bookkeeping_complete`, but also requires a resolved service period before today. Run a read-only dry run grouped by client and period before executing it.
+
+## Manual Recognition Overrides
+
+V0.5 adds manual override support through `profit_recognition_triggers`, not through direct revenue edits. Manual rows use `trigger_type = manual_recognition_approved`, `source_system = manual_override`, and `source_record_id = <revenue_event_key>`.
+
+Required manual fields:
+
+- `manual_override_reason_code`: one of `backbill_pre_engagement`, `client_operational_change`, `entity_restructure`, `service_outside_fc_scope`, `fc_classifier_gap`, `voided_invoice_replacement`, `billing_amount_adjustment`, `other`.
+- `manual_override_notes`: required non-empty explanation. When reason is `other`, the API requires at least 20 characters.
+- `manual_override_reference`: optional external reference such as an email subject, ticket, or link.
+- `approved_by`: currently `orlando`.
+- `approved_at`: timestamp of approval.
+
+The API inserts the manual trigger, reads `profit_revenue_events_ready_for_recognition`, and patches the selected event with the ready-view output. Manual overrides produce `recognition_status = recognized_by_manual_override`. The ready view requires `trigger.source_record_id = event.revenue_event_key` for manual overrides so one manual approval cannot recognize sibling events in the same client/service/month. The audit surface reads `profit_manual_recognition_override_audit`, latest approvals first.

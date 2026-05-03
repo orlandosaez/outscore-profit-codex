@@ -436,6 +436,27 @@ These are the main items still being worked on or not yet built:
 - Clear “data freshness” indicators for Anchor, Financial Cents, time entry loads, and recognition runs.
 - Final payout approval/payment workflow for comp.
 
+## V0.5 Manual Recognition Override
+
+Manual Recognition Override lives at `/profit/admin/recognition`. It is for recognition gap cases only: backbills, off-system work, classifier misses, entity restructures, voided-invoice replacements, and similar cases where a normal FC completion trigger cannot fire. It is never a tool for fixing unmatched cash, replacing the FC classifier long-term, or bypassing the normal monthly review workflow.
+
+Each override requires one pending revenue event, a locked reason code, notes, and an approval by Orlando. The system logs the approval in `profit_recognition_triggers` with `trigger_type = manual_recognition_approved`, then applies recognition through the same ready-view path used by automated completion triggers. Excessive use of a reason code is a management signal that the underlying workflow, classifier, or source data needs structural cleanup.
+
+Tax-deferred pending events are hidden by default because they usually need filing or extension confirmation, not manual override. Turn on `Show tax-deferred events` only when there is a specific recognition gap that cannot be resolved by the normal tax trigger path.
+
+Consolidated billing is a first-class V0.5 use case. When one Anchor invoice covers multiple FC entities, such as DVH Investing's invoice covering DVH, NDH, and Hornauer tax returns, the revenue events live under the billed entity, not the FC entity. Use the `Consolidated (N)` badge to identify these groups, match by `source_amount`, use reason code `client_operational_change`, and note which actual return or entity the line item corresponds to.
+
+Hovering the `Consolidated (N)` badge explains that it is one of multiple revenue events under the same Anchor relationship, service type, and period. When consolidated rows are present, the Recognition patterns help opens automatically. Selecting a consolidated row also shows a sibling event list in the approval panel so you can compare each `source_amount` and confirm the correct line item before approving.
+
+A manual override is a one-shot per revenue event. If the wrong reason code or notes were entered, contact the admin to exclude the event manually (same pattern as SBC-00015) before re-attempting recognition. Reversing a manual override is intentionally out of scope.
+
+## Available Routes
+
+- `/profit/`: main dashboard with Company GP, Prepaid Liability, Per-Client GP, Per-Staff GP, Comp Ledger, FC Trigger Queue, and W2 Watch.
+- `/profit/admin/recognition`: manual recognition override surface.
+- Future: `/profit/admin/audit` for V0.6.
+- Future: `/profit/admin/variance` for V0.7.
+
 ## Practical Review Rule
 
 For now, treat the portal as a review cockpit, not a final scorecard.

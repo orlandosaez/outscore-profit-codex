@@ -24,6 +24,9 @@ class ProfitAppDeployTests(unittest.TestCase):
         self.assertIn("alias /opt/agents/outscore_profit/frontend/dist/", nginx)
         self.assertIn("location /profit/api/", nginx)
         self.assertIn("proxy_pass http://127.0.0.1:8010/api/", nginx)
+        self.assertIn("location = /profit/index.html", nginx)
+        self.assertIn("alias /opt/agents/outscore_profit/frontend/dist/index.html", nginx)
+        self.assertIn("try_files $uri $uri/ /profit/index.html", nginx)
         self.assertIn("auth_basic \"Outscore Profit\"", nginx)
         self.assertIn("auth_basic_user_file /etc/nginx/.htpasswd-profit", nginx)
 
