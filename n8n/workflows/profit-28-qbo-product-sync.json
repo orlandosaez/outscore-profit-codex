@@ -1,0 +1,153 @@
+{
+  "id": "Profit28QboProductSync",
+  "name": "Profit - 28 QBO Product Sync",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4f146198-456f-42f9-8944-822339af783e",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "resource": "item",
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": {
+          "query": "WHERE Active IN (true, false)"
+        }
+      },
+      "type": "n8n-nodes-base.quickbooks",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "id": "6a633253-bbce-4a47-9a8a-4657544bb537",
+      "name": "Fetch QuickBooks Items",
+      "credentials": {
+        "quickBooksOAuth2Api": {
+          "id": "VCILaFM3moBDSSGf",
+          "name": "QBO - Outscore Firm Books (Production)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const lastSyncedAt = new Date().toISOString();\nconst items = $input.all().map((item) => item.json).filter((item) => item?.Id);\n\nfunction categoryPath(item) {\n  const fullName = item.FullyQualifiedName ? String(item.FullyQualifiedName) : '';\n  if (fullName.includes(':')) {\n    return fullName.split(':').slice(0, -1).join(' > ') || null;\n  }\n  return item.ParentRef?.name ?? null;\n}\n\nconst rows = items.map((item) => ({\n  qbo_product_id: String(item.Id),\n  qbo_product_name: item.Name ? String(item.Name) : String(item.Id),\n  qbo_category_path: categoryPath(item),\n  active: item.Active ?? null,\n  raw: item,\n  source: 'qbo_api_sync',\n  last_synced_at: lastSyncedAt,\n  updated_at: lastSyncedAt,\n}));\n\nconst categories = rows.reduce((acc, row) => {\n  const key = row.qbo_category_path ?? '(uncategorized)';\n  acc[key] = (acc[key] ?? 0) + 1;\n  return acc;\n}, {});\n\nreturn [{\n  json: {\n    fetchedCount: items.length,\n    rows,\n    categories,\n    sample: rows.slice(0, 10).map((row) => ({\n      qbo_product_id: row.qbo_product_id,\n      qbo_product_name: row.qbo_product_name,\n      qbo_category_path: row.qbo_category_path,\n      active: row.active,\n    })),\n    endpointNote: 'QBO Item getAll with WHERE Active IN (true, false) is intended to fetch active and inactive product/service records. If QBO rejects this filter, keep docs/data-references/qbo-product-services.csv as fallback and inspect endpoint support.',\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "ab10a977-927d-4789-86d9-61ee60568d58",
+      "name": "Map QBO Item Rows"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_qbo_product_services?on_conflict=qbo_product_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ],
+      "id": "8e6435c8-85dc-49df-aa49-25050e4967f2",
+      "name": "Upsert QBO Product Services",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const mapped = $('Map QBO Item Rows').first().json;\nconst upsertedRows = $input.all().map((item) => item.json);\n\nreturn [{\n  json: {\n    status: 'ok',\n    fetchedCount: mapped.fetchedCount,\n    upsertedCount: upsertedRows.length,\n    categories: mapped.categories,\n    sample: upsertedRows.slice(0, 10).map((row) => ({\n      qbo_product_id: row.qbo_product_id,\n      qbo_product_name: row.qbo_product_name,\n      qbo_category_path: row.qbo_category_path,\n      active: row.active,\n    })),\n    endpointNote: mapped.endpointNote,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "db6e57af-c857-4de7-a9d4-3486b4305920",
+      "name": "Summarize QBO Product Sync"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch QuickBooks Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch QuickBooks Items": {
+      "main": [
+        [
+          {
+            "node": "Map QBO Item Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map QBO Item Rows": {
+      "main": [
+        [
+          {
+            "node": "Upsert QBO Product Services",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert QBO Product Services": {
+      "main": [
+        [
+          {
+            "node": "Summarize QBO Product Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

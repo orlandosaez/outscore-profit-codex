@@ -1,0 +1,6 @@
+service_name,macro_service_type,event_count,total_revenue_amount
+Bookkeeping Services,bookkeeping,11,40985
+Strategic Advisory,advisory,6,840
+"Onboarding, Year End Accounting Close",bookkeeping,2,375
+Payroll W2 Processing Support,payroll,1,1120
+Proration to move monthly billing to the 15th of every month,advisory,1,187.5

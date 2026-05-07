@@ -34,6 +34,13 @@ The workflow upserts:
 - `profit_fc_clients`
 - `profit_fc_projects`
 - `profit_fc_tasks`
+- `profit_fc_client_tags`
+
+Workflow 17 captures client-level FC tags only. The current FC payload exposes service and group assignments in `client.raw.groups`; service tags are identified by exact match against `profit_service_recognition_rules.fc_tag`, and non-empty non-matches are stored as group tags. The workflow does not use `S`-prefix pattern matching as a fallback because the service taxonomy is the source of truth. Future unmatched service-shaped tags surface through `profit_unmatched_s_prefixed_tags`.
+
+After client tags are upserted, Workflow 17 calls `profit_refresh_client_groups` through Supabase RPC. That function owns writes to `profit_client_groups` and `profit_client_group_members`; no triggers or workflow-side group writes are used.
+
+`profit_fc_project_tags` and `profit_fc_task_tags` exist in schema for future use but remain intentionally empty in V0.6.A. FC project tags currently carry workflow status labels such as `Waiting on Client` and `Ready to Submit`, which are deferred to V0.6.D SLA work. Task-level tags are not exposed by the current completed-task endpoint and are deferred indefinitely pending alternate endpoint discovery.
 
 Pagination is intentionally bounded and FC request nodes are batched at 10 requests per 8 seconds to stay under live rate limits. Raise the caps if the inspect workflow shows counts hitting the cap.
 

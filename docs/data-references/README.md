@@ -14,6 +14,8 @@ Per-client staff ownership matrix. This file maps clients/services to responsibl
 
 QBO product/service hierarchy export. This file is the source for the V0.5.2.1 `qbo_category_path` and `qbo_product_name` seed columns on `profit_service_recognition_rules`. It should be replaced by QBO product API sync in V0.6+; after that, this CSV becomes a historical snapshot.
 
+V0.6.A introduces `profit_qbo_product_services` as the live QBO product/service mirror. Once `Profit - 28 QBO Product Sync` is deployed and stable, use that table for active classification/drift checks and treat this CSV as a point-in-time benchmark only. Future seed regeneration from this CSV is for local/offline recovery, not the normal source of truth.
+
 ## `sbc-profit-and-loss.csv`
 
 Reference P&L for company-level GP validation. This is a benchmark for V0.6 audit/reconciliation work and is not a recurring seed source.

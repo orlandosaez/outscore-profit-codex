@@ -126,7 +126,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1380,
+        2480,
         0
       ],
       "id": "1996850d-89e4-4b31-aa22-b91d9ca14fa8",
@@ -145,7 +145,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1640,
+        2740,
         0
       ],
       "id": "8407ab79-0d16-4147-a56e-74d8d6a46e36",
@@ -175,7 +175,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1900,
+        3000,
         0
       ],
       "id": "50f1c7e6-ad90-467d-ba8f-8d9e620893db",
@@ -207,7 +207,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2000,
+        3100,
         0
       ],
       "id": "ef468536-2705-4fce-99a2-e6c02b02c016",
@@ -239,7 +239,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2220,
+        3520,
         0
       ],
       "id": "aeb0cbe6-4d25-40b2-8e73-d55110f14c35",
@@ -258,7 +258,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2480,
+        3780,
         0
       ],
       "id": "2f417b47-80c3-447f-bca7-82270047679e",
@@ -288,7 +288,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2740,
+        4040,
         0
       ],
       "id": "86024f99-6ed7-4d18-ad05-7803e1704ca4",
@@ -307,7 +307,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3000,
+        4300,
         0
       ],
       "id": "fb43fd33-7284-417c-ab02-1df76a8b1fee",
@@ -333,7 +333,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1160,
+        2260,
         0
       ],
       "id": "d50cf817-51c4-44fe-a07c-3fa179d0689c",
@@ -346,11 +346,160 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2000,
+        3300,
         0
       ],
       "id": "20f03873-a9cb-4236-9563-15985ec878f5",
       "name": "Build Completed FC Task Page Requests"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_service_recognition_rules?select=service_name,fc_tag&fc_tag=not.is.null",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1260,
+        0
+      ],
+      "id": "b16d418c-6b95-4b5f-a40c-468ea4efe2b0",
+      "name": "Fetch FC Service Tag Rules",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function tagName(entry) {\n  if (!entry) return '';\n  if (typeof entry === 'string') return entry.trim();\n  return String(entry.name ?? '').trim();\n}\n\nfunction normalizeTag(value) {\n  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');\n}\n\nconst serviceRules = $input.all()\n  .flatMap((item) => Array.isArray(item.json) ? item.json : [item.json])\n  .filter((rule) => rule && rule.fc_tag);\nconst serviceTags = new Set(serviceRules.map((rule) => String(rule.fc_tag).trim()));\nconst clients = $('Map FC Clients').first().json.rows ?? [];\nconst syncedAt = new Date().toISOString();\nconst rows = [];\n\nfor (const client of clients) {\n  const groups = Array.isArray(client.raw?.groups) ? client.raw.groups : [];\n  for (const group of groups) {\n    const name = tagName(group);\n    if (!name) continue;\n    rows.push({\n      fc_client_id: Number(client.fc_client_id),\n      tag_name: name,\n      tag_type: serviceTags.has(name) ? 'service' : 'group',\n      normalized_tag: normalizeTag(name),\n      synced_at: syncedAt,\n    });\n  }\n}\n\nreturn [{\n  json: {\n    rows,\n    fcClientTagCount: rows.length,\n    serviceTagCount: rows.filter((row) => row.tag_type === 'service').length,\n    groupTagCount: rows.filter((row) => row.tag_type === 'group').length,\n    sampleTags: rows.slice(0, 10),\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        0
+      ],
+      "id": "c843d4d4-30f5-46f7-8dbb-fef42794df32",
+      "name": "Map FC Client Tags"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4aa12a62-8ad3-4bfc-ac77-4bc5d9dd40af",
+              "leftValue": "={{ $('Map FC Client Tags').first().json.rows.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1660,
+        0
+      ],
+      "id": "076f56e7-a5b3-4e32-b2ab-7d4813b0d31f",
+      "name": "Has FC Client Tag Rows"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_fc_client_tags?on_conflict=fc_client_id,tag_name",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $('Map FC Client Tags').first().json.rows }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1860,
+        -80
+      ],
+      "id": "af13926d-5925-41f1-9950-a0ec842c14de",
+      "name": "Upsert FC Client Tags",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/rpc/profit_refresh_client_groups",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{\"full_client_tag_sync\": true}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2060,
+        0
+      ],
+      "id": "b9a1de75-60d6-49d2-b12c-55a62ba3b7d5",
+      "name": "Refresh Client Groups",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
     }
   ],
   "connections": {
@@ -402,7 +551,7 @@
       "main": [
         [
           {
-            "node": "Build FC Project Page Requests",
+            "node": "Fetch FC Service Tag Rules",
             "type": "main",
             "index": 0
           }
@@ -513,6 +662,68 @@
         [
           {
             "node": "Fetch Completed FC Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch FC Service Tag Rules": {
+      "main": [
+        [
+          {
+            "node": "Map FC Client Tags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map FC Client Tags": {
+      "main": [
+        [
+          {
+            "node": "Has FC Client Tag Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has FC Client Tag Rows": {
+      "main": [
+        [
+          {
+            "node": "Upsert FC Client Tags",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Refresh Client Groups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert FC Client Tags": {
+      "main": [
+        [
+          {
+            "node": "Refresh Client Groups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Client Groups": {
+      "main": [
+        [
+          {
+            "node": "Build FC Project Page Requests",
             "type": "main",
             "index": 0
           }

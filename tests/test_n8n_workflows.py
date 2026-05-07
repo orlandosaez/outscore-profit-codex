@@ -129,6 +129,36 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("profit_fc_tasks?on_conflict=fc_task_id", serialized)
         self.assertIn("Financial Cents API - Production", serialized)
 
+    def test_anchor_agreements_sync_fetches_all_api_visible_statuses(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-05-anchor-agreements-sync.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertNotIn("status=active", serialized)
+        self.assertIn("display_status", serialized)
+        self.assertIn("terminated_at", serialized)
+        self.assertIn("status_synced_at", serialized)
+
+    def test_financial_cents_sync_captures_fc_tags(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-17-financial-cents-sync.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertIn(
+            "profit_fc_client_tags?on_conflict=fc_client_id,tag_name",
+            serialized,
+        )
+        self.assertIn(
+            "profit_service_recognition_rules?select=service_name,fc_tag",
+            serialized,
+        )
+        self.assertIn("'service'", serialized)
+        self.assertIn("'group'", serialized)
+        self.assertIn(
+            "/rest/v1/rpc/profit_refresh_client_groups",
+            serialized,
+        )
+
     def test_financial_cents_sync_uses_bounded_pagination_and_flattens_pages(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-17-financial-cents-sync.json"
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
@@ -172,6 +202,30 @@ class N8nWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(
             connections["Summarize FC Client Upsert"]["main"][0][0]["node"],
+            "Fetch FC Service Tag Rules",
+        )
+        self.assertEqual(
+            connections["Fetch FC Service Tag Rules"]["main"][0][0]["node"],
+            "Map FC Client Tags",
+        )
+        self.assertEqual(
+            connections["Map FC Client Tags"]["main"][0][0]["node"],
+            "Has FC Client Tag Rows",
+        )
+        self.assertEqual(
+            connections["Has FC Client Tag Rows"]["main"][0][0]["node"],
+            "Upsert FC Client Tags",
+        )
+        self.assertEqual(
+            connections["Has FC Client Tag Rows"]["main"][1][0]["node"],
+            "Refresh Client Groups",
+        )
+        self.assertEqual(
+            connections["Upsert FC Client Tags"]["main"][0][0]["node"],
+            "Refresh Client Groups",
+        )
+        self.assertEqual(
+            connections["Refresh Client Groups"]["main"][0][0]["node"],
             "Build FC Project Page Requests",
         )
         self.assertEqual(
@@ -218,6 +272,23 @@ class N8nWorkflowTests(unittest.TestCase):
             nodes_by_name["Fetch QuickBooks Payments"]["credentials"]["quickBooksOAuth2Api"]["name"],
             "QBO - Outscore Firm Books (Production)",
         )
+
+    def test_qbo_product_sync_loads_items_into_product_config(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-28-qbo-product-sync.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+
+        self.assertIn("Profit - 28 QBO Product Sync", serialized)
+        self.assertIn("Item", serialized)
+        self.assertIn(
+            "profit_qbo_product_services?on_conflict=qbo_product_id",
+            serialized,
+        )
+        self.assertIn("qbo_product_id", serialized)
+        self.assertIn("qbo_product_name", serialized)
+        self.assertIn("qbo_category_path", serialized)
+        self.assertIn("qbo_api_sync", serialized)
+        self.assertIn("last_synced_at", serialized)
 
     def test_qbo_collection_loader_collapses_batch_fetches_between_http_nodes(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-24-qbo-collection-loader.json"

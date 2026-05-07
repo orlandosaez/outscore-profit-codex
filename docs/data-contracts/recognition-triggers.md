@@ -151,3 +151,19 @@ If multiple same-form pending events remain possible and no invoice note disambi
 Shared umbrella tags are valid. `S BILL` maps to Billable Expenses, Remote Desktop Access, and Remote QBD Access, so `fc_tag` must not be unique.
 
 `profit_anchor_services_without_tag` lists configured services without an FC tag and is intended for V0.5.3 pipeline run logs. Missing tags do not block recognition in V0.5.2.1 because recognition still uses `service_name`.
+
+## V0.6.A Quarterly Compliance FC Tags
+
+`form_941_quarterly` is seeded as a canonical payroll-macro service rule for FC tag `S 941`. It represents quarterly Form 941 payroll compliance and uses `recognition_pattern = quarterly_recurring`, `service_period_rule = previous_quarter`, and `default_sla_day = 30`.
+
+Workflow 17 uses the service-recognition `fc_tag` lookup to classify `S 941` as a service tag today. Recognition trigger logic for `form_941_quarterly` remains deferred to V0.6.C with the rest of quarterly and year-end compliance trigger work.
+
+## V0.6.A Anchor/QBO Source-Of-Truth Fields
+
+Anchor agreement status is sourced from the Anchor agreements API `status` field and stored on `profit_anchor_agreements.display_status`. Live inspection on 2026-05-06 found only `active` and `terminated` are API-visible; DRAFT/SENT are Anchor UI states and remain manual-classification-only in the V0.6 verdict system. Workflow 05 may also mark a previously synced agreement as `stale` when it is absent from a full API-visible sync.
+
+`profit_anchor_agreements.terminated_at` is populated from Anchor `lastUpdatedAt` when `display_status = 'terminated'`, and `status_synced_at` records the Workflow 05 run that last observed the agreement.
+
+QBO product/service hierarchy moves from `docs/data-references/qbo-product-services.csv` into `profit_qbo_product_services` once Workflow 28 is deployed. Recognition and classifier drift checks should prefer the live table after that workflow is active; the CSV remains a historical reference artifact.
+
+`profit_revenue_events.canonical_service_name` is the FK-safe service taxonomy key introduced in V0.6.A. Joins from revenue events to `profit_service_recognition_rules` should prefer `canonical_service_name` when present and treat raw `service_name` as operational text only. Unresolved raw service names surface in `profit_unresolved_service_names` for alias review.

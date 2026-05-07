@@ -22,6 +22,12 @@ The workflow upserts:
 
 - `profit_revenue_events`
 
+## Service Names
+
+`service_name` is raw Anchor operational text from the line item or service description. It may include prorations, client/entity suffixes, parenthetical notes, or other annotations, so it is not enforced as a foreign key to the canonical service taxonomy.
+
+`canonical_service_name` is the nullable FK-safe taxonomy key. Migration `022_profit_canonical_service_aliases.sql` resolves it from `service_name` using exact service-name match, `profit_anchor_service_aliases`, then conservative prefix match. Rows that still cannot be resolved surface in `profit_unresolved_service_names` for manual alias review.
+
 ## Candidate Rules
 
 - `bookkeeping` -> `bookkeeping_complete_required`, pending Financial Cents bookkeeping completion
@@ -49,6 +55,10 @@ One row per recognition month for company-level GP gate reporting. This includes
 ### `profit_revenue_event_status_summary`
 
 Operational queue by period, macro service, status, and recognition rule.
+
+### `profit_unresolved_service_names`
+
+Unresolved raw service descriptions grouped by service text and macro service type. This is the V0.6.A intake list for canonical alias review; it should not be auto-fixed without reviewing the operational meaning of each raw line item.
 
 ## Caveats
 
