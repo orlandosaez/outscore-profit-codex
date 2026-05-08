@@ -95,6 +95,93 @@ class ProfitAdminFrontendTests(unittest.TestCase):
         self.assertIn("Escape", source)
         self.assertIn("Recent overrides", source)
 
+    def test_audit_dashboard_route_shell_static_contract(self) -> None:
+        app_path = ROOT / "app/frontend/src/App.jsx"
+        nav_path = ROOT / "app/frontend/src/components/PortalNav.jsx"
+        route_path = ROOT / "app/frontend/src/routes/AuditDashboard.jsx"
+        app_source = app_path.read_text(encoding="utf-8")
+        nav_source = nav_path.read_text(encoding="utf-8")
+
+        self.assertTrue(route_path.exists())
+        route_source = route_path.read_text(encoding="utf-8")
+        source = app_source + "\n" + nav_source + "\n" + route_source
+
+        self.assertIn("AuditDashboard", app_source)
+        self.assertIn("/admin/audit", app_source)
+        self.assertIn("Audit", nav_source)
+        self.assertIn("Fulfillment Audit", route_source)
+        self.assertIn("VITE_PROFIT_API_BASE", route_source)
+        self.assertIn("/profit/admin/audit/candidates", route_source)
+        self.assertIn("/profit/admin/audit/verdicts", route_source)
+
+    def test_audit_dashboard_filters_table_and_verdict_map_static_contract(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/AuditDashboard.jsx"
+        ).read_text(encoding="utf-8")
+        styles_source = (ROOT / "app/frontend/src/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn("/profit/admin/audit/filter-options", route_source)
+        self.assertIn('UNCLASSIFIED_VERDICT = "__UNCLASSIFIED__"', route_source)
+        self.assertIn("verdictMap", route_source)
+        self.assertIn("current_verdict_code", route_source)
+        self.assertIn("Unknown verdict", route_source)
+        self.assertIn("Unclassified", route_source)
+        self.assertIn("show_all", route_source)
+        self.assertIn("Showing", route_source)
+        self.assertIn("service_tags", route_source)
+        self.assertIn("estimated_annual_revenue", route_source)
+        self.assertIn("group_names", route_source)
+        self.assertIn("open_invoice_balance_amount", route_source)
+        self.assertIn("re_evaluate_at", route_source)
+        self.assertIn("filterOptions.staff.length > 0", route_source)
+        self.assertIn("audit-table", route_source)
+        self.assertIn(".audit-table", styles_source)
+        self.assertNotIn("VERDICT_OPTIONS = [", route_source)
+
+    def test_audit_dashboard_bulk_classify_and_error_static_contract(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/AuditDashboard.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("parseApiError", route_source)
+        self.assertIn('kind: "validation"', route_source)
+        self.assertIn('kind: "conflict"', route_source)
+        self.assertIn("/profit/admin/audit/classifications", route_source)
+        self.assertIn("crypto.randomUUID", route_source)
+        self.assertIn("request_id", route_source)
+        self.assertIn("classification_id_to_supersede", route_source)
+        self.assertIn("new_verdict_code", route_source)
+        self.assertIn("requiresNotes", route_source)
+        self.assertIn('["mixed", "leak", "manual_review"]', route_source)
+        self.assertIn("stripRequestPrefix", route_source)
+        self.assertIn("req:", route_source)
+        self.assertIn("setSelectedRows({})", route_source)
+        self.assertIn("bulkRowError", route_source)
+        self.assertIn("Row updated since you loaded it", route_source)
+
+    def test_audit_dashboard_detail_and_diagnostics_static_contract(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/AuditDashboard.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("detailEndpoint", route_source)
+        self.assertIn("/profit/admin/audit/qbo-category-gaps", route_source)
+        self.assertIn("<details", route_source)
+        self.assertIn("audit-detail-section", route_source)
+        self.assertIn("Candidate summary", route_source)
+        self.assertIn("Anchor signals", route_source)
+        self.assertIn("Transition rules", route_source)
+        self.assertIn("Classification history", route_source)
+        self.assertIn("Recent service tasks", route_source)
+        self.assertIn("No prior classifications", route_source)
+        self.assertIn("classification_history_total_count", route_source)
+        self.assertIn("classification_history_truncated", route_source)
+        self.assertIn("Will auto-apply on next pipeline run", route_source)
+        self.assertIn("Eligible — manual apply only (V0.6.C will automate)", route_source)
+        self.assertIn("Not eligible:", route_source)
+        self.assertIn("gap_origin", route_source)
+        self.assertIn("qboCategoryGaps", route_source)
+
     def test_app_uses_react_router(self) -> None:
         app_source = (ROOT / "app/frontend/src/App.jsx").read_text(encoding="utf-8")
 

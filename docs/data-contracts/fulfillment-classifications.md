@@ -70,3 +70,35 @@ Anchor does not expose a true agreement create/sign timestamp. Scan v2 uses `pro
 `profit_apply_classification_transitions(timestamptz, boolean)` supports dry-run and live apply using the same selection logic. When `p_dry_run = true`, it returns transition candidates and performs zero writes. When `p_dry_run = false`, it inserts a new `profit_classifications` row and supersedes the prior row.
 
 V0.6.B.2.a scope is narrow: only `active_agreement_appears` is applied for `PENDING_ENGAGEMENT_DRAFT` and `PENDING_ENGAGEMENT_SENT`. The other nine transition rules seeded in V0.6.B.1 remain inactive executable paths until V0.6.C pipeline orchestration.
+
+## Audit Dashboard API Conventions
+
+V0.6.B.2.b adds the `/profit/admin/audit` dashboard as a frontend/API layer over the existing B.2.a views and B.1 classification tables. It adds no new SQL migrations or views.
+
+The API surface is:
+
+- `GET /api/profit/admin/audit/verdicts`
+- `GET /api/profit/admin/audit/filter-options`
+- `GET /api/profit/admin/audit/candidates`
+- `GET /api/profit/admin/audit/candidates/{fc_client_id}`
+- `POST /api/profit/admin/audit/classifications`
+- `GET /api/profit/admin/audit/qbo-category-gaps`
+
+The frontend builds its verdict map from `/api/profit/admin/audit/verdicts` at render time. It must not hardcode the 14 verdict canon or hidden verdict names. Candidate default queue visibility comes from `default_visibility`; unclassified rows coalesce to `show` and are rendered as manual-classification candidates.
+
+`GET /api/profit/admin/audit/candidates` accepts the special verdict filter sentinel `__UNCLASSIFIED__`, which maps to `current_verdict_code is null`. Unknown verdict filters return a structured `422` instead of silently falling through. The `show_all` toggle composes with verdict filtering: hidden classified rows remain hidden unless `show_all=true`, while unclassified rows are visible by default.
+
+`GET /api/profit/admin/audit/candidates/{fc_client_id}` returns the composite detail payload in one call. Classification history is capped at 100 rows and includes `classification_history_total_count` plus `classification_history_truncated`; recent service tasks are capped at 20 rows.
+
+`POST /api/profit/admin/audit/classifications` supports first-classification and reclassification with the same request shape. Manual dashboard writes use:
+
+- `source_audit_file = 'manual:/profit/admin/audit'`
+- `source_audit_row_hash = 'manual:<request_id>:<fc_client_id>'`
+
+The notes column stores `[req:<request_id>] <operator notes>` so the request remains recoverable from the row itself; the UI strips that prefix when rendering history.
+
+Bulk classification remains append-friendly: the API inserts a new `profit_classifications` row and supersedes the prior active row when one exists. It uses service-side rollback to approximate all-or-nothing behavior; a true SQL transaction/RPC is deferred.
+
+Validation order is schema, verdict lookup, required notes, required `re_evaluate_at`, then optimistic-concurrency checks. Required notes are enforced when the new verdict category is `mixed`, `leak`, or `manual_review`. Stale snapshots return `409` with the current active classification so the client can refetch.
+
+The audit dashboard table omits staff primary/reviewer in V0.6.B.2.b because assigned-staff context is not exposed by the current audit views without an additional join. V0.6.D SLA work is the expected home for staff-enriched triage.

@@ -5,6 +5,11 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from profit_api.audit import (
+    AuditDashboardConflictError,
+    AuditDashboardService,
+    AuditDashboardValidationError,
+)
 from profit_api.dashboard import AdminDashboardService
 from profit_api.manual_recognition import ManualRecognitionError, ManualRecognitionService
 from profit_api.periods import validate_period_month
@@ -25,9 +30,24 @@ class ManualOverrideBatchPayload(BaseModel):
     reference: str | None = None
 
 
+class AuditClassificationRowPayload(BaseModel):
+    fc_client_id: int
+    classification_id_to_supersede: int | None = None
+    new_verdict_code: str
+    re_evaluate_at: str | None = None
+    notes: str = ""
+
+
+class AuditClassificationPayload(BaseModel):
+    request_id: str
+    classified_by: str | None = None
+    rows: list[AuditClassificationRowPayload]
+
+
 def create_app(
     service: AdminDashboardService | None = None,
     manual_recognition_service: ManualRecognitionService | None = None,
+    audit_service: AuditDashboardService | None = None,
 ) -> Any:
     try:
         from fastapi import FastAPI, HTTPException
@@ -48,6 +68,7 @@ def create_app(
     recognition_service = manual_recognition_service or ManualRecognitionService(
         supabase_client
     )
+    audit_dashboard_service = audit_service or AuditDashboardService(supabase_client)
 
     @app.get("/api/profit/admin/dashboard")
     def admin_dashboard_snapshot(period: str | None = None) -> dict[str, object]:
@@ -134,6 +155,79 @@ def create_app(
         return {
             "rows": recognition_service.recent_overrides(
                 limit=min(max(limit, 1), 100),
+            )
+        }
+
+    @app.get("/api/profit/admin/audit/verdicts")
+    def audit_verdicts() -> dict[str, object]:
+        return {"rows": audit_dashboard_service.verdicts()}
+
+    @app.get("/api/profit/admin/audit/filter-options")
+    def audit_filter_options() -> dict[str, object]:
+        return audit_dashboard_service.filter_options()
+
+    @app.get("/api/profit/admin/audit/candidates")
+    def audit_candidates(
+        show_all: bool = False,
+        verdict_code: str | None = None,
+        staff: str | None = None,
+        service_tag: str | None = None,
+        group: str | None = None,
+        re_evaluation_due: bool = False,
+        search: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, object]:
+        try:
+            rows = audit_dashboard_service.candidates(
+                show_all=show_all,
+                verdict_code=verdict_code,
+                staff=staff,
+                service_tag=service_tag,
+                group=group,
+                re_evaluation_due=re_evaluation_due,
+                search=search,
+                limit=min(max(limit, 1), 200),
+                offset=max(offset, 0),
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"field": "verdict_code", "message": str(exc)},
+            ) from exc
+        return {"rows": rows}
+
+    @app.get("/api/profit/admin/audit/candidates/{fc_client_id}")
+    def audit_candidate_detail(fc_client_id: int) -> dict[str, object]:
+        try:
+            return audit_dashboard_service.candidate_detail(fc_client_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/profit/admin/audit/classifications")
+    def audit_classifications(payload: AuditClassificationPayload) -> dict[str, object]:
+        try:
+            return audit_dashboard_service.apply_classifications(
+                request_id=payload.request_id,
+                classified_by=payload.classified_by,
+                rows=[row.model_dump() for row in payload.rows],
+            )
+        except AuditDashboardValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
+        except AuditDashboardConflictError as exc:
+            raise HTTPException(status_code=409, detail=exc.detail) from exc
+
+    @app.get("/api/profit/admin/audit/qbo-category-gaps")
+    def audit_qbo_category_gaps(
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, object]:
+        return {
+            "rows": audit_dashboard_service.qbo_category_gaps(
+                limit=min(max(limit, 1), 200),
+                offset=max(offset, 0),
             )
         }
 

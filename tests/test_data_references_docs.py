@@ -47,6 +47,37 @@ class DataReferencesDocsTests(unittest.TestCase):
         self.assertIn("Shared umbrella tags", doc)
         self.assertIn("profit_anchor_services_without_tag", doc)
 
+    def test_fulfillment_classifications_contract_documents_audit_dashboard_api(self) -> None:
+        contract = (
+            ROOT / "docs/data-contracts/fulfillment-classifications.md"
+        ).read_text(encoding="utf-8")
+        tech_debt = (ROOT / "docs/tech-debt.md").read_text(encoding="utf-8")
+
+        self.assertIn("Audit Dashboard API Conventions", contract)
+        self.assertIn("__UNCLASSIFIED__", contract)
+        self.assertIn("/api/profit/admin/audit/candidates", contract)
+        self.assertIn("/api/profit/admin/audit/verdicts", contract)
+        self.assertIn("/api/profit/admin/audit/filter-options", contract)
+        self.assertIn("/api/profit/admin/audit/classifications", contract)
+        self.assertIn("/api/profit/admin/audit/qbo-category-gaps", contract)
+        self.assertIn("source_audit_file = 'manual:/profit/admin/audit'", contract)
+        self.assertIn(
+            "source_audit_row_hash = 'manual:<request_id>:<fc_client_id>'",
+            contract,
+        )
+        self.assertIn("mixed", contract)
+        self.assertIn("leak", contract)
+        self.assertIn("manual_review", contract)
+        self.assertIn("service-side rollback", contract)
+        self.assertIn("no new SQL migrations or views", contract)
+        self.assertIn("audit dashboard table omits staff primary/reviewer", contract)
+
+        self.assertIn("Bulk classify uses service-side rollback", tech_debt)
+        self.assertIn("Multi-user dashboard concurrency", tech_debt)
+        self.assertIn("Audit dashboard table omits staff primary/reviewer column", tech_debt)
+        self.assertIn("Detail panel service tasks omit assigned staff", tech_debt)
+        self.assertIn("Frontend clears all row selection after successful bulk apply", tech_debt)
+
 
 if __name__ == "__main__":
     unittest.main()

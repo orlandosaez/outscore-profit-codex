@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import PortalNav from "./components/PortalNav.jsx";
+import AuditDashboard from "./routes/AuditDashboard.jsx";
 import Dashboard from "./routes/Dashboard.jsx";
 import ManualRecognition from "./routes/ManualRecognition.jsx";
 
@@ -12,6 +13,7 @@ export default function App() {
       <PortalNav />
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/admin/audit" element={<AuditDashboard />} />
         <Route path="/admin/recognition" element={<ManualRecognition />} />
       </Routes>
     </BrowserRouter>
