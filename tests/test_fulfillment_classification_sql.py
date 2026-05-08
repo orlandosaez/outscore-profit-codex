@@ -7,6 +7,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SQL_023 = ROOT / "supabase/sql/023_profit_fulfillment_classifications.sql"
 SQL_025A = ROOT / "supabase/sql/025a_profit_inactive_client_reemergence_scan.sql"
+SQL_025C = ROOT / "supabase/sql/025c_profit_inactive_client_reemergence_scan_v2.sql"
+SQL_025D = ROOT / "supabase/sql/025d_profit_apply_classification_transitions.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -108,6 +110,55 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
         self.assertIn("task.completed_at > record_to_scan.classified_at", lower)
         self.assertIn("completed_at >= (p_run_at - interval '365 days')", lower)
         self.assertIn("Re-emergence scan superseded INACTIVE_FORMER_CLIENT", sql)
+
+    def test_migration_025c_replaces_reemergence_scan_with_v2_guards(self) -> None:
+        sql = SQL_025C.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn(
+            "create or replace function profit_run_inactive_client_reemergence_scan",
+            lower,
+        )
+        self.assertIn("profit_audit_fc_inactive_signals", lower)
+        self.assertIn("profit_audit_open_invoice_balance_per_client", lower)
+        self.assertIn("fc_client_unarchived", sql)
+        self.assertIn("fc_client_became_active", sql)
+        self.assertIn("active_anchor_agreement_created", sql)
+        self.assertIn("service_delivery_task_completed", sql)
+        self.assertIn("open_invoice_balance_returned", sql)
+        self.assertIn("agreement.effective_date > record_to_scan.classified_at", lower)
+        self.assertIn("task.completed_at > record_to_scan.classified_at", lower)
+        self.assertIn("open_balance.last_signal_at > record_to_scan.classified_at", lower)
+        self.assertIn("Joy Property Management LLC", sql)
+        self.assertIn("backdated agreements", lower)
+        self.assertIn("effective_date <= classified_at", lower)
+
+    def test_migration_025d_defines_apply_transitions_with_dry_run(self) -> None:
+        sql = SQL_025D.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn("create or replace function profit_apply_classification_transitions", lower)
+        self.assertIn("p_dry_run boolean default true", lower)
+        self.assertIn("classification_id bigint", lower)
+        self.assertIn("fc_client_id bigint", lower)
+        self.assertIn("fc_client_name text", lower)
+        self.assertIn("from_verdict_code text", lower)
+        self.assertIn("signal_name text", lower)
+        self.assertIn("to_verdict_code text", lower)
+        self.assertIn("anchor_relationship_id text", lower)
+        self.assertIn("anchor_client_business_name text", lower)
+        self.assertIn("evidence_summary jsonb", lower)
+        self.assertIn("would_create_classification_id bigint", lower)
+        self.assertIn("if not p_dry_run then", lower)
+        self.assertIn("rule.enabled = true", lower)
+        self.assertIn("superseded_at is null", lower)
+        self.assertIn("active_agreement_appears", sql)
+        self.assertIn("only active_agreement_appears", lower)
+        self.assertIn("remaining seeded rules", lower)
+        self.assertIn("Schmidli Enterprises LLC", sql)
+        self.assertIn("E & O Automotive LLC", sql)
+        self.assertIn("dry-run writes zero rows", lower)
+        self.assertIn("idempotent", lower)
 
 
 if __name__ == "__main__":
