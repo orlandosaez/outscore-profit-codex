@@ -1,0 +1,2139 @@
+{
+  "id": "Profit26PipelineOrchestration",
+  "name": "Profit - 26 Pipeline Orchestration",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "profit-pipeline-run",
+        "responseMode": "responseNode",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "66947944-26cb-4b2b-9a0d-0000663fb4ab",
+      "name": "Pipeline Run Webhook",
+      "webhookId": "profit-pipeline-run",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ProfitPipelineWebhookHeaderAuth",
+          "name": "Profit Pipeline X-Profit-Pipeline-Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? {};\nif (!body.pipeline_run_id) { throw new Error('pipeline_run_id is required.'); }\nreturn [{ json: { accepted: true, pipeline_run_id: body.pipeline_run_id, triggered_by: body.triggered_by ?? 'orlando', run_source: body.run_source ?? 'manual', completed_steps: [], failed_steps: [], step_results: [], total_rows_affected: 0, note: 'Workflow 26: steps 1-6 are hard dependencies; steps 7-8 are soft dependencies.' }}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "def6aef1-26cb-4b2b-9a0d-000-21a29ce2",
+      "name": "Validate Pipeline Webhook Payload"
+    },
+    {
+      "parameters": {
+        "jsCode": "const previous = $input.first()?.json ?? {};\nconst pipeline_run_id = previous.pipeline_run_id ?? $('Validate Pipeline Webhook Payload').first().json.pipeline_run_id;\nconst startedAt = new Date().toISOString();\nreturn [{ json: {\n  ...previous,\n  pipeline_run_id,\n  current_step_name: 'anchor_agreement_sync',\n  current_step_order: 1,\n  current_step_started_at: startedAt,\n  step_row: {\n    pipeline_run_id,\n    step_name: 'anchor_agreement_sync',\n    step_order: 1,\n    started_at: startedAt,\n    status: 'running',\n    rows_affected: 0,\n    details: { dependency: 'hard', note: 'Workflow 26 step 1: anchor_agreement_sync' },\n  },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "5bfc2d1c-26cb-4b2b-9a0d-00005b57e0f3",
+      "name": "Start anchor_agreement_sync"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.step_row }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "eaaf4e79-26cb-4b2b-9a0d-000-15fb7c6a",
+      "name": "Insert anchor_agreement_sync Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "tQe9nH2rYp6vLm3S",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": null
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        880,
+        0
+      ],
+      "id": "9c5e2758-26cb-4b2b-9a0d-000-630a1549",
+      "name": "W05 Anchor Agreement Sync",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const start = $('Start anchor_agreement_sync').first().json;\nconst subNodeNames = [\"W05 Anchor Agreement Sync\"];\nfunction rowsAffectedFor(items) {\n  if (!items.length) return 0;\n  const first = items[0].json ?? {};\n  const candidates = [first.rows_affected, first.rowsAffected, first.upsertedCount, first.upsertedFcClientMatchCount, first.reconciledDemotedMatchCount, first.applied_count, first.appliedCount, first.loadedTriggerCount, first.insertedCount, first.updatedCount, first.rowCount, first.count];\n  const fromField = candidates.find((value) => Number.isFinite(Number(value)));\n  if (fromField !== undefined) return Number(fromField);\n  return items.filter((item) => item.json && !item.json.error).length;\n}\nconst sub_workflows = subNodeNames.map((name) => {\n  const items = $(name).all();\n  const errorItem = items.find((item) => item.json?.error || item.json?.message?.toLowerCase?.().includes('error'));\n  return {\n    name,\n    status: errorItem ? 'failed' : 'success',\n    rows_affected: rowsAffectedFor(items),\n    finished_at: new Date().toISOString(),\n    error: errorItem ? (errorItem.json.error?.message ?? errorItem.json.error ?? errorItem.json.message ?? JSON.stringify(errorItem.json)) : null,\n  };\n});\nconst failed = sub_workflows.filter((row) => row.status === 'failed');\nconst rowsAffected = sub_workflows.reduce((sum, row) => sum + Number(row.rows_affected || 0), 0);\nconst status = failed.length ? 'failed' : 'success';\nconst finishedAt = new Date().toISOString();\nconst completed_steps = [...(start.completed_steps ?? [])];\nconst failed_steps = [...(start.failed_steps ?? [])];\nif (status === 'success') completed_steps.push('anchor_agreement_sync'); else failed_steps.push('anchor_agreement_sync');\nconst stepResult = { step_order: 1, step_name: 'anchor_agreement_sync', status, rows_affected: rowsAffected, details: { sub_workflows, dependency: 'hard', note: 'details.sub_workflows records strictly sequential sub-operation output; steps 1-6 are hard dependencies and steps 7-8 are soft dependencies.' } };\nreturn [{ json: {\n  ...start, completed_steps, failed_steps,\n  step_results: [...(start.step_results ?? []), stepResult],\n  total_rows_affected: Number(start.total_rows_affected || 0) + rowsAffected,\n  last_step_status: status,\n  patch_body: { finished_at: finishedAt, status, rows_affected: rowsAffected, details: stepResult.details },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "id": "ba3476cd-26cb-4b2b-9a0d-000-456044de",
+      "name": "Finish anchor_agreement_sync"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps?pipeline_run_id=eq.{{$json.pipeline_run_id}}&step_name=eq.anchor_agreement_sync",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.patch_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "id": "eec873ca-26cb-4b2b-9a0d-000-119c41db",
+      "name": "Patch anchor_agreement_sync Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const previous = $input.first()?.json ?? {};\nconst pipeline_run_id = previous.pipeline_run_id ?? $('Validate Pipeline Webhook Payload').first().json.pipeline_run_id;\nconst startedAt = new Date().toISOString();\nreturn [{ json: {\n  ...previous,\n  pipeline_run_id,\n  current_step_name: 'anchor_invoice_revenue_sync',\n  current_step_order: 2,\n  current_step_started_at: startedAt,\n  step_row: {\n    pipeline_run_id,\n    step_name: 'anchor_invoice_revenue_sync',\n    step_order: 2,\n    started_at: startedAt,\n    status: 'running',\n    rows_affected: 0,\n    details: { dependency: 'hard', note: 'Workflow 26 step 2: anchor_invoice_revenue_sync' },\n  },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "id": "efb56d1c-26cb-4b2b-9a0d-000-10e15f0d",
+      "name": "Start anchor_invoice_revenue_sync"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.step_row }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "id": "1daae3b9-26cb-4b2b-9a0d-00001d012e56",
+      "name": "Insert anchor_invoice_revenue_sync Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "kMx8wQ4sN2pLa7vC",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": null
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1980,
+        0
+      ],
+      "id": "c64dc4d7-26cb-4b2b-9a0d-000-3919f6c8",
+      "name": "W07 Anchor Invoice Sync",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "Lv7mC2pXq9rNd5aF",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": null
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2200,
+        0
+      ],
+      "id": "91dd854c-26cb-4b2b-9a0d-000-6e89b75d",
+      "name": "W11 Classify Anchor Line Items",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "Pw6dS3mGt9cHb4nK",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": null
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2420,
+        0
+      ],
+      "id": "45adb552-26cb-4b2b-9a0d-0000450678bd",
+      "name": "W15 Load Revenue Events",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const start = $('Start anchor_invoice_revenue_sync').first().json;\nconst subNodeNames = [\"W07 Anchor Invoice Sync\",\"W11 Classify Anchor Line Items\",\"W15 Load Revenue Events\"];\nfunction rowsAffectedFor(items) {\n  if (!items.length) return 0;\n  const first = items[0].json ?? {};\n  const candidates = [first.rows_affected, first.rowsAffected, first.upsertedCount, first.upsertedFcClientMatchCount, first.reconciledDemotedMatchCount, first.applied_count, first.appliedCount, first.loadedTriggerCount, first.insertedCount, first.updatedCount, first.rowCount, first.count];\n  const fromField = candidates.find((value) => Number.isFinite(Number(value)));\n  if (fromField !== undefined) return Number(fromField);\n  return items.filter((item) => item.json && !item.json.error).length;\n}\nconst sub_workflows = subNodeNames.map((name) => {\n  const items = $(name).all();\n  const errorItem = items.find((item) => item.json?.error || item.json?.message?.toLowerCase?.().includes('error'));\n  return {\n    name,\n    status: errorItem ? 'failed' : 'success',\n    rows_affected: rowsAffectedFor(items),\n    finished_at: new Date().toISOString(),\n    error: errorItem ? (errorItem.json.error?.message ?? errorItem.json.error ?? errorItem.json.message ?? JSON.stringify(errorItem.json)) : null,\n  };\n});\nconst failed = sub_workflows.filter((row) => row.status === 'failed');\nconst rowsAffected = sub_workflows.reduce((sum, row) => sum + Number(row.rows_affected || 0), 0);\nconst status = failed.length ? 'failed' : 'success';\nconst finishedAt = new Date().toISOString();\nconst completed_steps = [...(start.completed_steps ?? [])];\nconst failed_steps = [...(start.failed_steps ?? [])];\nif (status === 'success') completed_steps.push('anchor_invoice_revenue_sync'); else failed_steps.push('anchor_invoice_revenue_sync');\nconst stepResult = { step_order: 2, step_name: 'anchor_invoice_revenue_sync', status, rows_affected: rowsAffected, details: { sub_workflows, dependency: 'hard', note: 'details.sub_workflows records strictly sequential sub-operation output; steps 1-6 are hard dependencies and steps 7-8 are soft dependencies.' } };\nreturn [{ json: {\n  ...start, completed_steps, failed_steps,\n  step_results: [...(start.step_results ?? []), stepResult],\n  total_rows_affected: Number(start.total_rows_affected || 0) + rowsAffected,\n  last_step_status: status,\n  patch_body: { finished_at: finishedAt, status, rows_affected: rowsAffected, details: stepResult.details },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ],
+      "id": "fe01ee0d-26cb-4b2b-9a0d-0000-155dc1e",
+      "name": "Finish anchor_invoice_revenue_sync"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps?pipeline_run_id=eq.{{$json.pipeline_run_id}}&step_name=eq.anchor_invoice_revenue_sync",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.patch_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2860,
+        0
+      ],
+      "id": "ee6d084a-26cb-4b2b-9a0d-000-11393a5b",
+      "name": "Patch anchor_invoice_revenue_sync Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const previous = $input.first()?.json ?? {};\nconst pipeline_run_id = previous.pipeline_run_id ?? $('Validate Pipeline Webhook Payload').first().json.pipeline_run_id;\nconst startedAt = new Date().toISOString();\nreturn [{ json: {\n  ...previous,\n  pipeline_run_id,\n  current_step_name: 'qbo_collection_loader',\n  current_step_order: 3,\n  current_step_started_at: startedAt,\n  step_row: {\n    pipeline_run_id,\n    step_name: 'qbo_collection_loader',\n    step_order: 3,\n    started_at: startedAt,\n    status: 'running',\n    rows_affected: 0,\n    details: { dependency: 'hard', note: 'Workflow 26 step 3: qbo_collection_loader' },\n  },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ],
+      "id": "c016d5f5-26cb-4b2b-9a0d-000-3f42e7e6",
+      "name": "Start qbo_collection_loader"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.step_row }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3300,
+        0
+      ],
+      "id": "27494540-26cb-4b2b-9a0d-000027e288af",
+      "name": "Insert qbo_collection_loader Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "QboCollectionLoaderV24",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": null
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3520,
+        0
+      ],
+      "id": "b09bf08c-26cb-4b2b-9a0d-000-4fcfc29d",
+      "name": "W24 QBO Collection Loader",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const start = $('Start qbo_collection_loader').first().json;\nconst subNodeNames = [\"W24 QBO Collection Loader\"];\nfunction rowsAffectedFor(items) {\n  if (!items.length) return 0;\n  const first = items[0].json ?? {};\n  const candidates = [first.rows_affected, first.rowsAffected, first.upsertedCount, first.upsertedFcClientMatchCount, first.reconciledDemotedMatchCount, first.applied_count, first.appliedCount, first.loadedTriggerCount, first.insertedCount, first.updatedCount, first.rowCount, first.count];\n  const fromField = candidates.find((value) => Number.isFinite(Number(value)));\n  if (fromField !== undefined) return Number(fromField);\n  return items.filter((item) => item.json && !item.json.error).length;\n}\nconst sub_workflows = subNodeNames.map((name) => {\n  const items = $(name).all();\n  const errorItem = items.find((item) => item.json?.error || item.json?.message?.toLowerCase?.().includes('error'));\n  return {\n    name,\n    status: errorItem ? 'failed' : 'success',\n    rows_affected: rowsAffectedFor(items),\n    finished_at: new Date().toISOString(),\n    error: errorItem ? (errorItem.json.error?.message ?? errorItem.json.error ?? errorItem.json.message ?? JSON.stringify(errorItem.json)) : null,\n  };\n});\nconst failed = sub_workflows.filter((row) => row.status === 'failed');\nconst rowsAffected = sub_workflows.reduce((sum, row) => sum + Number(row.rows_affected || 0), 0);\nconst status = failed.length ? 'failed' : 'success';\nconst finishedAt = new Date().toISOString();\nconst completed_steps = [...(start.completed_steps ?? [])];\nconst failed_steps = [...(start.failed_steps ?? [])];\nif (status === 'success') completed_steps.push('qbo_collection_loader'); else failed_steps.push('qbo_collection_loader');\nconst stepResult = { step_order: 3, step_name: 'qbo_collection_loader', status, rows_affected: rowsAffected, details: { sub_workflows, dependency: 'hard', note: 'details.sub_workflows records strictly sequential sub-operation output; steps 1-6 are hard dependencies and steps 7-8 are soft dependencies.' } };\nreturn [{ json: {\n  ...start, completed_steps, failed_steps,\n  step_results: [...(start.step_results ?? []), stepResult],\n  total_rows_affected: Number(start.total_rows_affected || 0) + rowsAffected,\n  last_step_status: status,\n  patch_body: { finished_at: finishedAt, status, rows_affected: rowsAffected, details: stepResult.details },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ],
+      "id": "1e4f1fa6-26cb-4b2b-9a0d-00001ee4d249",
+      "name": "Finish qbo_collection_loader"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps?pipeline_run_id=eq.{{$json.pipeline_run_id}}&step_name=eq.qbo_collection_loader",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.patch_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3960,
+        0
+      ],
+      "id": "2b626a91-26cb-4b2b-9a0d-00002bc9a77e",
+      "name": "Patch qbo_collection_loader Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const previous = $input.first()?.json ?? {};\nconst pipeline_run_id = previous.pipeline_run_id ?? $('Validate Pipeline Webhook Payload').first().json.pipeline_run_id;\nconst startedAt = new Date().toISOString();\nreturn [{ json: {\n  ...previous,\n  pipeline_run_id,\n  current_step_name: 'fc_completion_sync',\n  current_step_order: 4,\n  current_step_started_at: startedAt,\n  step_row: {\n    pipeline_run_id,\n    step_name: 'fc_completion_sync',\n    step_order: 4,\n    started_at: startedAt,\n    status: 'running',\n    rows_affected: 0,\n    details: { dependency: 'hard', note: 'Workflow 26 step 4: fc_completion_sync' },\n  },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        0
+      ],
+      "id": "12aa6a3a-26cb-4b2b-9a0d-00001201a7d5",
+      "name": "Start fc_completion_sync"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.step_row }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4400,
+        0
+      ],
+      "id": "cf489aa9-26cb-4b2b-9a0d-000-301ca8ba",
+      "name": "Insert fc_completion_sync Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "La8mC5vQt2pZr6nF",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": null
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        4620,
+        0
+      ],
+      "id": "652fb1aa-26cb-4b2b-9a0d-000065847c45",
+      "name": "W17 Financial Cents Sync",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "Nc6mT9yRe2sQa4hJ",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": null
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        4840,
+        0
+      ],
+      "id": "4f6c6745-26cb-4b2b-9a0d-00004fc7aaaa",
+      "name": "W21 Approve Tax Filed Triggers",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "sCFCbzCoRqJbmAkD",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": null
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        5060,
+        0
+      ],
+      "id": "de86bc7a-26cb-4b2b-9a0d-000-21d28e6b",
+      "name": "W22 Approve Bookkeeping Complete Triggers",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "Ym4qK8vBn3sLp2dF",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": null
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        5280,
+        0
+      ],
+      "id": "f4521215-26cb-4b2b-9a0d-0000-b062006",
+      "name": "W19 Load FC Completion Triggers",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const start = $('Start fc_completion_sync').first().json;\nconst subNodeNames = [\"W17 Financial Cents Sync\",\"W21 Approve Tax Filed Triggers\",\"W22 Approve Bookkeeping Complete Triggers\",\"W19 Load FC Completion Triggers\"];\nfunction rowsAffectedFor(items) {\n  if (!items.length) return 0;\n  const first = items[0].json ?? {};\n  const candidates = [first.rows_affected, first.rowsAffected, first.upsertedCount, first.upsertedFcClientMatchCount, first.reconciledDemotedMatchCount, first.applied_count, first.appliedCount, first.loadedTriggerCount, first.insertedCount, first.updatedCount, first.rowCount, first.count];\n  const fromField = candidates.find((value) => Number.isFinite(Number(value)));\n  if (fromField !== undefined) return Number(fromField);\n  return items.filter((item) => item.json && !item.json.error).length;\n}\nconst sub_workflows = subNodeNames.map((name) => {\n  const items = $(name).all();\n  const errorItem = items.find((item) => item.json?.error || item.json?.message?.toLowerCase?.().includes('error'));\n  return {\n    name,\n    status: errorItem ? 'failed' : 'success',\n    rows_affected: rowsAffectedFor(items),\n    finished_at: new Date().toISOString(),\n    error: errorItem ? (errorItem.json.error?.message ?? errorItem.json.error ?? errorItem.json.message ?? JSON.stringify(errorItem.json)) : null,\n  };\n});\nconst failed = sub_workflows.filter((row) => row.status === 'failed');\nconst rowsAffected = sub_workflows.reduce((sum, row) => sum + Number(row.rows_affected || 0), 0);\nconst status = failed.length ? 'failed' : 'success';\nconst finishedAt = new Date().toISOString();\nconst completed_steps = [...(start.completed_steps ?? [])];\nconst failed_steps = [...(start.failed_steps ?? [])];\nif (status === 'success') completed_steps.push('fc_completion_sync'); else failed_steps.push('fc_completion_sync');\nconst stepResult = { step_order: 4, step_name: 'fc_completion_sync', status, rows_affected: rowsAffected, details: { sub_workflows, dependency: 'hard', note: 'details.sub_workflows records strictly sequential sub-operation output; steps 1-6 are hard dependencies and steps 7-8 are soft dependencies.' } };\nreturn [{ json: {\n  ...start, completed_steps, failed_steps,\n  step_results: [...(start.step_results ?? []), stepResult],\n  total_rows_affected: Number(start.total_rows_affected || 0) + rowsAffected,\n  last_step_status: status,\n  patch_body: { finished_at: finishedAt, status, rows_affected: rowsAffected, details: stepResult.details },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5500,
+        0
+      ],
+      "id": "8808e629-26cb-4b2b-9a0d-000-775cd43a",
+      "name": "Finish fc_completion_sync"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps?pipeline_run_id=eq.{{$json.pipeline_run_id}}&step_name=eq.fc_completion_sync",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.patch_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5720,
+        0
+      ],
+      "id": "e5bcdef8-26cb-4b2b-9a0d-000-1ae8ece9",
+      "name": "Patch fc_completion_sync Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const previous = $input.first()?.json ?? {};\nconst pipeline_run_id = previous.pipeline_run_id ?? $('Validate Pipeline Webhook Payload').first().json.pipeline_run_id;\nconst startedAt = new Date().toISOString();\nreturn [{ json: {\n  ...previous,\n  pipeline_run_id,\n  current_step_name: 'recognition_trigger_apply',\n  current_step_order: 5,\n  current_step_started_at: startedAt,\n  step_row: {\n    pipeline_run_id,\n    step_name: 'recognition_trigger_apply',\n    step_order: 5,\n    started_at: startedAt,\n    status: 'running',\n    rows_affected: 0,\n    details: { dependency: 'hard', note: 'Workflow 26 step 5: recognition_trigger_apply' },\n  },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5940,
+        0
+      ],
+      "id": "8a35a141-26cb-4b2b-9a0d-000-75619352",
+      "name": "Start recognition_trigger_apply"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.step_row }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6160,
+        0
+      ],
+      "id": "2728fcf4-26cb-4b2b-9a0d-00002783311b",
+      "name": "Insert recognition_trigger_apply Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "Rx7qT4mHy2nKp9vS",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": null
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        6380,
+        0
+      ],
+      "id": "1a75a7ba-26cb-4b2b-9a0d-00001ade6a55",
+      "name": "W16 Apply Recognition Triggers",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const start = $('Start recognition_trigger_apply').first().json;\nconst subNodeNames = [\"W16 Apply Recognition Triggers\"];\nfunction rowsAffectedFor(items) {\n  if (!items.length) return 0;\n  const first = items[0].json ?? {};\n  const candidates = [first.rows_affected, first.rowsAffected, first.upsertedCount, first.upsertedFcClientMatchCount, first.reconciledDemotedMatchCount, first.applied_count, first.appliedCount, first.loadedTriggerCount, first.insertedCount, first.updatedCount, first.rowCount, first.count];\n  const fromField = candidates.find((value) => Number.isFinite(Number(value)));\n  if (fromField !== undefined) return Number(fromField);\n  return items.filter((item) => item.json && !item.json.error).length;\n}\nconst sub_workflows = subNodeNames.map((name) => {\n  const items = $(name).all();\n  const errorItem = items.find((item) => item.json?.error || item.json?.message?.toLowerCase?.().includes('error'));\n  return {\n    name,\n    status: errorItem ? 'failed' : 'success',\n    rows_affected: rowsAffectedFor(items),\n    finished_at: new Date().toISOString(),\n    error: errorItem ? (errorItem.json.error?.message ?? errorItem.json.error ?? errorItem.json.message ?? JSON.stringify(errorItem.json)) : null,\n  };\n});\nconst failed = sub_workflows.filter((row) => row.status === 'failed');\nconst rowsAffected = sub_workflows.reduce((sum, row) => sum + Number(row.rows_affected || 0), 0);\nconst status = failed.length ? 'failed' : 'success';\nconst finishedAt = new Date().toISOString();\nconst completed_steps = [...(start.completed_steps ?? [])];\nconst failed_steps = [...(start.failed_steps ?? [])];\nif (status === 'success') completed_steps.push('recognition_trigger_apply'); else failed_steps.push('recognition_trigger_apply');\nconst stepResult = { step_order: 5, step_name: 'recognition_trigger_apply', status, rows_affected: rowsAffected, details: { sub_workflows, dependency: 'hard', note: 'details.sub_workflows records strictly sequential sub-operation output; steps 1-6 are hard dependencies and steps 7-8 are soft dependencies.' } };\nreturn [{ json: {\n  ...start, completed_steps, failed_steps,\n  step_results: [...(start.step_results ?? []), stepResult],\n  total_rows_affected: Number(start.total_rows_affected || 0) + rowsAffected,\n  last_step_status: status,\n  patch_body: { finished_at: finishedAt, status, rows_affected: rowsAffected, details: stepResult.details },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6600,
+        0
+      ],
+      "id": "1adfaa72-26cb-4b2b-9a0d-00001a74679d",
+      "name": "Finish recognition_trigger_apply"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps?pipeline_run_id=eq.{{$json.pipeline_run_id}}&step_name=eq.recognition_trigger_apply",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.patch_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6820,
+        0
+      ],
+      "id": "849d11c5-26cb-4b2b-9a0d-000-7bc923d6",
+      "name": "Patch recognition_trigger_apply Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const previous = $input.first()?.json ?? {};\nconst pipeline_run_id = previous.pipeline_run_id ?? $('Validate Pipeline Webhook Payload').first().json.pipeline_run_id;\nconst startedAt = new Date().toISOString();\nreturn [{ json: {\n  ...previous,\n  pipeline_run_id,\n  current_step_name: 'fc_anchor_match_refresh',\n  current_step_order: 6,\n  current_step_started_at: startedAt,\n  step_row: {\n    pipeline_run_id,\n    step_name: 'fc_anchor_match_refresh',\n    step_order: 6,\n    started_at: startedAt,\n    status: 'running',\n    rows_affected: 0,\n    details: { dependency: 'hard', note: 'Workflow 26 step 6: fc_anchor_match_refresh' },\n  },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7040,
+        0
+      ],
+      "id": "b7d692bb-26cb-4b2b-9a0d-000-4882a0ac",
+      "name": "Start fc_anchor_match_refresh"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.step_row }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7260,
+        0
+      ],
+      "id": "8b8af5fa-26cb-4b2b-9a0d-000-74dec7eb",
+      "name": "Insert fc_anchor_match_refresh Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "iAi9V5KhLMRiwLTF",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": null
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        7480,
+        0
+      ],
+      "id": "40e52f72-26cb-4b2b-9a0d-0000404ee29d",
+      "name": "W25 FC Anchor Match Refresh",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const start = $('Start fc_anchor_match_refresh').first().json;\nconst subNodeNames = [\"W25 FC Anchor Match Refresh\"];\nfunction rowsAffectedFor(items) {\n  if (!items.length) return 0;\n  const first = items[0].json ?? {};\n  const candidates = [first.rows_affected, first.rowsAffected, first.upsertedCount, first.upsertedFcClientMatchCount, first.reconciledDemotedMatchCount, first.applied_count, first.appliedCount, first.loadedTriggerCount, first.insertedCount, first.updatedCount, first.rowCount, first.count];\n  const fromField = candidates.find((value) => Number.isFinite(Number(value)));\n  if (fromField !== undefined) return Number(fromField);\n  return items.filter((item) => item.json && !item.json.error).length;\n}\nconst sub_workflows = subNodeNames.map((name) => {\n  const items = $(name).all();\n  const errorItem = items.find((item) => item.json?.error || item.json?.message?.toLowerCase?.().includes('error'));\n  return {\n    name,\n    status: errorItem ? 'failed' : 'success',\n    rows_affected: rowsAffectedFor(items),\n    finished_at: new Date().toISOString(),\n    error: errorItem ? (errorItem.json.error?.message ?? errorItem.json.error ?? errorItem.json.message ?? JSON.stringify(errorItem.json)) : null,\n  };\n});\nconst failed = sub_workflows.filter((row) => row.status === 'failed');\nconst rowsAffected = sub_workflows.reduce((sum, row) => sum + Number(row.rows_affected || 0), 0);\nconst status = failed.length ? 'failed' : 'success';\nconst finishedAt = new Date().toISOString();\nconst completed_steps = [...(start.completed_steps ?? [])];\nconst failed_steps = [...(start.failed_steps ?? [])];\nif (status === 'success') completed_steps.push('fc_anchor_match_refresh'); else failed_steps.push('fc_anchor_match_refresh');\nconst stepResult = { step_order: 6, step_name: 'fc_anchor_match_refresh', status, rows_affected: rowsAffected, details: { sub_workflows, dependency: 'hard', note: 'details.sub_workflows records strictly sequential sub-operation output; steps 1-6 are hard dependencies and steps 7-8 are soft dependencies.' } };\nreturn [{ json: {\n  ...start, completed_steps, failed_steps,\n  step_results: [...(start.step_results ?? []), stepResult],\n  total_rows_affected: Number(start.total_rows_affected || 0) + rowsAffected,\n  last_step_status: status,\n  patch_body: { finished_at: finishedAt, status, rows_affected: rowsAffected, details: stepResult.details },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7700,
+        0
+      ],
+      "id": "6923342c-26cb-4b2b-9a0d-00006988f9c3",
+      "name": "Finish fc_anchor_match_refresh"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps?pipeline_run_id=eq.{{$json.pipeline_run_id}}&step_name=eq.fc_anchor_match_refresh",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.patch_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7920,
+        0
+      ],
+      "id": "edf00b0b-26cb-4b2b-9a0d-000-12a4391c",
+      "name": "Patch fc_anchor_match_refresh Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const previous = $input.first()?.json ?? {};\nconst pipeline_run_id = previous.pipeline_run_id ?? $('Validate Pipeline Webhook Payload').first().json.pipeline_run_id;\nconst startedAt = new Date().toISOString();\nreturn [{ json: {\n  ...previous,\n  pipeline_run_id,\n  current_step_name: 'fulfillment_audit_refresh',\n  current_step_order: 7,\n  current_step_started_at: startedAt,\n  step_row: {\n    pipeline_run_id,\n    step_name: 'fulfillment_audit_refresh',\n    step_order: 7,\n    started_at: startedAt,\n    status: 'running',\n    rows_affected: 0,\n    details: { dependency: 'soft', note: 'Workflow 26 step 7: fulfillment_audit_refresh' },\n  },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8140,
+        0
+      ],
+      "id": "c91edb78-26cb-4b2b-9a0d-000-364ae969",
+      "name": "Start fulfillment_audit_refresh"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.step_row }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        8360,
+        0
+      ],
+      "id": "28ce8d1d-26cb-4b2b-9a0d-0000286540f2",
+      "name": "Insert fulfillment_audit_refresh Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/rpc/profit_run_inactive_client_reemergence_scan",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { p_run_at: new Date().toISOString() } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        8580,
+        0
+      ],
+      "id": "ae3235f3-26cb-4b2b-9a0d-000-516607e4",
+      "name": "Run Inactive Reemergence Scan",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const start = $('Start fulfillment_audit_refresh').first().json;\nconst subNodeNames = [\"Run Inactive Reemergence Scan\"];\nfunction rowsAffectedFor(items) {\n  if (!items.length) return 0;\n  const first = items[0].json ?? {};\n  const candidates = [first.rows_affected, first.rowsAffected, first.upsertedCount, first.upsertedFcClientMatchCount, first.reconciledDemotedMatchCount, first.applied_count, first.appliedCount, first.loadedTriggerCount, first.insertedCount, first.updatedCount, first.rowCount, first.count];\n  const fromField = candidates.find((value) => Number.isFinite(Number(value)));\n  if (fromField !== undefined) return Number(fromField);\n  return items.filter((item) => item.json && !item.json.error).length;\n}\nconst sub_workflows = subNodeNames.map((name) => {\n  const items = $(name).all();\n  const errorItem = items.find((item) => item.json?.error || item.json?.message?.toLowerCase?.().includes('error'));\n  return {\n    name,\n    status: errorItem ? 'failed' : 'success',\n    rows_affected: rowsAffectedFor(items),\n    finished_at: new Date().toISOString(),\n    error: errorItem ? (errorItem.json.error?.message ?? errorItem.json.error ?? errorItem.json.message ?? JSON.stringify(errorItem.json)) : null,\n  };\n});\nconst failed = sub_workflows.filter((row) => row.status === 'failed');\nconst rowsAffected = sub_workflows.reduce((sum, row) => sum + Number(row.rows_affected || 0), 0);\nconst status = failed.length ? 'failed' : 'success';\nconst finishedAt = new Date().toISOString();\nconst completed_steps = [...(start.completed_steps ?? [])];\nconst failed_steps = [...(start.failed_steps ?? [])];\nif (status === 'success') completed_steps.push('fulfillment_audit_refresh'); else failed_steps.push('fulfillment_audit_refresh');\nconst stepResult = { step_order: 7, step_name: 'fulfillment_audit_refresh', status, rows_affected: rowsAffected, details: { sub_workflows, dependency: 'soft', note: 'details.sub_workflows records strictly sequential sub-operation output; steps 1-6 are hard dependencies and steps 7-8 are soft dependencies.' } };\nreturn [{ json: {\n  ...start, completed_steps, failed_steps,\n  step_results: [...(start.step_results ?? []), stepResult],\n  total_rows_affected: Number(start.total_rows_affected || 0) + rowsAffected,\n  last_step_status: status,\n  patch_body: { finished_at: finishedAt, status, rows_affected: rowsAffected, details: stepResult.details },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8800,
+        0
+      ],
+      "id": "59c8e4a9-26cb-4b2b-9a0d-000059632946",
+      "name": "Finish fulfillment_audit_refresh"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps?pipeline_run_id=eq.{{$json.pipeline_run_id}}&step_name=eq.fulfillment_audit_refresh",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.patch_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9020,
+        0
+      ],
+      "id": "8642a1ee-26cb-4b2b-9a0d-000-791693ff",
+      "name": "Patch fulfillment_audit_refresh Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const previous = $input.first()?.json ?? {};\nconst pipeline_run_id = previous.pipeline_run_id ?? $('Validate Pipeline Webhook Payload').first().json.pipeline_run_id;\nconst startedAt = new Date().toISOString();\nreturn [{ json: {\n  ...previous,\n  pipeline_run_id,\n  current_step_name: 'classification_transition_apply',\n  current_step_order: 8,\n  current_step_started_at: startedAt,\n  step_row: {\n    pipeline_run_id,\n    step_name: 'classification_transition_apply',\n    step_order: 8,\n    started_at: startedAt,\n    status: 'running',\n    rows_affected: 0,\n    details: { dependency: 'soft', note: 'Workflow 26 step 8: classification_transition_apply' },\n  },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9240,
+        0
+      ],
+      "id": "b90a3f5f-26cb-4b2b-9a0d-000-465e0d50",
+      "name": "Start classification_transition_apply"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.step_row }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9460,
+        0
+      ],
+      "id": "79b8b6d6-26cb-4b2b-9a0d-000079137b39",
+      "name": "Insert classification_transition_apply Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/rpc/profit_apply_classification_transitions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { p_run_at: new Date().toISOString(), p_dry_run: false } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9680,
+        0
+      ],
+      "id": "b8b99c96-26cb-4b2b-9a0d-000-47edae87",
+      "name": "Apply Classification Transitions",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const start = $('Start classification_transition_apply').first().json;\nconst subNodeNames = [\"Apply Classification Transitions\"];\nfunction rowsAffectedFor(items) {\n  if (!items.length) return 0;\n  const first = items[0].json ?? {};\n  const candidates = [first.rows_affected, first.rowsAffected, first.upsertedCount, first.upsertedFcClientMatchCount, first.reconciledDemotedMatchCount, first.applied_count, first.appliedCount, first.loadedTriggerCount, first.insertedCount, first.updatedCount, first.rowCount, first.count];\n  const fromField = candidates.find((value) => Number.isFinite(Number(value)));\n  if (fromField !== undefined) return Number(fromField);\n  return items.filter((item) => item.json && !item.json.error).length;\n}\nconst sub_workflows = subNodeNames.map((name) => {\n  const items = $(name).all();\n  const errorItem = items.find((item) => item.json?.error || item.json?.message?.toLowerCase?.().includes('error'));\n  return {\n    name,\n    status: errorItem ? 'failed' : 'success',\n    rows_affected: rowsAffectedFor(items),\n    finished_at: new Date().toISOString(),\n    error: errorItem ? (errorItem.json.error?.message ?? errorItem.json.error ?? errorItem.json.message ?? JSON.stringify(errorItem.json)) : null,\n  };\n});\nconst failed = sub_workflows.filter((row) => row.status === 'failed');\nconst rowsAffected = sub_workflows.reduce((sum, row) => sum + Number(row.rows_affected || 0), 0);\nconst status = failed.length ? 'failed' : 'success';\nconst finishedAt = new Date().toISOString();\nconst completed_steps = [...(start.completed_steps ?? [])];\nconst failed_steps = [...(start.failed_steps ?? [])];\nif (status === 'success') completed_steps.push('classification_transition_apply'); else failed_steps.push('classification_transition_apply');\nconst stepResult = { step_order: 8, step_name: 'classification_transition_apply', status, rows_affected: rowsAffected, details: { sub_workflows, dependency: 'soft', note: 'details.sub_workflows records strictly sequential sub-operation output; steps 1-6 are hard dependencies and steps 7-8 are soft dependencies.' } };\nreturn [{ json: {\n  ...start, completed_steps, failed_steps,\n  step_results: [...(start.step_results ?? []), stepResult],\n  total_rows_affected: Number(start.total_rows_affected || 0) + rowsAffected,\n  last_step_status: status,\n  patch_body: { finished_at: finishedAt, status, rows_affected: rowsAffected, details: stepResult.details },\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9900,
+        0
+      ],
+      "id": "da5adfd0-26cb-4b2b-9a0d-000-250eedc1",
+      "name": "Finish classification_transition_apply"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_run_steps?pipeline_run_id=eq.{{$json.pipeline_run_id}}&step_name=eq.classification_transition_apply",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.patch_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        10120,
+        0
+      ],
+      "id": "1cc42ae7-26cb-4b2b-9a0d-00001c6fe708",
+      "name": "Patch classification_transition_apply Step",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const stepSpecs = [\n  { order: 1, step_name: 'anchor_agreement_sync', finish_node: 'Finish anchor_agreement_sync' },\n  { order: 2, step_name: 'anchor_invoice_revenue_sync', finish_node: 'Finish anchor_invoice_revenue_sync' },\n  { order: 3, step_name: 'qbo_collection_loader', finish_node: 'Finish qbo_collection_loader' },\n  { order: 4, step_name: 'fc_completion_sync', finish_node: 'Finish fc_completion_sync' },\n  { order: 5, step_name: 'recognition_trigger_apply', finish_node: 'Finish recognition_trigger_apply' },\n  { order: 6, step_name: 'fc_anchor_match_refresh', finish_node: 'Finish fc_anchor_match_refresh' },\n  { order: 7, step_name: 'fulfillment_audit_refresh', finish_node: 'Finish fulfillment_audit_refresh' },\n  { order: 8, step_name: 'classification_transition_apply', finish_node: 'Finish classification_transition_apply' },\n];\n\nfunction finishContext(finishNodeName) {\n  try {\n    return $(finishNodeName).first()?.json ?? null;\n  } catch (error) {\n    return null;\n  }\n}\n\nconst pipelineRunId = $('Validate Pipeline Webhook Payload').first().json.pipeline_run_id;\nconst stepResults = [];\nfor (const spec of stepSpecs) {\n  const ctx = finishContext(spec.finish_node);\n  if (!ctx) continue;\n  const ownResult = (ctx.step_results ?? []).find((step) => step.step_name === spec.step_name);\n  if (ownResult) stepResults.push(ownResult);\n}\n\nconst total_steps_completed = stepResults.filter((step) => step.status === 'success').length;\nconst total_steps_failed = stepResults.filter((step) => step.status === 'failed').length;\nconst total_rows_affected = stepResults.reduce((sum, step) => sum + Number(step.rows_affected || 0), 0);\nconst hardFailed = stepResults.some((step) => step.status === 'failed' && step.step_order <= 6);\nconst softFailed = stepResults.some((step) => step.status === 'failed' && step.step_order >= 7);\nconst status = hardFailed ? 'failed' : (softFailed ? 'partial' : 'success');\n\nreturn [{ json: {\n  pipeline_run_id: pipelineRunId,\n  step_results: stepResults,\n  run_patch: {\n    status,\n    finished_at: new Date().toISOString(),\n    summary: {\n      total_steps_completed,\n      total_steps_failed,\n      total_rows_affected,\n      error_summary: total_steps_failed ? `${total_steps_failed} pipeline step(s) failed` : null,\n      notable_findings: status === 'failed' ? 'Workflow 26 halted on a hard-step failure.' : 'Workflow 26 completed 8-step C.b orchestration.',\n      steps: stepResults,\n    },\n  },\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10340,
+        0
+      ],
+      "id": "3730cd15-26cb-4b2b-9a0d-0000379b00fa",
+      "name": "Finalize Pipeline Run Summary"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_runs?pipeline_run_id=eq.{{$json.pipeline_run_id}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.run_patch }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        10560,
+        0
+      ],
+      "id": "34ec5957-26cb-4b2b-9a0d-0000344794b8",
+      "name": "Patch Pipeline Run Final Status",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { accepted: true, pipeline_run_id: $json.body?.pipeline_run_id ?? null } }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        440,
+        0
+      ],
+      "id": "48a16d0f-26cb-4b2b-9a0d-0000480aa0e0",
+      "name": "Respond Pipeline Run Accepted"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ec26ad35-26cb-4b2b-9a0d-000-13729f26",
+              "leftValue": "={{ $('Finish anchor_agreement_sync').first().json.last_step_status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2200,
+        180
+      ],
+      "id": "80da710b-26cb-4b2b-9a0d-000-7f8e431c",
+      "name": "Hard failure after anchor_agreement_sync"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "807bb675-26cb-4b2b-9a0d-000-7f2f8466",
+              "leftValue": "={{ $('Finish anchor_invoice_revenue_sync').first().json.last_step_status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3300,
+        180
+      ],
+      "id": "1a86c1cb-26cb-4b2b-9a0d-00001a2d0c24",
+      "name": "Hard failure after anchor_invoice_revenue_sync"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5041560e-26cb-4b2b-9a0d-000050ea9be1",
+              "leftValue": "={{ $('Finish qbo_collection_loader').first().json.last_step_status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4400,
+        180
+      ],
+      "id": "e4f519e4-26cb-4b2b-9a0d-000-1ba12bf5",
+      "name": "Hard failure after qbo_collection_loader"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c4a088c1-26cb-4b2b-9a0d-000-3bf4bad2",
+              "leftValue": "={{ $('Finish fc_completion_sync').first().json.last_step_status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5500,
+        180
+      ],
+      "id": "0a5944ab-26cb-4b2b-9a0d-00000af28944",
+      "name": "Hard failure after fc_completion_sync"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "02806cda-26cb-4b2b-9a0d-0000022ba135",
+              "leftValue": "={{ $('Finish recognition_trigger_apply').first().json.last_step_status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        6600,
+        180
+      ],
+      "id": "cd6255b0-26cb-4b2b-9a0d-000-323667a1",
+      "name": "Hard failure after recognition_trigger_apply"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e7617094-26cb-4b2b-9a0d-000-18354285",
+              "leftValue": "={{ $('Finish fc_anchor_match_refresh').first().json.last_step_status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        7700,
+        180
+      ],
+      "id": "1e3396ea-26cb-4b2b-9a0d-00001e985b05",
+      "name": "Hard failure after fc_anchor_match_refresh"
+    }
+  ],
+  "connections": {
+    "Pipeline Run Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond Pipeline Run Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Pipeline Webhook Payload": {
+      "main": [
+        [
+          {
+            "node": "Start anchor_agreement_sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start anchor_agreement_sync": {
+      "main": [
+        [
+          {
+            "node": "Insert anchor_agreement_sync Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert anchor_agreement_sync Step": {
+      "main": [
+        [
+          {
+            "node": "W05 Anchor Agreement Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W05 Anchor Agreement Sync": {
+      "main": [
+        [
+          {
+            "node": "Finish anchor_agreement_sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish anchor_agreement_sync": {
+      "main": [
+        [
+          {
+            "node": "Patch anchor_agreement_sync Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patch anchor_agreement_sync Step": {
+      "main": [
+        [
+          {
+            "node": "Hard failure after anchor_agreement_sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start anchor_invoice_revenue_sync": {
+      "main": [
+        [
+          {
+            "node": "Insert anchor_invoice_revenue_sync Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert anchor_invoice_revenue_sync Step": {
+      "main": [
+        [
+          {
+            "node": "W07 Anchor Invoice Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W07 Anchor Invoice Sync": {
+      "main": [
+        [
+          {
+            "node": "W11 Classify Anchor Line Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W11 Classify Anchor Line Items": {
+      "main": [
+        [
+          {
+            "node": "W15 Load Revenue Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W15 Load Revenue Events": {
+      "main": [
+        [
+          {
+            "node": "Finish anchor_invoice_revenue_sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish anchor_invoice_revenue_sync": {
+      "main": [
+        [
+          {
+            "node": "Patch anchor_invoice_revenue_sync Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patch anchor_invoice_revenue_sync Step": {
+      "main": [
+        [
+          {
+            "node": "Hard failure after anchor_invoice_revenue_sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start qbo_collection_loader": {
+      "main": [
+        [
+          {
+            "node": "Insert qbo_collection_loader Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert qbo_collection_loader Step": {
+      "main": [
+        [
+          {
+            "node": "W24 QBO Collection Loader",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W24 QBO Collection Loader": {
+      "main": [
+        [
+          {
+            "node": "Finish qbo_collection_loader",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish qbo_collection_loader": {
+      "main": [
+        [
+          {
+            "node": "Patch qbo_collection_loader Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patch qbo_collection_loader Step": {
+      "main": [
+        [
+          {
+            "node": "Hard failure after qbo_collection_loader",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start fc_completion_sync": {
+      "main": [
+        [
+          {
+            "node": "Insert fc_completion_sync Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert fc_completion_sync Step": {
+      "main": [
+        [
+          {
+            "node": "W17 Financial Cents Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W17 Financial Cents Sync": {
+      "main": [
+        [
+          {
+            "node": "W21 Approve Tax Filed Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W21 Approve Tax Filed Triggers": {
+      "main": [
+        [
+          {
+            "node": "W22 Approve Bookkeeping Complete Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W22 Approve Bookkeeping Complete Triggers": {
+      "main": [
+        [
+          {
+            "node": "W19 Load FC Completion Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W19 Load FC Completion Triggers": {
+      "main": [
+        [
+          {
+            "node": "Finish fc_completion_sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish fc_completion_sync": {
+      "main": [
+        [
+          {
+            "node": "Patch fc_completion_sync Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patch fc_completion_sync Step": {
+      "main": [
+        [
+          {
+            "node": "Hard failure after fc_completion_sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start recognition_trigger_apply": {
+      "main": [
+        [
+          {
+            "node": "Insert recognition_trigger_apply Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert recognition_trigger_apply Step": {
+      "main": [
+        [
+          {
+            "node": "W16 Apply Recognition Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W16 Apply Recognition Triggers": {
+      "main": [
+        [
+          {
+            "node": "Finish recognition_trigger_apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish recognition_trigger_apply": {
+      "main": [
+        [
+          {
+            "node": "Patch recognition_trigger_apply Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patch recognition_trigger_apply Step": {
+      "main": [
+        [
+          {
+            "node": "Hard failure after recognition_trigger_apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start fc_anchor_match_refresh": {
+      "main": [
+        [
+          {
+            "node": "Insert fc_anchor_match_refresh Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert fc_anchor_match_refresh Step": {
+      "main": [
+        [
+          {
+            "node": "W25 FC Anchor Match Refresh",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W25 FC Anchor Match Refresh": {
+      "main": [
+        [
+          {
+            "node": "Finish fc_anchor_match_refresh",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish fc_anchor_match_refresh": {
+      "main": [
+        [
+          {
+            "node": "Patch fc_anchor_match_refresh Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patch fc_anchor_match_refresh Step": {
+      "main": [
+        [
+          {
+            "node": "Hard failure after fc_anchor_match_refresh",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start fulfillment_audit_refresh": {
+      "main": [
+        [
+          {
+            "node": "Insert fulfillment_audit_refresh Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert fulfillment_audit_refresh Step": {
+      "main": [
+        [
+          {
+            "node": "Run Inactive Reemergence Scan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Inactive Reemergence Scan": {
+      "main": [
+        [
+          {
+            "node": "Finish fulfillment_audit_refresh",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish fulfillment_audit_refresh": {
+      "main": [
+        [
+          {
+            "node": "Patch fulfillment_audit_refresh Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patch fulfillment_audit_refresh Step": {
+      "main": [
+        [
+          {
+            "node": "Start classification_transition_apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start classification_transition_apply": {
+      "main": [
+        [
+          {
+            "node": "Insert classification_transition_apply Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert classification_transition_apply Step": {
+      "main": [
+        [
+          {
+            "node": "Apply Classification Transitions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Classification Transitions": {
+      "main": [
+        [
+          {
+            "node": "Finish classification_transition_apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish classification_transition_apply": {
+      "main": [
+        [
+          {
+            "node": "Patch classification_transition_apply Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patch classification_transition_apply Step": {
+      "main": [
+        [
+          {
+            "node": "Finalize Pipeline Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize Pipeline Run Summary": {
+      "main": [
+        [
+          {
+            "node": "Patch Pipeline Run Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond Pipeline Run Accepted": {
+      "main": [
+        [
+          {
+            "node": "Validate Pipeline Webhook Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hard failure after anchor_agreement_sync": {
+      "main": [
+        [
+          {
+            "node": "Finalize Pipeline Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start anchor_invoice_revenue_sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hard failure after anchor_invoice_revenue_sync": {
+      "main": [
+        [
+          {
+            "node": "Finalize Pipeline Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start qbo_collection_loader",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hard failure after qbo_collection_loader": {
+      "main": [
+        [
+          {
+            "node": "Finalize Pipeline Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start fc_completion_sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hard failure after fc_completion_sync": {
+      "main": [
+        [
+          {
+            "node": "Finalize Pipeline Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start recognition_trigger_apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hard failure after recognition_trigger_apply": {
+      "main": [
+        [
+          {
+            "node": "Finalize Pipeline Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start fc_anchor_match_refresh",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hard failure after fc_anchor_match_refresh": {
+      "main": [
+        [
+          {
+            "node": "Finalize Pipeline Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start fulfillment_audit_refresh",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "meta": {
+    "description": "Workflow 26 pipeline orchestration. Sub-workflows inside grouped steps run strictly sequentially; rows_affected aggregates grouped outputs. Steps 1-6 are hard dependencies; steps 7-8 are soft dependencies."
+  }
+}

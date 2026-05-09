@@ -52,6 +52,71 @@ V0.6.C.a adds `profit_pipeline_runs` and `profit_pipeline_run_steps` as the dura
 
 `profit_pipeline_run_steps` records ordered per-step results. The `(pipeline_run_id, step_name)` primary key prevents duplicate named steps within one run, and `(pipeline_run_id, step_order)` keeps C.b UI/API ordering stable. `details` is free-form JSONB for step-specific payloads such as candidate counts, transition rows, error text, and notes.
 
+Workflow 26 finalization reads named finish-node contexts rather than trusting the immediate upstream node payload. Each `Finish <step>` node owns the canonical step result, and `Finalize Pipeline Run Summary` aggregates those named contexts defensively, skipping finish nodes that did not execute because an earlier hard step failed. This protects finalization from lossy PostgREST patch responses and keeps hard-fail paths able to populate `profit_pipeline_runs.status`, `finished_at`, and `summary`.
+
+## Pipeline Orchestration API
+
+V0.6.C.b adds read/write orchestration endpoints under the existing audit admin API namespace. These endpoints do not add SQL objects; they consume the C.a `profit_pipeline_runs` and `profit_pipeline_run_steps` tables.
+
+API surface:
+
+- `POST /api/profit/admin/audit/pipeline-runs`
+- `GET /api/profit/admin/audit/pipeline-runs`
+- `GET /api/profit/admin/audit/pipeline-runs/{pipeline_run_id}`
+
+`POST /pipeline-runs` inserts a `profit_pipeline_runs` row with `run_source = 'manual'`, `status = 'running'`, and operator-supplied `triggered_by`, then calls the Workflow 26 webhook with the `pipeline_run_id`. The API returns immediately with `{ "run": ... }`; it does not wait for the workflow to finish. If the webhook call fails after the row insert, the API deletes the just-created running row before returning a `500`, so the running-row partial unique index is not left blocked.
+
+Concurrent manual refresh attempts are rejected via the C.a partial unique index `idx_profit_pipeline_runs_one_running`. The Supabase REST wrapper preserves PostgreSQL error metadata (`postgres_code`, `constraint_name`) so the service can map `23505` on that constraint to `409 Conflict` with `{ current_run_id, started_at, triggered_by, message }`. If the unique violation races with a run finishing before the follow-up select, the API retries the insert once.
+
+`GET /pipeline-runs` returns `{ "rows": [...], "limit": N, "offset": M }`, ordered by `started_at desc`, with route-level limit/offset clamping. `GET /pipeline-runs/{pipeline_run_id}` returns `{ "run": {...}, "steps": [...] }`; a run with no step rows is still a `200` with `steps: []`. `duration_seconds` is computed on read from `finished_at - started_at` and is `null` while a run is still running.
+
+The frontend polls `GET /pipeline-runs/{pipeline_run_id}` every four seconds only on the run-detail route while that run has `status = 'running'`. List routes and terminal run detail routes do not poll.
+
+## Workflow 26 Run Log Semantics
+
+Workflow 26 is the only workflow that writes to `profit_pipeline_runs` and `profit_pipeline_run_steps`. It receives a `pipeline_run_id` from the API webhook payload; it does not create the run row itself.
+
+The C.b orchestration graph records eight effective steps:
+
+1. `anchor_agreement_sync`
+2. `anchor_invoice_revenue_sync`
+3. `qbo_collection_loader`
+4. `fc_completion_sync`
+5. `recognition_trigger_apply`
+6. `fc_anchor_match_refresh`
+7. `fulfillment_audit_refresh`
+8. `classification_transition_apply`
+
+Steps 1-6 are hard dependencies: a failure updates the current step to `failed`, finalizes the run as `failed`, and halts later steps. Steps 7-8 are soft dependencies: failures are captured in step details and the run finalizes as `partial` after all soft steps that can run have completed. Reconcile inside step 6 is best-effort and does not fail the step when its own cleanup call errors.
+
+Grouped steps run sub-workflows strictly sequentially. Step 2 executes W07 -> W11 -> W15. Step 4 executes W17 -> W21 -> W22 -> W19. Step-level `rows_affected` is the sum of sub-operation rows, and `details.sub_workflows` records per-sub-operation `{ name, status, rows_affected, finished_at, error? }`.
+
+Every Execute Workflow node and RPC-style HTTP node in W26 uses `alwaysOutputData = true` because n8n drops item streams when a sub-workflow or RPC returns zero rows. Dropped item streams can strand a step in `running` and bypass finalization. The graph treats output preservation as part of the run-log contract, not as a cosmetic workflow setting.
+
+All terminal paths route through `Finalize Pipeline Run Summary`, followed by the final status patch. Happy path, hard-fail paths, and soft-fail/partial paths must populate `profit_pipeline_runs.status`, `finished_at`, and `summary`. A Workflow 26 n8n execution may show `success` even when the pipeline run status is `failed`; that means the workflow successfully executed its failure-routing path.
+
+## Workflow 25 Standalone Run Behavior
+
+Workflow 25 remains safe to trigger outside Workflow 26, but standalone runs are not represented in `profit_pipeline_runs` or `profit_pipeline_run_steps`. The run log is exclusively for Workflow 26 orchestration. Standalone Workflow 25 invocations are visible only in n8n execution history.
+
+Workflow 25 must preserve `match_method = 'manual_override'` rows during upsert. The current implementation fetches existing manual override `fc_client_id` values and excludes them from the `auto_exact` upsert payload. The `protectedManualOverrideCount` field in Workflow 25's output reports how many manual rows were protected. This invariant prevents silent data corruption when an operator-set manual override would otherwise be overwritten by the candidate view's `auto_exact` recommendation.
+
+Workflow 25 also calls `profit_reconcile_fc_client_anchor_matches(false)` after its upsert step. The output payload includes `upsertedFcClientMatchCount`, `reconciledDemotedMatchCount`, `reconcileStatus`, and `reconcileError`. Reconcile errors are captured as `reconcileStatus = 'error'` and do not fail the workflow; stale-match cleanup is best-effort during standalone execution and summarized by Workflow 26 when W25 is invoked as part of the chain.
+
+## Auto Apply Enabled Field Migration
+
+V0.6.C.b adds canonical `auto_apply_enabled` to each transition rule object returned by `GET /api/profit/admin/audit/candidates/{fc_client_id}`. The field is true when the rule is enabled and the current C.b pipeline can auto-apply that `(from_verdict_code, signal_name)` combination.
+
+Canonical auto-apply combinations are:
+
+- `PENDING_ENGAGEMENT_DRAFT` / `PENDING_ENGAGEMENT_SENT` + `active_agreement_appears`
+- `LEGACY_ENGAGEMENT_PRE_ANCHOR` + `first_matching_anchor_invoice_group_billed`
+- `LEGACY_ENGAGEMENT_PRE_ANCHOR` + `first_matching_anchor_invoice_mid_cycle`
+- `INVOICE_OUTSTANDING_PAYMENT_PENDING` + `cash_collected_group_parent`
+- `INVOICE_OUTSTANDING_PAYMENT_PENDING` + `cash_collected_standalone_mid_cycle`
+
+The deprecated `auto_apply_enabled_in_b2a` field remains emitted on every transition rule row for backward compatibility and remains true only for the original B.2.a active-agreement PENDING rules. Frontend code must prefer `auto_apply_enabled` when present and fall back to `auto_apply_enabled_in_b2a` only for older payloads. The legacy field should remain dual-emitted until V0.7 removal criteria are met.
+
 ## Inactive Re-Emergence
 
 `profit_run_inactive_client_reemergence_scan()` supersedes active `INACTIVE_FORMER_CLIENT` rows when an active signal returns. V0.6.B.1 emits `MIXED` rows for manual reclassification; V0.6.B.2 audit views surface those rows.

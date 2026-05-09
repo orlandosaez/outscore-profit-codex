@@ -12,10 +12,14 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import PipelineRefreshDialog from "../components/PipelineRefreshDialog.jsx";
+import PipelineStatusSummary from "../components/PipelineStatusSummary.jsx";
+
 const apiBase = import.meta.env.VITE_PROFIT_API_BASE ?? "/api";
 const endpoint = `${apiBase}/profit/admin/dashboard`;
 const prepaidBalancesEndpoint = `${apiBase}/profit/admin/prepaid/balances`;
 const prepaidLedgerEndpoint = `${apiBase}/profit/admin/prepaid/ledger`;
+const pipelineRunsEndpoint = `${apiBase}/profit/admin/audit/pipeline-runs`;
 
 const SERVICE_CATEGORY_LABEL = {
   tax_deferred_revenue: "Tax Deferred",
@@ -375,6 +379,9 @@ function Dashboard() {
   const [prepaidFilter, setPrepaidFilter] = useState("all");
   const [selectedPrepaidRow, setSelectedPrepaidRow] = useState(null);
   const [prepaidLedgerRows, setPrepaidLedgerRows] = useState([]);
+  const [latestPipelineRun, setLatestPipelineRun] = useState(null);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
 
   async function loadDashboard(period = selectedPeriod) {
     setStatus("loading");
@@ -391,6 +398,7 @@ function Dashboard() {
         setSelectedPeriod(payload.selected_period_month);
       }
       await loadPrepaidBalances();
+      await loadLatestPipelineRun();
       setStatus("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Dashboard request failed");
@@ -419,6 +427,17 @@ function Dashboard() {
     }
     const payload = await response.json();
     setPrepaidLedgerRows(withRunningBalances(payload.rows ?? []));
+  }
+
+  async function loadLatestPipelineRun() {
+    setPipelineLoading(true);
+    try {
+      const response = await fetch(`${pipelineRunsEndpoint}?limit=1&offset=0`);
+      const payload = await response.json();
+      if (response.ok) setLatestPipelineRun(payload.rows?.[0] ?? null);
+    } finally {
+      setPipelineLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -502,6 +521,13 @@ function Dashboard() {
           detail={`${company.pending_revenue_event_count ?? 0} pending revenue events`}
         />
         <PrepaidLiabilityTile prepaidLiability={prepaidLiability} />
+        <PipelineStatusSummary
+          latestRun={latestPipelineRun}
+          loading={pipelineLoading}
+          onRefresh={() => setPipelineDialogOpen(true)}
+          emptyLabel="No runs yet"
+          className="pipeline-dashboard-tile"
+        />
       </section>
 
       <PrepaidLiabilityPanel
@@ -673,6 +699,11 @@ function Dashboard() {
           </div>
         </div>
       </section>
+      <PipelineRefreshDialog
+        open={pipelineDialogOpen}
+        onClose={() => setPipelineDialogOpen(false)}
+        onSubmitted={setLatestPipelineRun}
+      />
     </main>
   );
 }

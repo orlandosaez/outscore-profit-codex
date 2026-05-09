@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckSquare, RefreshCw, Search } from "lucide-react";
 
+import PipelineRefreshDialog from "../components/PipelineRefreshDialog.jsx";
+import PipelineStatusSummary from "../components/PipelineStatusSummary.jsx";
+
 const apiBase = import.meta.env.VITE_PROFIT_API_BASE ?? "/api";
 const candidatesEndpoint = `${apiBase}/profit/admin/audit/candidates`;
 const verdictsEndpoint = `${apiBase}/profit/admin/audit/verdicts`;
 const filterOptionsEndpoint = `${apiBase}/profit/admin/audit/filter-options`;
 const classificationsEndpoint = `${apiBase}/profit/admin/audit/classifications`;
 const qboCategoryGapsEndpoint = `${apiBase}/profit/admin/audit/qbo-category-gaps`;
+const pipelineRunsEndpoint = `${apiBase}/profit/admin/audit/pipeline-runs`;
 const UNCLASSIFIED_VERDICT = "__UNCLASSIFIED__";
 
 const money = new Intl.NumberFormat("en-US", {
@@ -118,11 +122,12 @@ function fieldValue(value, formatter = (input) => input) {
 }
 
 function transitionBadge(rule) {
-  if (rule.signal_present && rule.auto_apply_enabled_in_b2a) {
+  const autoApplyEnabled = rule.auto_apply_enabled ?? rule.auto_apply_enabled_in_b2a;
+  if (rule.signal_present && autoApplyEnabled) {
     return <span className="audit-transition-badge audit-transition-auto">Will auto-apply on next pipeline run</span>;
   }
   if (rule.signal_present) {
-    return <span className="audit-transition-badge audit-transition-manual">Eligible — manual apply only (V0.6.C will automate)</span>;
+    return <span className="audit-transition-badge audit-transition-manual">Eligible — manual apply only</span>;
   }
   return <span className="audit-transition-badge audit-transition-muted">Not eligible: {rule.signal_reason}</span>;
 }
@@ -157,6 +162,9 @@ export default function AuditDashboard() {
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
   const [diagnosticsError, setDiagnosticsError] = useState("");
+  const [latestPipelineRun, setLatestPipelineRun] = useState(null);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
@@ -243,11 +251,22 @@ export default function AuditDashboard() {
     }
   }
 
+  async function loadLatestPipelineRun() {
+    setPipelineLoading(true);
+    try {
+      const response = await fetch(`${pipelineRunsEndpoint}?limit=1&offset=0`);
+      const payload = await response.json();
+      if (response.ok) setLatestPipelineRun(payload.rows?.[0] ?? null);
+    } finally {
+      setPipelineLoading(false);
+    }
+  }
+
   async function refreshPage() {
     setLoading(true);
     setError("");
     try {
-      await Promise.all([loadVerdicts(), loadFilterOptions(), loadCandidates()]);
+      await Promise.all([loadVerdicts(), loadFilterOptions(), loadCandidates(), loadLatestPipelineRun()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Audit dashboard refresh failed");
     } finally {
@@ -368,6 +387,14 @@ export default function AuditDashboard() {
 
       {toast ? <div className="success-toast"><CheckSquare size={16} aria-hidden="true" />{toast}</div> : null}
       {error ? <div className="error-toast">{error}</div> : null}
+
+      <PipelineStatusSummary
+        latestRun={latestPipelineRun}
+        loading={pipelineLoading}
+        onRefresh={() => setPipelineDialogOpen(true)}
+        emptyLabel="No runs yet"
+        className="pipeline-audit-strip"
+      />
 
       <section className="panel audit-filter-panel">
         <div className="panel-title">
@@ -661,6 +688,12 @@ export default function AuditDashboard() {
           ))}
         </aside>
       ) : null}
+
+      <PipelineRefreshDialog
+        open={pipelineDialogOpen}
+        onClose={() => setPipelineDialogOpen(false)}
+        onSubmitted={setLatestPipelineRun}
+      />
     </main>
   );
 }

@@ -177,10 +177,76 @@ class ProfitAdminFrontendTests(unittest.TestCase):
         self.assertIn("classification_history_total_count", route_source)
         self.assertIn("classification_history_truncated", route_source)
         self.assertIn("Will auto-apply on next pipeline run", route_source)
-        self.assertIn("Eligible — manual apply only (V0.6.C will automate)", route_source)
+        self.assertIn("auto_apply_enabled ?? rule.auto_apply_enabled_in_b2a", route_source)
+        self.assertIn("Eligible — manual apply only", route_source)
+        self.assertNotIn("V0.6.C will automate", route_source)
         self.assertIn("Not eligible:", route_source)
         self.assertIn("gap_origin", route_source)
         self.assertIn("qboCategoryGaps", route_source)
+
+    def test_pipeline_frontend_surfaces_static_contract(self) -> None:
+        app_source = (ROOT / "app/frontend/src/App.jsx").read_text(encoding="utf-8")
+        nav_source = (
+            ROOT / "app/frontend/src/components/PortalNav.jsx"
+        ).read_text(encoding="utf-8")
+        dashboard_source = (
+            ROOT / "app/frontend/src/routes/Dashboard.jsx"
+        ).read_text(encoding="utf-8")
+        audit_source = (
+            ROOT / "app/frontend/src/routes/AuditDashboard.jsx"
+        ).read_text(encoding="utf-8")
+        styles_source = (ROOT / "app/frontend/src/styles.css").read_text(encoding="utf-8")
+        dialog_path = ROOT / "app/frontend/src/components/PipelineRefreshDialog.jsx"
+        summary_path = ROOT / "app/frontend/src/components/PipelineStatusSummary.jsx"
+        pipeline_path = ROOT / "app/frontend/src/routes/PipelineRuns.jsx"
+
+        self.assertTrue(dialog_path.exists())
+        self.assertTrue(summary_path.exists())
+        self.assertTrue(pipeline_path.exists())
+        dialog_source = dialog_path.read_text(encoding="utf-8")
+        summary_source = summary_path.read_text(encoding="utf-8")
+        pipeline_source = pipeline_path.read_text(encoding="utf-8")
+
+        self.assertIn("/admin/pipeline", app_source)
+        self.assertIn("/admin/pipeline/:pipelineRunId", app_source)
+        self.assertIn("Pipeline", nav_source)
+        for host_source in (dashboard_source, audit_source, pipeline_source):
+            self.assertIn("PipelineRefreshDialog", host_source)
+            self.assertIn("PipelineStatusSummary", host_source)
+
+        self.assertIn('value={triggeredBy}', dialog_source)
+        self.assertIn('useState("orlando")', dialog_source)
+        self.assertIn("/profit/admin/audit/pipeline-runs", dialog_source)
+        self.assertIn("useNavigate", dialog_source)
+        self.assertIn("Pipeline already running", dialog_source)
+
+        self.assertIn("setInterval", pipeline_source)
+        self.assertIn("if (pipelineRunId &&", pipeline_source)
+        self.assertIn("clearInterval", pipeline_source)
+        self.assertIn("setInterval(loadRunDetail, 4000)", pipeline_source)
+        self.assertIn("No pipeline runs to show. Trigger a manual refresh to start.", pipeline_source)
+        self.assertIn("View details", pipeline_source)
+        self.assertIn("details.sub_workflows", pipeline_source)
+        self.assertIn("PIPELINE_STEP_LABELS", pipeline_source)
+        self.assertIn("friendlyRunSummary", pipeline_source)
+        self.assertIn("Show details", pipeline_source)
+        self.assertIn("Show raw summary", pipeline_source)
+        self.assertIn("Running step", pipeline_source)
+        self.assertIn("of 8 —", pipeline_source)
+        self.assertIn("Pipeline halted before any step ran", pipeline_source)
+        self.assertIn("halted before further progress", pipeline_source)
+        self.assertIn("halted at step", pipeline_source)
+        self.assertNotIn("halted at step Unknown step", pipeline_source)
+        self.assertIn("8 steps attempted", pipeline_source)
+        self.assertIn("Steps Completed", pipeline_source)
+        self.assertIn("Total Rows Affected", pipeline_source)
+        self.assertNotIn("JSON.stringify(run.summary", pipeline_source)
+
+        self.assertIn("Pipeline: No runs yet", summary_source)
+        self.assertIn("No runs yet", dashboard_source)
+        self.assertIn("No runs yet", audit_source)
+        self.assertIn("pipeline-", dashboard_source + audit_source + pipeline_source + dialog_source + summary_source)
+        self.assertIn(".pipeline-", styles_source)
 
     def test_app_uses_react_router(self) -> None:
         app_source = (ROOT / "app/frontend/src/App.jsx").read_text(encoding="utf-8")

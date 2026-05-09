@@ -83,8 +83,21 @@ class DataReferencesDocsTests(unittest.TestCase):
             ROOT / "docs/data-contracts/fulfillment-classifications.md"
         ).read_text(encoding="utf-8")
         tech_debt = (ROOT / "docs/tech-debt.md").read_text(encoding="utf-8")
+        glossary = (ROOT / "docs/operator-guides/pipeline-glossary.md").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("Pipeline Run Log Schema", contract)
+        self.assertIn("Pipeline Orchestration API", contract)
+        self.assertIn("POST /api/profit/admin/audit/pipeline-runs", contract)
+        self.assertIn("GET /api/profit/admin/audit/pipeline-runs/{pipeline_run_id}", contract)
+        self.assertIn("Workflow 26 Run Log Semantics", contract)
+        self.assertIn("Workflow 26 finalization reads named finish-node contexts", contract)
+        self.assertIn("alwaysOutputData = true", contract)
+        self.assertIn("Workflow 25 Standalone Run Behavior", contract)
+        self.assertIn("Workflow 25 remains safe to trigger outside Workflow 26", contract)
+        self.assertIn("Auto Apply Enabled Field Migration", contract)
+        self.assertIn("auto_apply_enabled_in_b2a", contract)
         self.assertIn("Match Reconciliation", contract)
         self.assertIn("Apply Transitions V0.6.C.a", contract)
         self.assertIn(
@@ -102,6 +115,29 @@ class DataReferencesDocsTests(unittest.TestCase):
         self.assertIn("not reproducible against current `/agreements?limit=100`", tech_debt)
         self.assertIn("Auto-transition apply skips classifications whose FC client has no persisted", tech_debt)
         self.assertIn("V0.6.C.a deploy executes `profit_reconcile_fc_client_anchor_matches(false)`", tech_debt)
+        self.assertIn("SupabaseRestError was extended in V0.6.C.b", tech_debt)
+        self.assertIn("Stuck pipeline run detection is deferred to V0.6.C.c", tech_debt)
+        self.assertIn("Manual pipeline refresh accepts free-text `triggered_by`", tech_debt)
+        self.assertIn("`auto_apply_enabled_in_b2a` in the detail endpoint", tech_debt)
+        self.assertIn("Pipeline webhook calls can return `404`", tech_debt)
+        self.assertIn("W16 (Profit - 16 Apply Recognition Triggers) fails when ready revenue events contain duplicate", tech_debt)
+        self.assertIn("rev_ili-z27H4dSkcSnw-2ZSgPjyIuro3oO6s", tech_debt)
+        self.assertIn("Pipeline UI uses technical terminology", tech_debt)
+
+        self.assertIn("Pipeline Glossary", glossary)
+        self.assertIn("Pipeline Steps", glossary)
+        self.assertIn("Sub-workflow Code Reference", glossary)
+        self.assertIn("Status Meanings", glossary)
+        self.assertIn("Common Errors", glossary)
+        self.assertIn("Field Glossary", glossary)
+        self.assertIn("anchor_agreement_sync", glossary)
+        self.assertIn("Pulls the latest list of Anchor agreements", glossary)
+        self.assertIn("W05", glossary)
+        self.assertIn("Profit - 05 Anchor Agreements Sync", glossary)
+        self.assertIn("W16", glossary)
+        self.assertIn("The service was not able to process your request", glossary)
+        self.assertIn("duplicate `revenue_event_key`", glossary)
+        self.assertIn("What To Do When A Run Fails", glossary)
 
 
 if __name__ == "__main__":

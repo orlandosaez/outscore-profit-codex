@@ -13,6 +13,11 @@ from profit_api.audit import (
 from profit_api.dashboard import AdminDashboardService
 from profit_api.manual_recognition import ManualRecognitionError, ManualRecognitionService
 from profit_api.periods import validate_period_month
+from profit_api.pipeline import (
+    PipelineRunConflictError,
+    PipelineService,
+    PipelineTriggerError,
+)
 from profit_api.supabase import SupabaseRestClient
 
 
@@ -44,10 +49,15 @@ class AuditClassificationPayload(BaseModel):
     rows: list[AuditClassificationRowPayload]
 
 
+class PipelineRunPayload(BaseModel):
+    triggered_by: str | None = "orlando"
+
+
 def create_app(
     service: AdminDashboardService | None = None,
     manual_recognition_service: ManualRecognitionService | None = None,
     audit_service: AuditDashboardService | None = None,
+    pipeline_service: PipelineService | None = None,
 ) -> Any:
     try:
         from fastapi import FastAPI, HTTPException
@@ -69,6 +79,7 @@ def create_app(
         supabase_client
     )
     audit_dashboard_service = audit_service or AuditDashboardService(supabase_client)
+    pipeline_dashboard_service = pipeline_service or PipelineService(supabase_client)
 
     @app.get("/api/profit/admin/dashboard")
     def admin_dashboard_snapshot(period: str | None = None) -> dict[str, object]:
@@ -230,6 +241,31 @@ def create_app(
                 offset=max(offset, 0),
             )
         }
+
+    @app.get("/api/profit/admin/audit/pipeline-runs")
+    def audit_pipeline_runs(limit: int = 20, offset: int = 0) -> dict[str, object]:
+        return pipeline_dashboard_service.list_runs(
+            limit=min(max(limit, 1), 200),
+            offset=max(offset, 0),
+        )
+
+    @app.get("/api/profit/admin/audit/pipeline-runs/{pipeline_run_id}")
+    def audit_pipeline_run_detail(pipeline_run_id: str) -> dict[str, object]:
+        try:
+            return pipeline_dashboard_service.run_detail(pipeline_run_id)
+        except (LookupError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/profit/admin/audit/pipeline-runs")
+    def audit_pipeline_run_trigger(payload: PipelineRunPayload) -> dict[str, object]:
+        try:
+            return pipeline_dashboard_service.trigger_manual_run(
+                triggered_by=payload.triggered_by or "orlando",
+            )
+        except PipelineRunConflictError as exc:
+            raise HTTPException(status_code=409, detail=exc.detail) from exc
+        except PipelineTriggerError as exc:
+            raise HTTPException(status_code=500, detail=exc.detail) from exc
 
     return app
 

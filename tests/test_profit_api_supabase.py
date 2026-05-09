@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from io import BytesIO
 from urllib.error import HTTPError
 
 from profit_api.supabase import SupabaseRestClient, SupabaseRestError
@@ -93,6 +94,45 @@ class SupabaseRestClientTests(unittest.TestCase):
 
         self.assertIn("Supabase REST request failed", str(ctx.exception))
         self.assertNotIn("secret", str(ctx.exception))
+
+    def test_write_http_errors_preserve_postgres_error_details(self) -> None:
+        postgrest_body = {
+            "code": "23505",
+            "details": "Key ((status))=(running) already exists.",
+            "hint": None,
+            "message": (
+                'duplicate key value violates unique constraint '
+                '"idx_profit_pipeline_runs_one_running"'
+            ),
+        }
+
+        def opener(_request, timeout: int):  # type: ignore[no-untyped-def]
+            raise HTTPError(
+                url="https://example.supabase.co/rest/v1/profit_pipeline_runs",
+                code=409,
+                msg="Conflict",
+                hdrs={},
+                fp=BytesIO(json.dumps(postgrest_body).encode("utf-8")),
+            )
+
+        client = SupabaseRestClient(
+            url="https://example.supabase.co",
+            service_role_key="secret",
+            opener=opener,
+        )
+
+        with self.assertRaises(SupabaseRestError) as ctx:
+            client.insert_rows("profit_pipeline_runs", [{"status": "running"}])
+
+        error = ctx.exception
+        self.assertEqual(error.status_code, 409)
+        self.assertEqual(error.postgres_code, "23505")
+        self.assertEqual(
+            error.constraint_name,
+            "idx_profit_pipeline_runs_one_running",
+        )
+        self.assertEqual(error.body["code"], "23505")
+        self.assertNotIn("secret", str(error))
 
 
 if __name__ == "__main__":

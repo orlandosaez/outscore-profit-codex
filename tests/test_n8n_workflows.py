@@ -134,6 +134,8 @@ class N8nWorkflowTests(unittest.TestCase):
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
         serialized = json.dumps(workflow)
 
+        self.assertIn("https://api.sayanchor.com/agreements?limit=100", serialized)
+        self.assertNotIn("https://api.sayanchor.com/agreements?limit=50", serialized)
         self.assertNotIn("status=active", serialized)
         self.assertIn("display_status", serialized)
         self.assertIn("terminated_at", serialized)
@@ -397,7 +399,166 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("profit_fc_client_anchor_matches?on_conflict=fc_client_id", serialized)
         self.assertIn("resolution=merge-duplicates,return=representation", serialized)
         self.assertIn("match_status: 'auto_exact'", serialized)
-        self.assertNotIn("manual_override", serialized)
+        self.assertIn("match_method: 'auto_exact'", serialized)
+        self.assertIn("match_method=eq.manual_override", serialized)
+        self.assertIn("protectedManualOverrideCount", serialized)
+
+    def test_fc_auto_match_workflow_reconciles_demoted_auto_exact_matches(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-25-auto-match-fc-clients-to-anchor.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+        nodes_by_name = {node["name"]: node for node in workflow["nodes"]}
+
+        self.assertIn("/rest/v1/rpc/profit_reconcile_fc_client_anchor_matches", serialized)
+        self.assertIn("Reconcile Demoted FC Client Anchor Matches", nodes_by_name)
+        reconcile_node = nodes_by_name["Reconcile Demoted FC Client Anchor Matches"]
+        self.assertEqual(json.loads(reconcile_node["parameters"]["jsonBody"]), {"p_dry_run": False})
+        self.assertTrue(reconcile_node.get("continueOnFail"))
+        self.assertIn("reconciledDemotedMatchCount", serialized)
+        self.assertIn("reconcileStatus", serialized)
+        self.assertIn("reconcileError", serialized)
+        self.assertNotIn("profit_pipeline_run_steps", serialized)
+
+    def test_pipeline_orchestration_workflow_runs_eight_sequential_steps(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-26-pipeline-orchestration.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+        nodes_by_name = {node["name"]: node for node in workflow["nodes"]}
+
+        self.assertEqual(workflow["name"], "Profit - 26 Pipeline Orchestration")
+        webhook = nodes_by_name["Pipeline Run Webhook"]
+        self.assertEqual(webhook["type"], "n8n-nodes-base.webhook")
+        self.assertEqual(webhook["parameters"]["authentication"], "headerAuth")
+        self.assertEqual(
+            webhook["credentials"]["httpHeaderAuth"]["name"],
+            "Profit Pipeline X-Profit-Pipeline-Secret",
+        )
+        self.assertIn(webhook["parameters"]["responseMode"], {"onReceived", "responseNode"})
+        if webhook["parameters"]["responseMode"] == "responseNode":
+            respond_node = nodes_by_name["Respond Pipeline Run Accepted"]
+            self.assertEqual(respond_node["type"], "n8n-nodes-base.respondToWebhook")
+            self.assertEqual(respond_node["parameters"]["respondWith"], "json")
+            self.assertIn("accepted", respond_node["parameters"]["responseBody"])
+        else:
+            self.assertIn("accepted", json.dumps(webhook["parameters"]))
+        self.assertIn("X-Profit-Pipeline-Secret", webhook["credentials"]["httpHeaderAuth"]["name"])
+        self.assertNotIn("$env.PROFIT_PIPELINE_WEBHOOK_SECRET", serialized)
+
+        expected_steps = [
+            "anchor_agreement_sync",
+            "anchor_invoice_revenue_sync",
+            "qbo_collection_loader",
+            "fc_completion_sync",
+            "recognition_trigger_apply",
+            "fc_anchor_match_refresh",
+            "fulfillment_audit_refresh",
+            "classification_transition_apply",
+        ]
+        for step_name in expected_steps:
+            self.assertIn(step_name, serialized)
+            self.assertIn(f"Start {step_name}", nodes_by_name)
+            self.assertIn(f"Finish {step_name}", nodes_by_name)
+
+        execute_nodes = [
+            node for node in workflow["nodes"] if node["type"] == "n8n-nodes-base.executeWorkflow"
+        ]
+        execute_node_names = {node["name"] for node in execute_nodes}
+        self.assertEqual(
+            execute_node_names,
+            {
+                "W05 Anchor Agreement Sync",
+                "W07 Anchor Invoice Sync",
+                "W11 Classify Anchor Line Items",
+                "W15 Load Revenue Events",
+                "W24 QBO Collection Loader",
+                "W17 Financial Cents Sync",
+                "W21 Approve Tax Filed Triggers",
+                "W22 Approve Bookkeeping Complete Triggers",
+                "W19 Load FC Completion Triggers",
+                "W16 Apply Recognition Triggers",
+                "W25 FC Anchor Match Refresh",
+            },
+        )
+        for node in execute_nodes:
+            self.assertTrue(
+                node.get("alwaysOutputData"),
+                f"{node['name']} must emit an item even when its sub-workflow returns no rows.",
+            )
+        self.assertIn("W07 Anchor Invoice Sync", nodes_by_name)
+        self.assertIn("W11 Classify Anchor Line Items", nodes_by_name)
+        self.assertIn("W15 Load Revenue Events", nodes_by_name)
+        self.assertIn("W17 Financial Cents Sync", nodes_by_name)
+        self.assertIn("W21 Approve Tax Filed Triggers", nodes_by_name)
+        self.assertIn("W22 Approve Bookkeeping Complete Triggers", nodes_by_name)
+        self.assertIn("W19 Load FC Completion Triggers", nodes_by_name)
+
+        self.assertIn("profit_pipeline_run_steps", serialized)
+        self.assertIn("profit_pipeline_runs", serialized)
+        self.assertIn("details.sub_workflows", serialized)
+        self.assertIn("total_steps_completed", serialized)
+        self.assertIn("total_steps_failed", serialized)
+        self.assertIn("total_rows_affected", serialized)
+        self.assertIn("steps 1-6 are hard dependencies", serialized)
+        self.assertIn("steps 7-8 are soft dependencies", serialized)
+
+        hard_steps = expected_steps[:6]
+        for step_name in hard_steps:
+            failure_node_name = f"Hard failure after {step_name}"
+            self.assertIn(failure_node_name, nodes_by_name)
+            self.assertEqual(nodes_by_name[failure_node_name]["type"], "n8n-nodes-base.if")
+            failure_node_serialized = json.dumps(nodes_by_name[failure_node_name])
+            self.assertIn(f"$('Finish {step_name}')", failure_node_serialized)
+            self.assertNotIn("$json.last_step_status", failure_node_serialized)
+            self.assertIn(
+                "Finalize Pipeline Run Summary",
+                json.dumps(workflow["connections"][failure_node_name]),
+            )
+
+        self.assertTrue(nodes_by_name["Run Inactive Reemergence Scan"].get("alwaysOutputData"))
+        self.assertTrue(nodes_by_name["Apply Classification Transitions"].get("alwaysOutputData"))
+        rpc_nodes = [
+            node for node in workflow["nodes"]
+            if node["type"] == "n8n-nodes-base.httpRequest"
+            and "/rest/v1/rpc/" in node.get("parameters", {}).get("url", "")
+        ]
+        self.assertEqual(
+            {node["name"] for node in rpc_nodes},
+            {"Run Inactive Reemergence Scan", "Apply Classification Transitions"},
+        )
+        for node in rpc_nodes:
+            self.assertTrue(
+                node.get("alwaysOutputData"),
+                f"{node['name']} must emit an item even when the RPC returns zero rows.",
+            )
+
+        finalize_node = nodes_by_name["Finalize Pipeline Run Summary"]
+        finalize_code = finalize_node["parameters"]["jsCode"]
+        for step_name in expected_steps:
+            self.assertIn(f"Finish {step_name}", finalize_code)
+        self.assertIn("Validate Pipeline Webhook Payload", finalize_code)
+        self.assertNotIn("$input.first()", finalize_code)
+        self.assertIn("Workflow 26 halted on a hard-step failure.", serialized)
+
+        insert_step_nodes = [
+            node for node in workflow["nodes"]
+            if node["name"].startswith("Insert ") and node["name"].endswith(" Step")
+        ]
+        for insert_node in insert_step_nodes:
+            step_name = insert_node["name"].removeprefix("Insert ").removesuffix(" Step")
+            downstream = json.dumps(workflow["connections"].get(insert_node["name"], {}))
+            self.assertIn("Finish " + step_name, serialized)
+            self.assertNotEqual(downstream, "{}")
+
+        terminal_nodes = [
+            node["name"]
+            for node in workflow["nodes"]
+            if not workflow["connections"].get(node["name"], {}).get("main")
+        ]
+        self.assertEqual(terminal_nodes, ["Patch Pipeline Run Final Status"])
+
+        for node in workflow["nodes"]:
+            if node["type"] == "n8n-nodes-base.if":
+                self.assertNotIn("$json.last_step_status", json.dumps(node))
 
 
 if __name__ == "__main__":

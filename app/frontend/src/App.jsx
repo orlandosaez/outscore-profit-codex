@@ -4,6 +4,7 @@ import PortalNav from "./components/PortalNav.jsx";
 import AuditDashboard from "./routes/AuditDashboard.jsx";
 import Dashboard from "./routes/Dashboard.jsx";
 import ManualRecognition from "./routes/ManualRecognition.jsx";
+import PipelineRuns from "./routes/PipelineRuns.jsx";
 
 const basename = import.meta.env.VITE_BASE_PATH ?? "/";
 
@@ -14,6 +15,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/admin/audit" element={<AuditDashboard />} />
+        <Route path="/admin/pipeline" element={<PipelineRuns />} />
+        <Route path="/admin/pipeline/:pipelineRunId" element={<PipelineRuns />} />
         <Route path="/admin/recognition" element={<ManualRecognition />} />
       </Routes>
     </BrowserRouter>

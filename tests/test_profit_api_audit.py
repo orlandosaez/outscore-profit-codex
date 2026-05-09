@@ -349,11 +349,60 @@ class AuditDashboardRouteTest(unittest.TestCase):
         self.assertTrue(payload["classification_history_truncated"])
         self.assertEqual(len(payload["recent_service_tasks"]), 20)
         for rule in payload["transition_rules"]:
+            self.assertIn("auto_apply_enabled", rule)
+            self.assertIn("auto_apply_enabled_in_b2a", rule)
             if rule["signal_present"]:
                 self.assertIsNone(rule["signal_reason"])
             else:
                 self.assertIsInstance(rule["signal_reason"], str)
                 self.assertTrue(rule["signal_reason"])
+
+    def test_candidate_detail_transition_rules_dual_emit_canonical_auto_apply_flag(self) -> None:
+        client = self.build_client(
+            {
+                "profit_fc_clients": [{"fc_client_id": 1, "name": "Legacy Client"}],
+                "profit_fulfillment_audit_candidates": [
+                    {
+                        "fc_client_id": 1,
+                        "current_verdict_code": "LEGACY_ENGAGEMENT_PRE_ANCHOR",
+                    }
+                ],
+                "profit_fulfillment_audit_fc_activity": [{"fc_client_id": 1}],
+                "profit_fulfillment_audit_anchor_signals": [
+                    {
+                        "fc_client_id": 1,
+                        "has_anchor_invoice_365d": True,
+                    }
+                ],
+                "profit_fulfillment_audit_group_signals": [
+                    {"fc_client_id": 1, "has_active_group_membership": False}
+                ],
+                "profit_classifications": [
+                    {
+                        "classification_id": 10,
+                        "fc_client_id": 1,
+                        "verdict_code": "LEGACY_ENGAGEMENT_PRE_ANCHOR",
+                        "classified_at": "2026-05-01T00:00:00+00:00",
+                    }
+                ],
+                "profit_classification_transition_rules": [
+                    {
+                        "from_verdict_code": "LEGACY_ENGAGEMENT_PRE_ANCHOR",
+                        "signal_name": "first_matching_anchor_invoice_mid_cycle",
+                        "to_verdict_code": "BILLING_OUTSIDE_AUDIT_WINDOW",
+                        "enabled": True,
+                    }
+                ],
+                "profit_fc_task_delivery_classification": [],
+            }
+        )
+
+        response = client.get("/api/profit/admin/audit/candidates/1")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        rule = response.json()["transition_rules"][0]
+        self.assertTrue(rule["auto_apply_enabled"])
+        self.assertFalse(rule["auto_apply_enabled_in_b2a"])
 
     def test_candidate_detail_endpoint_404s_for_unknown_client(self) -> None:
         client = self.build_client(

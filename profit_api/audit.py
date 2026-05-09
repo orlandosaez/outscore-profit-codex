@@ -541,6 +541,7 @@ class AuditDashboardService:
                     anchor_signals,
                     group_signals,
                 ),
+                "auto_apply_enabled": self._auto_apply_enabled(rule),
                 "auto_apply_enabled_in_b2a": (
                     rule.get("signal_name") == "active_agreement_appears"
                     and rule.get("from_verdict_code")
@@ -549,6 +550,33 @@ class AuditDashboardService:
             }
             for rule in rules
         ]
+
+    def _auto_apply_enabled(self, rule: AuditRow) -> bool:
+        if rule.get("enabled") is not True:
+            return False
+        return (
+            str(rule.get("from_verdict_code") or ""),
+            str(rule.get("signal_name") or ""),
+        ) in {
+            ("PENDING_ENGAGEMENT_DRAFT", "active_agreement_appears"),
+            ("PENDING_ENGAGEMENT_SENT", "active_agreement_appears"),
+            (
+                "LEGACY_ENGAGEMENT_PRE_ANCHOR",
+                "first_matching_anchor_invoice_mid_cycle",
+            ),
+            (
+                "LEGACY_ENGAGEMENT_PRE_ANCHOR",
+                "first_matching_anchor_invoice_group_billed",
+            ),
+            (
+                "INVOICE_OUTSTANDING_PAYMENT_PENDING",
+                "cash_collected_group_parent",
+            ),
+            (
+                "INVOICE_OUTSTANDING_PAYMENT_PENDING",
+                "cash_collected_standalone_mid_cycle",
+            ),
+        }
 
     def _transition_signal_state(
         self,
