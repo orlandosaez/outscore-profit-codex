@@ -560,6 +560,44 @@ class N8nWorkflowTests(unittest.TestCase):
             if node["type"] == "n8n-nodes-base.if":
                 self.assertNotIn("$json.last_step_status", json.dumps(node))
 
+    def test_schedule_wrapper_runs_nightly_cron_pipeline_start(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-29-schedule-wrapper.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(workflow)
+        nodes_by_name = {node["name"]: node for node in workflow["nodes"]}
+
+        self.assertEqual(workflow["name"], "Profit - 29 Schedule Wrapper")
+        self.assertFalse(workflow["active"])
+
+        schedule_node = nodes_by_name["Nightly 2 AM ET Schedule"]
+        self.assertEqual(schedule_node["type"], "n8n-nodes-base.scheduleTrigger")
+        schedule_parameters = schedule_node["parameters"]
+        self.assertEqual(schedule_parameters["timezone"], "America/New_York")
+        self.assertIn("0 2 * * *", json.dumps(schedule_parameters))
+
+        request_node = nodes_by_name["Start Cron Pipeline Run"]
+        self.assertEqual(request_node["type"], "n8n-nodes-base.httpRequest")
+        request_parameters = request_node["parameters"]
+        self.assertEqual(request_parameters["method"], "POST")
+        self.assertIn(
+            "/api/profit/admin/audit/pipeline-runs",
+            request_parameters["url"],
+        )
+        self.assertIn("PROFIT_API_BASE_URL", request_parameters["url"])
+        self.assertEqual(request_parameters["contentType"], "json")
+        self.assertEqual(request_parameters["specifyBody"], "json")
+        self.assertEqual(
+            json.loads(request_parameters["jsonBody"]),
+            {"run_source": "cron", "triggered_by": "cron"},
+        )
+
+        self.assertEqual(
+            workflow["connections"]["Nightly 2 AM ET Schedule"]["main"][0][0]["node"],
+            "Start Cron Pipeline Run",
+        )
+        self.assertNotIn("profit-pipeline-run", serialized)
+        self.assertNotIn("profit_finalize_stale_pipeline_runs", serialized)
+
 
 if __name__ == "__main__":
     unittest.main()
