@@ -1547,6 +1547,70 @@ html {
   scroll-margin-top: 64px;
 }
 
+/* === V0.6.C.5: Per-Client GP grouping === */
+
+.client-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.client-toggle:focus-visible {
+  outline: 2px solid #305f7a;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.client-toggle svg {
+  flex-shrink: 0;
+  color: #5f6c72;
+}
+
+.client-toggle:hover svg,
+.client-toggle:focus-visible svg {
+  color: #305f7a;
+}
+
+.client-group.expanded > td {
+  border-bottom-color: transparent;
+}
+
+.client-service-row {
+  background: #fafbfc;
+  color: #4a5862;
+  font-size: 0.86rem;
+}
+
+.client-service-row > td {
+  border-top: 0;
+}
+
+.client-service-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.client-service-indent {
+  display: inline-block;
+  width: 18px;
+  color: #8693a0;
+  font-weight: 700;
+}
+
+.client-service-cell {
+  color: #5f6c72;
+  font-size: 0.85rem;
+}
+
 /* === V0.6.C.5: Empty-state CTAs === */
 
 .empty-state {

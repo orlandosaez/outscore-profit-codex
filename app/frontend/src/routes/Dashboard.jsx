@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
   Gauge,
@@ -186,19 +188,8 @@ function RatioSummary({ ratios }) {
   );
 }
 
-function ClientBadges({ row }) {
-  const revenue = Number(row.recognized_revenue_amount ?? 0);
-  const labor = Number(row.matched_labor_cost ?? 0);
-  const gp = Number(row.gp_amount ?? 0);
-  const service = row.macro_service_type ?? "other";
-  const badges = [];
-
-  if (revenue === 0 && labor > 0) badges.push("Labor no revenue");
-  if (gp < 0) badges.push("Negative GP");
-  if (service === "other") badges.push("Review service");
-
+function BadgeRow({ badges }) {
   if (!badges.length) return null;
-
   return (
     <div className="badge-row">
       {badges.map((badge) => (
@@ -208,6 +199,63 @@ function ClientBadges({ row }) {
       ))}
     </div>
   );
+}
+
+function clientServiceBadges(row) {
+  const revenue = Number(row.recognized_revenue_amount ?? 0);
+  const labor = Number(row.matched_labor_cost ?? 0);
+  const gp = Number(row.gp_amount ?? 0);
+  const service = row.macro_service_type ?? "other";
+  const badges = [];
+  if (revenue === 0 && labor > 0) badges.push("Labor no revenue");
+  if (gp < 0) badges.push("Negative GP");
+  if (service === "other") badges.push("Review service");
+  return badges;
+}
+
+function clientGroupBadges(group) {
+  const badges = [];
+  if (group.revenue === 0 && group.labor > 0) badges.push("Labor no revenue");
+  if (group.gp < 0) badges.push("Negative GP");
+  if (group.has_other) badges.push("Review service");
+  if (group.owner_list.length > 1) badges.push("Multiple owners");
+  return badges;
+}
+
+function groupClientGp(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = `${row.period_month}::${row.anchor_relationship_id ?? row.anchor_client_business_name ?? "unknown"}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        key,
+        period_month: row.period_month,
+        anchor_relationship_id: row.anchor_relationship_id,
+        anchor_client_business_name: row.anchor_client_business_name,
+        services: [],
+        revenue: 0,
+        labor: 0,
+        owners: new Set(),
+        has_other: false,
+      };
+      groups.set(key, group);
+    }
+    group.services.push(row);
+    group.revenue += Number(row.recognized_revenue_amount ?? 0);
+    group.labor += Number(row.matched_labor_cost ?? 0);
+    if (row.primary_owner_staff_name) group.owners.add(row.primary_owner_staff_name);
+    if ((row.macro_service_type ?? "other") === "other") group.has_other = true;
+  }
+  return Array.from(groups.values()).map((group) => {
+    const gp = group.revenue - group.labor;
+    return {
+      ...group,
+      gp,
+      gp_pct: group.revenue > 0 ? gp / group.revenue : null,
+      owner_list: Array.from(group.owners),
+    };
+  });
 }
 
 function PrepaidLiabilityPanel({
@@ -386,6 +434,16 @@ function Dashboard() {
   const [latestPipelineRun, setLatestPipelineRun] = useState(null);
   const [pipelineLoading, setPipelineLoading] = useState(false);
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
+  const [expandedClients, setExpandedClients] = useState(() => new Set());
+
+  function toggleClientExpanded(key) {
+    setExpandedClients((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   async function loadDashboard(period = selectedPeriod) {
     setStatus("loading");
@@ -454,6 +512,10 @@ function Dashboard() {
   const fixedWindows = snapshot?.fixed_windows ?? {};
   const prepaidLiability = snapshot?.prepaid_liability ?? {};
   const fcQueueCount = snapshot?.fc_trigger_queue?.length ?? 0;
+  const clientGpGroups = useMemo(
+    () => groupClientGp(snapshot?.client_gp ?? []).slice(0, 40),
+    [snapshot],
+  );
   const visiblePrepaidBalances = useMemo(
     () => prepaidBalances
       .filter((row) => row.service_category !== "recognized")
@@ -570,22 +632,72 @@ function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {(snapshot?.client_gp ?? []).slice(0, 40).map((row, index) => (
-                <tr key={`${row.period_month}-${row.anchor_relationship_id}-${row.macro_service_type}-${index}`}>
-                  <td>{monthLabel(row.period_month)}</td>
-                  <td>
-                    <strong className="table-primary">{row.anchor_client_business_name ?? "Unmatched"}</strong>
-                    <ClientBadges row={row} />
-                  </td>
-                  <td>{row.macro_service_type ?? "other"}</td>
-                  <td>{row.primary_owner_staff_name ?? "Needs owner mapping"}</td>
-                  <td>{formatMoney(row.recognized_revenue_amount)}</td>
-                  <td>{formatMoney(row.matched_labor_cost)}</td>
-                  <td>{formatMoney(row.gp_amount)}</td>
-                  <td>{formatPct(row.gp_pct)}</td>
-                </tr>
-              ))}
-              {snapshot?.client_gp?.length ? null : (
+              {clientGpGroups.map((group) => {
+                const isExpanded = expandedClients.has(group.key);
+                const groupBadges = clientGroupBadges(group);
+                const ownerLabel = group.owner_list.length === 0
+                  ? "Needs owner mapping"
+                  : group.owner_list.length === 1
+                  ? group.owner_list[0]
+                  : `${group.owner_list.length} owners`;
+                const serviceLabel = group.services.length === 1
+                  ? (group.services[0].macro_service_type ?? "other")
+                  : `${group.services.length} services`;
+                return (
+                  <Fragment key={group.key}>
+                    <tr className={isExpanded ? "client-group expanded" : "client-group"}>
+                      <td>{monthLabel(group.period_month)}</td>
+                      <td>
+                        <button
+                          aria-expanded={isExpanded}
+                          aria-label={isExpanded ? "Collapse services" : "Expand services"}
+                          className="client-toggle"
+                          onClick={() => toggleClientExpanded(group.key)}
+                          type="button"
+                        >
+                          {isExpanded ? (
+                            <ChevronDown aria-hidden="true" size={14} />
+                          ) : (
+                            <ChevronRight aria-hidden="true" size={14} />
+                          )}
+                          <strong className="table-primary">
+                            {group.anchor_client_business_name ?? "Unmatched"}
+                          </strong>
+                        </button>
+                        <BadgeRow badges={groupBadges} />
+                      </td>
+                      <td className="client-service-cell">{serviceLabel}</td>
+                      <td>{ownerLabel}</td>
+                      <td>{formatMoney(group.revenue)}</td>
+                      <td>{formatMoney(group.labor)}</td>
+                      <td>{formatMoney(group.gp)}</td>
+                      <td>{formatPct(group.gp_pct)}</td>
+                    </tr>
+                    {isExpanded
+                      ? group.services.map((row, index) => (
+                          <tr
+                            className="client-service-row"
+                            key={`${group.key}-${row.macro_service_type ?? "other"}-${index}`}
+                          >
+                            <td aria-hidden="true" />
+                            <td className="client-service-name">
+                              <span className="client-service-indent" aria-hidden="true">↳</span>
+                              <span>{row.macro_service_type ?? "other"}</span>
+                              <BadgeRow badges={clientServiceBadges(row)} />
+                            </td>
+                            <td>{row.macro_service_type ?? "other"}</td>
+                            <td>{row.primary_owner_staff_name ?? "Needs owner mapping"}</td>
+                            <td>{formatMoney(row.recognized_revenue_amount)}</td>
+                            <td>{formatMoney(row.matched_labor_cost)}</td>
+                            <td>{formatMoney(row.gp_amount)}</td>
+                            <td>{formatPct(row.gp_pct)}</td>
+                          </tr>
+                        ))
+                      : null}
+                  </Fragment>
+                );
+              })}
+              {clientGpGroups.length ? null : (
                 <EmptyRow
                   colSpan={8}
                   cta={{ label: "Check pipeline status", to: "/admin/pipeline" }}
