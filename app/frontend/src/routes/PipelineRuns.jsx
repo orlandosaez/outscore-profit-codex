@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { EmptyRow } from "../components/EmptyState.jsx";
 import PipelineRefreshDialog from "../components/PipelineRefreshDialog.jsx";
 import PipelineStatusSummary from "../components/PipelineStatusSummary.jsx";
 
@@ -284,9 +285,11 @@ export default function PipelineRuns() {
                   </tr>
                 ))}
                 {detail?.steps?.length ? null : (
-                  <tr>
-                    <td className="empty" colSpan={6}>No step rows recorded for this run yet</td>
-                  </tr>
+                  <EmptyRow
+                    colSpan={6}
+                    hint="Steps will appear once Workflow 26 reports them."
+                    label="No step rows recorded for this run yet"
+                  />
                 )}
               </tbody>
             </table>
@@ -328,9 +331,12 @@ export default function PipelineRuns() {
                   </tr>
                 ))}
                 {runs.length ? null : (
-                  <tr>
-                    <td className="empty" colSpan={8}>No pipeline runs to show. Trigger a manual refresh to start.</td>
-                  </tr>
+                  <EmptyRow
+                    colSpan={8}
+                    cta={{ label: "Trigger manual refresh", onClick: () => setDialogOpen(true) }}
+                    hint="The first run will appear here after a manual refresh or the next scheduled cron."
+                    label="No pipeline runs to show"
+                  />
                 )}
               </tbody>
             </table>

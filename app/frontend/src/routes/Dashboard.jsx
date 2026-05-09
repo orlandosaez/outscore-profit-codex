@@ -12,6 +12,7 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import { EmptyRow, EmptyState } from "../components/EmptyState.jsx";
 import PipelineRefreshDialog from "../components/PipelineRefreshDialog.jsx";
 import PipelineStatusSummary from "../components/PipelineStatusSummary.jsx";
 
@@ -91,16 +92,6 @@ function Stat({ icon: Icon, label, value, detail, tone = "neutral" }) {
         <span>{detail}</span>
       </div>
     </section>
-  );
-}
-
-function EmptyRow({ colSpan, label }) {
-  return (
-    <tr>
-      <td colSpan={colSpan} className="empty">
-        {label}
-      </td>
-    </tr>
   );
 }
 
@@ -282,7 +273,13 @@ function PrepaidLiabilityPanel({
                   <td>{dateLabel(row.last_updated)}</td>
                 </tr>
               ))}
-              {balances.length ? null : <EmptyRow colSpan={5} label="No prepaid liability balances loaded" />}
+              {balances.length ? null : (
+                <EmptyRow
+                  colSpan={5}
+                  hint="Anchor/QBO collection feed has not been loaded yet — Deferred Revenue JE not ready."
+                  label="No prepaid liability balances loaded"
+                />
+              )}
             </tbody>
           </table>
         </div>
@@ -364,7 +361,13 @@ function CompanyGpTrend({ rows }) {
           </svg>
         </div>
       ) : (
-        <p className="empty panel-empty">No Company GP trend rows loaded</p>
+        <div className="panel-empty">
+          <EmptyState
+            cta={{ label: "View pipeline runs", to: "/admin/pipeline" }}
+            hint="Trend history accumulates after each successful pipeline run."
+            label="No Company GP trend rows loaded"
+          />
+        </div>
       )}
     </section>
   );
@@ -579,7 +582,14 @@ function Dashboard() {
                   <td>{formatPct(row.gp_pct)}</td>
                 </tr>
               ))}
-              {snapshot?.client_gp?.length ? null : <EmptyRow colSpan={8} label="No client GP rows loaded" />}
+              {snapshot?.client_gp?.length ? null : (
+                <EmptyRow
+                  colSpan={8}
+                  cta={{ label: "Check pipeline status", to: "/admin/pipeline" }}
+                  hint="Likely cause: pipeline failed or no data for the selected period."
+                  label="No client GP rows loaded"
+                />
+              )}
             </tbody>
           </table>
         </div>
@@ -612,7 +622,13 @@ function Dashboard() {
                     <td>{row.client_service_count ?? 0}</td>
                   </tr>
                 ))}
-                {staffRows.length ? null : <EmptyRow colSpan={5} label="No staff GP rows loaded" />}
+                {staffRows.length ? null : (
+                  <EmptyRow
+                    colSpan={5}
+                    hint="Loads after Per-Client GP rows resolve and owners are mapped."
+                    label="No staff GP rows loaded"
+                  />
+                )}
               </tbody>
             </table>
           </div>
@@ -642,7 +658,13 @@ function Dashboard() {
                     <td>{formatMoney(row.kicker_accrual_amount)}</td>
                   </tr>
                 ))}
-                {snapshot?.comp_kicker_ledger?.length ? null : <EmptyRow colSpan={4} label="No comp rows loaded" />}
+                {snapshot?.comp_kicker_ledger?.length ? null : (
+                  <EmptyRow
+                    colSpan={4}
+                    hint="Loads after pipeline succeeds and the Quarter Gate is evaluated."
+                    label="No comp rows loaded"
+                  />
+                )}
               </tbody>
             </table>
           </div>
@@ -675,7 +697,13 @@ function Dashboard() {
                     <td>{Number(row.avg_weekly_hours ?? 0).toFixed(1)}</td>
                   </tr>
                 ))}
-                {snapshot?.w2_candidates?.length ? null : <EmptyRow colSpan={4} label="No W2 candidates" />}
+                {snapshot?.w2_candidates?.length ? null : (
+                  <EmptyRow
+                    colSpan={4}
+                    hint="Nothing to flag in the trailing 8-month window — recheck after next contractor month closes."
+                    label="No W2 candidates"
+                  />
+                )}
               </tbody>
             </table>
           </div>
@@ -695,7 +723,13 @@ function Dashboard() {
                 <em>{row.approval_status} · {row.trigger_load_status}</em>
               </article>
             ))}
-            {snapshot?.fc_trigger_queue?.length ? null : <p className="empty">No FC trigger rows loaded</p>}
+            {snapshot?.fc_trigger_queue?.length ? null : (
+              <EmptyState
+                cta={{ label: "Run pipeline to refresh", to: "/admin/pipeline" }}
+                hint="FC queue updates after each pipeline run."
+                label="No FC trigger rows loaded"
+              />
+            )}
           </div>
         </div>
       </section>
