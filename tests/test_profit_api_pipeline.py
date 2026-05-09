@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -19,6 +20,15 @@ os.environ.setdefault("PROFIT_PIPELINE_WEBHOOK_SECRET", "test-secret")
 
 RUN_ID = "11111111-1111-4111-8111-111111111111"
 SECOND_RUN_ID = "22222222-2222-4222-8222-222222222222"
+ROOT = Path(__file__).resolve().parents[1]
+STALE_FINALIZER_MIGRATION = (
+    ROOT / "supabase/sql/027_profit_finalize_stale_pipeline_runs.sql"
+)
+STALE_ERROR_SUMMARY = "Stuck running detection - no progress for >30min"
+
+
+def read_stale_finalizer_sql() -> str:
+    return STALE_FINALIZER_MIGRATION.read_text(encoding="utf-8")
 
 
 class FakePipelineStore:
@@ -307,6 +317,53 @@ class PipelineApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 500)
         self.assertIn("unique constraint fired but no running row", response.text)
+
+
+class FinalizeStalePipelineRunsSqlTests(unittest.TestCase):
+    def test_finalize_stale_pipeline_runs_finalizes_old_running_row(self) -> None:
+        sql = read_stale_finalizer_sql().lower()
+
+        self.assertIn("create or replace function profit_finalize_stale_pipeline_runs", sql)
+        self.assertIn("p_threshold interval default interval '30 minutes'", sql)
+        self.assertIn("status = 'running'", sql)
+        self.assertIn("started_at < now() - p_threshold", sql)
+        self.assertIn("status = 'failed'", sql)
+        self.assertIn("finished_at = now()", sql)
+        self.assertIn(STALE_ERROR_SUMMARY.lower(), sql)
+
+    def test_finalize_stale_pipeline_runs_skips_recent_running_row(self) -> None:
+        sql = read_stale_finalizer_sql().lower()
+
+        self.assertIn("started_at < now() - p_threshold", sql)
+        self.assertNotIn("started_at <= now() - p_threshold", sql)
+
+    def test_finalize_stale_pipeline_runs_skips_already_finalized(self) -> None:
+        sql = read_stale_finalizer_sql().lower()
+
+        self.assertIn("where status = 'running'", sql)
+        self.assertNotIn("status in ('running'", sql)
+
+    def test_finalize_stale_pipeline_runs_preserves_summary_keys(self) -> None:
+        sql = read_stale_finalizer_sql().lower()
+
+        self.assertIn("coalesce(summary, '{}'::jsonb)", sql)
+        self.assertIn("|| jsonb_build_object", sql)
+        self.assertIn("'error_summary'", sql)
+        self.assertNotIn("summary = jsonb_build_object", sql)
+
+    def test_finalize_stale_pipeline_runs_idempotent(self) -> None:
+        sql = read_stale_finalizer_sql().lower()
+
+        self.assertIn("where status = 'running'", sql)
+        self.assertIn("return query", sql)
+
+    def test_finalize_stale_pipeline_runs_returns_count_or_ids(self) -> None:
+        sql = read_stale_finalizer_sql().lower()
+
+        self.assertIn("returns table", sql)
+        self.assertIn("finalized_count integer", sql)
+        self.assertIn("pipeline_run_ids uuid[]", sql)
+        self.assertIn("array_agg", sql)
 
 
 if __name__ == "__main__":
