@@ -1547,6 +1547,126 @@ html {
   scroll-margin-top: 64px;
 }
 
+/* === V0.6.C.5: Pipeline status banner === */
+
+.pipeline-banner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  border: 1px solid;
+  border-radius: 8px;
+}
+
+.pipeline-banner-error {
+  color: #7a1d1d;
+  background: #fdecec;
+  border-color: #f3c1c1;
+}
+
+.pipeline-banner-warn {
+  color: #6e4a0c;
+  background: #fdf3df;
+  border-color: #efd9a0;
+}
+
+.pipeline-banner-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+}
+
+.pipeline-banner-error .pipeline-banner-icon {
+  background: #f8d2d2;
+  color: #7a1d1d;
+}
+
+.pipeline-banner-warn .pipeline-banner-icon {
+  background: #f4e0b1;
+  color: #6e4a0c;
+}
+
+.pipeline-banner-body {
+  min-width: 0;
+}
+
+.pipeline-banner-title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.pipeline-banner-time {
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.pipeline-banner-detail {
+  margin: 4px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.82rem;
+  opacity: 0.92;
+}
+
+.pipeline-banner-errcode {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: inherit;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 0;
+}
+
+.pipeline-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.pipeline-banner-link {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: inherit;
+  text-decoration: underline;
+}
+
+.pipeline-banner-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.5);
+  color: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pipeline-banner-button:hover,
+.pipeline-banner-button:focus-visible {
+  background: rgba(255, 255, 255, 0.85);
+  outline: none;
+}
+
+@media (max-width: 720px) {
+  .pipeline-banner {
+    grid-template-columns: auto 1fr;
+  }
+  .pipeline-banner-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
 /* === V0.6.C.5: Clickable tile drill-downs === */
 
 a.stat,
