@@ -30,6 +30,28 @@ The generator fails on unknown verdict strings after whitespace and casing norma
 
 Transition rules describe a signal-driven change, not direct UI behavior. When a rule fires, the prior classification is superseded and a new classification row is inserted or queued according to the rule's `to_verdict_code` and notes.
 
+## Pipeline Run Log Schema
+
+V0.6.C.a adds `profit_pipeline_runs` and `profit_pipeline_run_steps` as the durable backend log for future manual and cron pipeline executions.
+
+`profit_pipeline_runs` records one row per pipeline execution. It enforces at most one `status = 'running'` row at a time through the partial unique index `idx_profit_pipeline_runs_one_running`. C.b API code should translate that unique-violation into a `409 Conflict` when a second run is requested while another run is active.
+
+`triggered_by` is nullable text with these conventions:
+
+- Manual runs use an operator identifier matching `profit_classifications.classified_by`, such as `orlando` or `beth`.
+- Cron runs use `cron`.
+- Synthetic checkpoint rows use `test` and are deleted during deploy verification.
+
+`summary` is free-form JSONB. C.b/C.c should populate:
+
+- `total_steps_completed`
+- `total_steps_failed`
+- `total_rows_affected`
+- `error_summary`, when the run fails or is partial
+- `notable_findings`, when a run should surface operational context
+
+`profit_pipeline_run_steps` records ordered per-step results. The `(pipeline_run_id, step_name)` primary key prevents duplicate named steps within one run, and `(pipeline_run_id, step_order)` keeps C.b UI/API ordering stable. `details` is free-form JSONB for step-specific payloads such as candidate counts, transition rows, error text, and notes.
+
 ## Inactive Re-Emergence
 
 `profit_run_inactive_client_reemergence_scan()` supersedes active `INACTIVE_FORMER_CLIENT` rows when an active signal returns. V0.6.B.1 emits `MIXED` rows for manual reclassification; V0.6.B.2 audit views surface those rows.
@@ -70,6 +92,68 @@ Anchor does not expose a true agreement create/sign timestamp. Scan v2 uses `pro
 `profit_apply_classification_transitions(timestamptz, boolean)` supports dry-run and live apply using the same selection logic. When `p_dry_run = true`, it returns transition candidates and performs zero writes. When `p_dry_run = false`, it inserts a new `profit_classifications` row and supersedes the prior row.
 
 V0.6.B.2.a scope is narrow: only `active_agreement_appears` is applied for `PENDING_ENGAGEMENT_DRAFT` and `PENDING_ENGAGEMENT_SENT`. The other nine transition rules seeded in V0.6.B.1 remain inactive executable paths until V0.6.C pipeline orchestration.
+
+### Apply Transitions V0.6.C.a
+
+V0.6.C.a expands `profit_apply_classification_transitions(timestamptz, boolean)` in place. The function name, signature, dry-run behavior, live append-friendly supersede behavior, and B.2.b response contract remain unchanged.
+
+Executable rules in C.a:
+
+- `PENDING_ENGAGEMENT_DRAFT` / `PENDING_ENGAGEMENT_SENT` + `active_agreement_appears` -> `MIXED`
+- `LEGACY_ENGAGEMENT_PRE_ANCHOR` + `first_matching_anchor_invoice_group_billed` -> `CONSOLIDATED_VIA_GROUP_BILLED`
+- `LEGACY_ENGAGEMENT_PRE_ANCHOR` + `first_matching_anchor_invoice_mid_cycle` -> `BILLING_OUTSIDE_AUDIT_WINDOW`
+- `INVOICE_OUTSTANDING_PAYMENT_PENDING` + `cash_collected_group_parent` -> `CONSOLIDATED_VIA_GROUP_BILLED`
+- `INVOICE_OUTSTANDING_PAYMENT_PENDING` + `cash_collected_standalone_mid_cycle` -> `BILLING_OUTSIDE_AUDIT_WINDOW`
+
+Deferred rules:
+
+- `SETTLED_VIA_QUICKBOOKS_PAYMENT` + `anchor_backfill_*` remains V0.6.D Anchor backfill queue work.
+- `INACTIVE_FORMER_CLIENT` + `any_active_signal_returns` remains handled by the re-emergence scan v2, not by the generic apply function.
+
+Auto-transition correctness requires `profit_fc_client_anchor_matches.anchor_relationship_id` to be populated. Classifications without a persisted Anchor match are skipped silently by the function and surfaced through audit/dashboard diagnostics for manual review.
+
+Rules with `requires_service_type_match = true` use the composite service-type key:
+
+```sql
+macro_service_type || '|' || recognition_pattern || '|' || service_period_rule
+```
+
+The function skips automatic transition when a signal set has multiple service-type keys, unresolved `canonical_service_name`, `recognition_pattern = 'manual_review'`, or `service_period_rule = 'manual'`.
+
+Cash signal timing uses `profit_cash_collections.collected_at`, a `date` column, cast as `collected_at::timestamptz` before comparison with `profit_classifications.classified_at`. Do not compare `allocated.loaded_at` or any allocation load timestamp to `classified_at`.
+
+Group-billed branches have priority over standalone branches. If both own-client and group-sibling signals exist for one active classification, the function emits the group-billed verdict.
+
+### Match Reconciliation
+
+V0.6.C.a adds `profit_reconcile_fc_client_anchor_matches(p_dry_run boolean default true)`.
+
+The matches table is a derived projection of the status-aware candidate view plus manual overrides. Reconciliation hard-deletes persisted `auto_exact` rows that no longer qualify as `auto_exact`, or that now point at a different `anchor_relationship_id` than the candidate view. `manual_override` rows are protected.
+
+The function is idempotent: dry-run returns the rows that would be deleted, live mode deletes those rows, and a second live call returns zero rows when no stale persisted rows remain.
+
+V0.6.C.b orchestration should run reconciliation after Workflow 25's upsert step:
+
+1. Workflow 05 Anchor agreement sync
+2. Workflow 25 FC-to-Anchor match upsert
+3. `profit_reconcile_fc_client_anchor_matches(false)`
+4. Audit refresh
+5. Re-emergence scan
+6. Transition apply
+
+### Pipeline Diagnostic Views
+
+V0.6.C.a adds three `profit_pipeline_*` diagnostic views for C.b pipeline run logs and future dashboard surfacing:
+
+- `profit_pipeline_classification_transition_blockers`: one row per `(classification_id, signal_name, blocker_reason)` for active classifications whose expanded apply rules cannot safely fire. `no_anchor_match` expands to one row per applicable transition rule so operators can see exactly which rules are blocked.
+- `profit_pipeline_due_reclassifications`: thin wrapper over `profit_fulfillment_audit_candidates` for active classifications with `re_evaluate_at <= current_date`.
+- `profit_pipeline_stuck_recognition_triggers`: pending revenue events older than the hardcoded 30-day stuck threshold that are not currently ready for recognition.
+
+C.b should also reuse the three existing diagnostic surfaces rather than duplicating them:
+
+- `profit_tax_recognition_ambiguities`
+- `profit_fulfillment_audit_qbo_category_gaps`
+- `profit_unresolved_service_names`
 
 ## Audit Dashboard API Conventions
 

@@ -78,6 +78,31 @@ class DataReferencesDocsTests(unittest.TestCase):
         self.assertIn("Detail panel service tasks omit assigned staff", tech_debt)
         self.assertIn("Frontend clears all row selection after successful bulk apply", tech_debt)
 
+    def test_fulfillment_classifications_contract_documents_pipeline_backend(self) -> None:
+        contract = (
+            ROOT / "docs/data-contracts/fulfillment-classifications.md"
+        ).read_text(encoding="utf-8")
+        tech_debt = (ROOT / "docs/tech-debt.md").read_text(encoding="utf-8")
+
+        self.assertIn("Pipeline Run Log Schema", contract)
+        self.assertIn("Match Reconciliation", contract)
+        self.assertIn("Apply Transitions V0.6.C.a", contract)
+        self.assertIn(
+            "Auto-transition correctness requires `profit_fc_client_anchor_matches.anchor_relationship_id`",
+            contract,
+        )
+        self.assertIn("collected_at::timestamptz", contract)
+        self.assertIn("Pipeline Diagnostic Views", contract)
+        self.assertIn("profit_pipeline_classification_transition_blockers", contract)
+        self.assertIn("profit_pipeline_due_reclassifications", contract)
+        self.assertIn("profit_pipeline_stuck_recognition_triggers", contract)
+
+        self.assertIn("Workflow 05 (Anchor agreement sync) hardcodes limit=50", tech_debt)
+        self.assertIn("13 PENDING_SENT seeded classifications remain pending review", tech_debt)
+        self.assertIn("not reproducible against current `/agreements?limit=100`", tech_debt)
+        self.assertIn("Auto-transition apply skips classifications whose FC client has no persisted", tech_debt)
+        self.assertIn("V0.6.C.a deploy executes `profit_reconcile_fc_client_anchor_matches(false)`", tech_debt)
+
 
 if __name__ == "__main__":
     unittest.main()
