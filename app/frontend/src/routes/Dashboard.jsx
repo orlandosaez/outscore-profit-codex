@@ -17,6 +17,7 @@ import {
 
 import { EmptyRow, EmptyState } from "../components/EmptyState.jsx";
 import PipelineRefreshDialog from "../components/PipelineRefreshDialog.jsx";
+import PipelineStatusBanner from "../components/PipelineStatusBanner.jsx";
 import PipelineStatusSummary from "../components/PipelineStatusSummary.jsx";
 import ReviewChecklist from "../components/ReviewChecklist.jsx";
 
@@ -592,6 +593,11 @@ function Dashboard() {
           </button>
         </div>
       </header>
+
+      <PipelineStatusBanner
+        latestRun={latestPipelineRun}
+        onRerun={() => setPipelineDialogOpen(true)}
+      />
 
       <ReviewChecklist />
 
