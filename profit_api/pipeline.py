@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import datetime, timezone
 from typing import Protocol
 from urllib.error import HTTPError, URLError
@@ -12,6 +13,8 @@ from profit_api.supabase import SupabaseRestError
 
 
 PipelineRow = dict[str, object]
+WEBHOOK_MAX_ATTEMPTS = 2
+WEBHOOK_RETRY_BACKOFF_SECONDS = 3
 
 
 class PipelineStore(Protocol):
@@ -75,6 +78,29 @@ class N8nPipelineWebhookClient:
                     "kind": "webhook_not_configured",
                 }
             )
+        last_error: PipelineTriggerError | None = None
+        for attempt in range(1, WEBHOOK_MAX_ATTEMPTS + 1):
+            try:
+                return self._trigger_once(payload)
+            except PipelineTriggerError as exc:
+                last_error = exc
+                if not self._is_retryable_error(exc):
+                    raise
+                if attempt == WEBHOOK_MAX_ATTEMPTS:
+                    detail = dict(exc.detail)
+                    detail["message"] = (
+                        "pipeline webhook call failed after "
+                        f"{WEBHOOK_MAX_ATTEMPTS} attempts"
+                    )
+                    raise PipelineTriggerError(detail) from exc
+                time.sleep(WEBHOOK_RETRY_BACKOFF_SECONDS)
+        detail = dict(last_error.detail if last_error else {})
+        detail["message"] = (
+            f"pipeline webhook call failed after {WEBHOOK_MAX_ATTEMPTS} attempts"
+        )
+        raise PipelineTriggerError(detail)
+
+    def _trigger_once(self, payload: PipelineRow) -> PipelineRow:
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -91,14 +117,68 @@ class N8nPipelineWebhookClient:
             with self.opener(request, timeout=self.timeout) as response:
                 body = response.read().decode("utf-8")
                 parsed = json.loads(body) if body else {}
-        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+        except HTTPError as exc:
+            raise PipelineTriggerError(self._http_error_detail(exc)) from exc
+        except (URLError, TimeoutError) as exc:
             raise PipelineTriggerError(
                 {
                     "message": "pipeline webhook call failed",
                     "error": str(exc),
+                    "kind": "webhook_connection_error",
+                }
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise PipelineTriggerError(
+                {
+                    "message": "pipeline webhook response was not valid JSON",
+                    "error": str(exc),
+                    "kind": "webhook_invalid_json",
                 }
             ) from exc
         return parsed if isinstance(parsed, dict) else {}
+
+    def _http_error_detail(self, exc: HTTPError) -> dict[str, object]:
+        body: dict[str, object] = {}
+        if exc.fp is not None:
+            try:
+                raw_body = exc.fp.read().decode("utf-8")
+                parsed = json.loads(raw_body) if raw_body else {}
+                if isinstance(parsed, dict):
+                    body = parsed
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                body = {}
+        return {
+            "message": "pipeline webhook call failed",
+            "error": str(exc),
+            "status_code": exc.code,
+            "kind": "webhook_http_error",
+            "body": body,
+        }
+
+    def _is_retryable_error(self, exc: PipelineTriggerError) -> bool:
+        status_code = exc.detail.get("status_code")
+        if exc.detail.get("kind") == "webhook_connection_error":
+            return True
+        if not isinstance(status_code, int):
+            return False
+        if status_code == 404:
+            return True
+        if 500 <= status_code <= 599:
+            return not self._is_intentional_failure(exc.detail.get("body"))
+        return False
+
+    def _is_intentional_failure(self, body: object) -> bool:
+        if not isinstance(body, dict):
+            return False
+        encoded = json.dumps(body, sort_keys=True).lower()
+        return any(
+            marker in encoded
+            for marker in (
+                '"intentional": true',
+                '"intentional_failure": true',
+                "intentional failure",
+            )
+        )
 
 
 class PipelineService:

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import json
 import os
 import unittest
 from datetime import datetime, timezone
+from io import BytesIO
+from unittest.mock import patch
 from pathlib import Path
+from urllib.error import HTTPError
 
 from fastapi.testclient import TestClient
 
+from profit_api.pipeline import N8nPipelineWebhookClient
 from profit_api.supabase import SupabaseRestError
 
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
@@ -134,6 +139,39 @@ class FakeWebhookClient:
         return {"accepted": True, "pipeline_run_id": payload["pipeline_run_id"]}
 
 
+class FakeHttpResponse:
+    def __init__(self, payload: dict[str, object] | None = None) -> None:
+        self.payload = payload or {"accepted": True}
+
+    def __enter__(self) -> "FakeHttpResponse":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode("utf-8")
+
+
+class SequenceOpener:
+    def __init__(self, outcomes: list[int | dict[str, object]]) -> None:
+        self.outcomes = outcomes
+        self.calls = 0
+
+    def __call__(self, request: object, *, timeout: int) -> FakeHttpResponse:
+        self.calls += 1
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, int):
+            raise HTTPError(
+                "https://n8n.example.test/webhook/profit-26",
+                outcome,
+                "webhook failed",
+                hdrs=None,
+                fp=BytesIO(b'{"message":"webhook failed"}'),
+            )
+        return FakeHttpResponse(outcome)
+
+
 class FakeDashboardService:
     pass
 
@@ -156,6 +194,30 @@ class PipelineApiTests(unittest.TestCase):
         import profit_api.app as app_module
 
         service = PipelineService(store, webhook_client=webhook or FakeWebhookClient())
+        app = app_module.create_app(
+            service=FakeDashboardService(),
+            manual_recognition_service=FakeRecognitionService(),
+            audit_service=FakeAuditService(),
+            pipeline_service=service,
+        )
+        return TestClient(app)
+
+    def build_client_with_opener(
+        self,
+        store: FakePipelineStore,
+        opener: SequenceOpener,
+    ) -> TestClient:
+        from profit_api.pipeline import PipelineService
+        import profit_api.app as app_module
+
+        service = PipelineService(
+            store,
+            webhook_client=N8nPipelineWebhookClient(
+                url="https://n8n.example.test/webhook/profit-26",
+                secret="test-secret",
+                opener=opener,
+            ),
+        )
         app = app_module.create_app(
             service=FakeDashboardService(),
             manual_recognition_service=FakeRecognitionService(),
@@ -324,6 +386,101 @@ class PipelineApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 500)
         self.assertIn("unique constraint fired but no running row", response.text)
+
+    def test_webhook_retry_on_404_succeeds_second_attempt(self) -> None:
+        store = FakePipelineStore({"profit_pipeline_runs": []})
+        opener = SequenceOpener([404, {"accepted": True}])
+        client = self.build_client_with_opener(store, opener)
+
+        with patch("profit_api.pipeline.time.sleep"):
+            response = client.post(
+                "/api/profit/admin/audit/pipeline-runs",
+                json={"triggered_by": "orlando"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(opener.calls, 2)
+        self.assertEqual(store.delete_calls, [])
+        self.assertEqual(
+            store.rows_by_table["profit_pipeline_runs"][0]["pipeline_run_id"],
+            RUN_ID,
+        )
+
+    def test_webhook_retry_on_503_succeeds_second_attempt(self) -> None:
+        store = FakePipelineStore({"profit_pipeline_runs": []})
+        opener = SequenceOpener([503, {"accepted": True}])
+        client = self.build_client_with_opener(store, opener)
+
+        with patch("profit_api.pipeline.time.sleep"):
+            response = client.post(
+                "/api/profit/admin/audit/pipeline-runs",
+                json={"triggered_by": "orlando"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(opener.calls, 2)
+        self.assertEqual(store.delete_calls, [])
+
+    def test_webhook_no_retry_on_400(self) -> None:
+        store = FakePipelineStore({"profit_pipeline_runs": []})
+        opener = SequenceOpener([400, {"accepted": True}])
+        client = self.build_client_with_opener(store, opener)
+
+        with patch("profit_api.pipeline.time.sleep") as sleep:
+            response = client.post(
+                "/api/profit/admin/audit/pipeline-runs",
+                json={"triggered_by": "orlando"},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(opener.calls, 1)
+        sleep.assert_not_called()
+        self.assertEqual(store.delete_calls[0][0], "profit_pipeline_runs")
+
+    def test_webhook_both_attempts_fail(self) -> None:
+        store = FakePipelineStore({"profit_pipeline_runs": []})
+        opener = SequenceOpener([404, 404])
+        client = self.build_client_with_opener(store, opener)
+
+        with patch("profit_api.pipeline.time.sleep"):
+            response = client.post(
+                "/api/profit/admin/audit/pipeline-runs",
+                json={"triggered_by": "orlando"},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(opener.calls, 2)
+        self.assertEqual(store.delete_calls[0][0], "profit_pipeline_runs")
+
+    def test_webhook_succeeds_first_attempt_no_retry(self) -> None:
+        store = FakePipelineStore({"profit_pipeline_runs": []})
+        opener = SequenceOpener([{"accepted": True}, 503])
+        client = self.build_client_with_opener(store, opener)
+
+        with patch("profit_api.pipeline.time.sleep") as sleep:
+            response = client.post(
+                "/api/profit/admin/audit/pipeline-runs",
+                json={"triggered_by": "orlando"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(opener.calls, 1)
+        sleep.assert_not_called()
+        self.assertEqual(store.delete_calls, [])
+
+    def test_webhook_retry_backoff_observed(self) -> None:
+        store = FakePipelineStore({"profit_pipeline_runs": []})
+        opener = SequenceOpener([404, {"accepted": True}])
+        client = self.build_client_with_opener(store, opener)
+
+        with patch("profit_api.pipeline.time.sleep") as sleep:
+            response = client.post(
+                "/api/profit/admin/audit/pipeline-runs",
+                json={"triggered_by": "orlando"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        sleep.assert_called_once_with(3)
 
 
 class FinalizeStalePipelineRunsSqlTests(unittest.TestCase):
