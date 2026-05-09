@@ -26,6 +26,44 @@
     {
       "parameters": {
         "method": "POST",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/rpc/profit_finalize_stale_pipeline_runs",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "f31c908a-29cb-4b2b-9a0d-000000000029",
+      "name": "Finalize Stale Pipeline Runs",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
         "url": "={{ ($env.PROFIT_API_BASE_URL || 'https://app.outscore.com/profit').replace(/\\/$/, '') }}/api/profit/admin/audit/pipeline-runs",
         "sendBody": true,
         "contentType": "json",
@@ -36,7 +74,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        260,
+        520,
         0
       ],
       "id": "03bf8f9e-29cb-4b2b-9a0d-000000000029",
@@ -45,6 +83,17 @@
   ],
   "connections": {
     "Nightly 2 AM ET Schedule": {
+      "main": [
+        [
+          {
+            "node": "Finalize Stale Pipeline Runs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize Stale Pipeline Runs": {
       "main": [
         [
           {

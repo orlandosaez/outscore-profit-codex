@@ -560,7 +560,7 @@ class N8nWorkflowTests(unittest.TestCase):
             if node["type"] == "n8n-nodes-base.if":
                 self.assertNotIn("$json.last_step_status", json.dumps(node))
 
-    def test_schedule_wrapper_runs_nightly_cron_pipeline_start(self) -> None:
+    def test_schedule_wrapper_finalizes_stale_runs_before_nightly_cron_pipeline_start(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-29-schedule-wrapper.json"
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
         serialized = json.dumps(workflow)
@@ -574,6 +574,27 @@ class N8nWorkflowTests(unittest.TestCase):
         schedule_parameters = schedule_node["parameters"]
         self.assertEqual(schedule_parameters["timezone"], "America/New_York")
         self.assertIn("0 2 * * *", json.dumps(schedule_parameters))
+
+        self.assertIn("Finalize Stale Pipeline Runs", nodes_by_name)
+        stale_rpc_node = nodes_by_name["Finalize Stale Pipeline Runs"]
+        self.assertEqual(stale_rpc_node["type"], "n8n-nodes-base.httpRequest")
+        stale_rpc_parameters = stale_rpc_node["parameters"]
+        self.assertEqual(stale_rpc_parameters["method"], "POST")
+        self.assertIn(
+            "/rest/v1/rpc/profit_finalize_stale_pipeline_runs",
+            stale_rpc_parameters["url"],
+        )
+        self.assertEqual(stale_rpc_parameters["contentType"], "json")
+        self.assertEqual(stale_rpc_parameters["specifyBody"], "json")
+        self.assertEqual(json.loads(stale_rpc_parameters["jsonBody"]), {})
+        self.assertTrue(
+            stale_rpc_node.get("continueOnFail"),
+            "Stale cleanup must be best-effort so cron still starts on transient RPC failure.",
+        )
+        self.assertTrue(
+            stale_rpc_node.get("alwaysOutputData"),
+            "Stale cleanup must emit an item for the downstream cron API call.",
+        )
 
         request_node = nodes_by_name["Start Cron Pipeline Run"]
         self.assertEqual(request_node["type"], "n8n-nodes-base.httpRequest")
@@ -593,10 +614,14 @@ class N8nWorkflowTests(unittest.TestCase):
 
         self.assertEqual(
             workflow["connections"]["Nightly 2 AM ET Schedule"]["main"][0][0]["node"],
+            "Finalize Stale Pipeline Runs",
+        )
+        self.assertEqual(
+            workflow["connections"]["Finalize Stale Pipeline Runs"]["main"][0][0]["node"],
             "Start Cron Pipeline Run",
         )
         self.assertNotIn("profit-pipeline-run", serialized)
-        self.assertNotIn("profit_finalize_stale_pipeline_runs", serialized)
+        self.assertIn("profit_finalize_stale_pipeline_runs", serialized)
 
 
 if __name__ == "__main__":
