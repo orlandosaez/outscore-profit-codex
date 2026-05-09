@@ -15,6 +15,7 @@ import {
 import { EmptyRow, EmptyState } from "../components/EmptyState.jsx";
 import PipelineRefreshDialog from "../components/PipelineRefreshDialog.jsx";
 import PipelineStatusSummary from "../components/PipelineStatusSummary.jsx";
+import ReviewChecklist from "../components/ReviewChecklist.jsx";
 
 const apiBase = import.meta.env.VITE_PROFIT_API_BASE ?? "/api";
 const endpoint = `${apiBase}/profit/admin/dashboard`;
@@ -168,7 +169,7 @@ function RatioSummary({ ratios }) {
   ];
 
   return (
-    <section className="panel ratio-panel" aria-label="Ratio Summary">
+    <section aria-label="Ratio Summary" className="panel ratio-panel" id="review-ratio">
       <div className="panel-title">
         <Gauge size={18} aria-hidden="true" />
         <h2>Ratio Summary</h2>
@@ -466,7 +467,7 @@ function Dashboard() {
 
   return (
     <main className="page">
-      <header className="topbar">
+      <header className="topbar" id="review-period">
         <div>
           <p className="eyebrow">Outscore Advisory Group</p>
           <h1>Profit Admin</h1>
@@ -494,9 +495,11 @@ function Dashboard() {
         </div>
       </header>
 
+      <ReviewChecklist />
+
       {status === "error" ? <div className="error">{error}</div> : null}
 
-      <section className="stats-grid" aria-label="Company GP">
+      <section aria-label="Company GP" className="stats-grid" id="review-tiles">
         <Stat
           icon={Gauge}
           label="Company GP"
@@ -547,7 +550,7 @@ function Dashboard() {
 
       <RatioSummary ratios={snapshot?.ratio_summary} />
 
-      <section className="panel">
+      <section className="panel" id="review-client-gp">
         <div className="panel-title">
           <TableProperties size={18} aria-hidden="true" />
           <h2>Per-Client GP</h2>
@@ -596,7 +599,7 @@ function Dashboard() {
       </section>
 
       <section className="split">
-        <div className="panel">
+        <div className="panel" id="review-staff-gp">
           <div className="panel-title">
             <UsersRound size={18} aria-hidden="true" />
             <h2>Per-Staff GP</h2>
@@ -634,7 +637,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="panel">
+        <div className="panel" id="review-comp">
           <div className="panel-title">
             <UserRoundCheck size={18} aria-hidden="true" />
             <h2>Comp Ledger</h2>
@@ -672,7 +675,7 @@ function Dashboard() {
       </section>
 
       <section className="split">
-        <div className="panel">
+        <div className="panel" id="review-w2">
           <div className="panel-title">
             <AlertTriangle size={18} aria-hidden="true" />
             <h2>W2 Watch · Trailing 8-month window</h2>
@@ -709,7 +712,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="panel">
+        <div className="panel" id="review-fc-queue">
           <div className="panel-title">
             <ClipboardCheck size={18} aria-hidden="true" />
             <h2>FC Trigger Queue · Live queue ({fcQueueCount})</h2>
