@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -83,9 +84,10 @@ function dateTimeLabel(value) {
   });
 }
 
-function Stat({ icon: Icon, label, value, detail, tone = "neutral" }) {
-  return (
-    <section className={`stat stat-${tone}`}>
+function Stat({ icon: Icon, label, value, detail, tone = "neutral", to, onClick }) {
+  const className = `stat stat-${tone}${to || onClick ? " stat-clickable" : ""}`;
+  const body = (
+    <>
       <div className="stat-icon">
         <Icon size={18} aria-hidden="true" />
       </div>
@@ -94,8 +96,23 @@ function Stat({ icon: Icon, label, value, detail, tone = "neutral" }) {
         <strong>{value}</strong>
         <span>{detail}</span>
       </div>
-    </section>
+    </>
   );
+  if (to) {
+    return (
+      <Link className={className} to={to}>
+        {body}
+      </Link>
+    );
+  }
+  if (onClick) {
+    return (
+      <button className={className} onClick={onClick} type="button">
+        {body}
+      </button>
+    );
+  }
+  return <section className={className}>{body}</section>;
 }
 
 function withRunningBalances(rows) {
@@ -111,7 +128,7 @@ function withRunningBalances(rows) {
 
 const triggerBacklogFallback = "Delivered services with no recognition trigger loaded — not a QBO liability entry. Clears when FC completion triggers are approved.";
 
-function PrepaidLiabilityTile({ prepaidLiability }) {
+function PrepaidLiabilityTile({ prepaidLiability, onDrillDown }) {
   const summary = prepaidLiability?.summary ?? {};
   const isLoaded = prepaidLiability?.collection_feed_status === "loaded";
 
@@ -137,14 +154,24 @@ function PrepaidLiabilityTile({ prepaidLiability }) {
       </div>
       <div className="prepaid-stat-body">
         <p>Prepaid Liability · point-in-time</p>
-        <div className="prepaid-stat-row" title="Record this exact amount as Deferred Revenue in QuickBooks. Tax retainers held until return is filed or extended.">
+        <button
+          className="prepaid-stat-row prepaid-stat-row-clickable"
+          onClick={() => onDrillDown?.("tax")}
+          title="Open Prepaid Liability Drilldown filtered to Tax Deferred. Record this exact amount as Deferred Revenue in QuickBooks."
+          type="button"
+        >
           <span>Tax Deferred Revenue</span>
           <strong>{formatMoney(summary.tax_deferred_revenue_balance)}</strong>
-        </div>
-        <div className="prepaid-stat-row" title={summary.trigger_backlog_note ?? triggerBacklogFallback}>
+        </button>
+        <button
+          className="prepaid-stat-row prepaid-stat-row-clickable"
+          onClick={() => onDrillDown?.("trigger")}
+          title={summary.trigger_backlog_note ?? triggerBacklogFallback}
+          type="button"
+        >
           <span>Trigger Backlog</span>
           <strong>{formatMoney(summary.trigger_backlog_balance)}</strong>
-        </div>
+        </button>
         <div className="prepaid-stat-row reference" title="Sum of both buckets. Do not record this as a single QBO entry.">
           <span>Total reference</span>
           <strong>{formatMoney(summary.total_prepaid_liability_balance)}</strong>
@@ -266,6 +293,7 @@ function PrepaidLiabilityPanel({
   selectedRow,
   onSelectRow,
   ledgerRows,
+  panelRef,
 }) {
   const summary = prepaidLiability?.summary ?? {};
   const filterItems = [
@@ -275,7 +303,7 @@ function PrepaidLiabilityPanel({
   ];
 
   return (
-    <section className="panel prepaid-panel">
+    <section className="panel prepaid-panel" id="prepaid-drilldown" ref={panelRef}>
       <div className="panel-title">
         <Landmark size={18} aria-hidden="true" />
         <h2>Prepaid Liability Drilldown</h2>
@@ -435,6 +463,14 @@ function Dashboard() {
   const [pipelineLoading, setPipelineLoading] = useState(false);
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
   const [expandedClients, setExpandedClients] = useState(() => new Set());
+  const prepaidPanelRef = useRef(null);
+
+  function drillIntoPrepaid(filter) {
+    setPrepaidFilter(filter);
+    if (prepaidPanelRef.current) {
+      prepaidPanelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
 
   function toggleClientExpanded(key) {
     setExpandedClients((current) => {
@@ -583,12 +619,13 @@ function Dashboard() {
           detail={`${company.recognized_revenue_event_count ?? 0} revenue events`}
         />
         <Stat
+          detail={`${company.pending_revenue_event_count ?? 0} pending revenue events`}
           icon={ClipboardCheck}
           label="Pending"
+          to="/admin/recognition"
           value={formatMoney(company.pending_revenue_amount)}
-          detail={`${company.pending_revenue_event_count ?? 0} pending revenue events`}
         />
-        <PrepaidLiabilityTile prepaidLiability={prepaidLiability} />
+        <PrepaidLiabilityTile onDrillDown={drillIntoPrepaid} prepaidLiability={prepaidLiability} />
         <PipelineStatusSummary
           latestRun={latestPipelineRun}
           loading={pipelineLoading}
@@ -602,6 +639,7 @@ function Dashboard() {
         balances={visiblePrepaidBalances}
         ledgerRows={prepaidLedgerRows}
         onSelectRow={loadPrepaidLedger}
+        panelRef={prepaidPanelRef}
         prepaidFilter={prepaidFilter}
         prepaidLiability={prepaidLiability}
         selectedRow={selectedPrepaidRow}

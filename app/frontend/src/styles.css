@@ -1547,6 +1547,53 @@ html {
   scroll-margin-top: 64px;
 }
 
+/* === V0.6.C.5: Clickable tile drill-downs === */
+
+a.stat,
+button.stat {
+  width: 100%;
+  border: 1px solid #d8e0e4;
+  background: #ffffff;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.stat-clickable {
+  transition: box-shadow 120ms ease, transform 120ms ease, border-color 120ms ease;
+}
+
+.stat-clickable:hover,
+.stat-clickable:focus-visible {
+  box-shadow: 0 4px 12px rgba(48, 95, 122, 0.16);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.stat-clickable:focus-visible {
+  border: 1px solid #305f7a;
+}
+
+.prepaid-stat-row-clickable {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  margin: 0 -6px;
+  transition: background 100ms ease;
+}
+
+.prepaid-stat-row-clickable:hover,
+.prepaid-stat-row-clickable:focus-visible {
+  background: rgba(48, 95, 122, 0.08);
+  outline: none;
+}
+
 /* === V0.6.C.5: Per-Client GP grouping === */
 
 .client-toggle {
