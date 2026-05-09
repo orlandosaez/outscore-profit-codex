@@ -24,11 +24,18 @@ ROOT = Path(__file__).resolve().parents[1]
 STALE_FINALIZER_MIGRATION = (
     ROOT / "supabase/sql/027_profit_finalize_stale_pipeline_runs.sql"
 )
+CRON_HEALTH_VIEW_MIGRATION = (
+    ROOT / "supabase/sql/027a_profit_cron_pipeline_run_health.sql"
+)
 STALE_ERROR_SUMMARY = "Stuck running detection - no progress for >30min"
 
 
 def read_stale_finalizer_sql() -> str:
     return STALE_FINALIZER_MIGRATION.read_text(encoding="utf-8")
+
+
+def read_cron_health_view_sql() -> str:
+    return CRON_HEALTH_VIEW_MIGRATION.read_text(encoding="utf-8")
 
 
 class FakePipelineStore:
@@ -364,6 +371,45 @@ class FinalizeStalePipelineRunsSqlTests(unittest.TestCase):
         self.assertIn("finalized_count integer", sql)
         self.assertIn("pipeline_run_ids uuid[]", sql)
         self.assertIn("array_agg", sql)
+
+
+class CronHealthViewSqlTests(unittest.TestCase):
+    def test_cron_health_view_returns_only_cron_runs(self) -> None:
+        sql = read_cron_health_view_sql().lower()
+
+        self.assertIn("create or replace view profit_cron_pipeline_run_health", sql)
+        self.assertIn("from profit_pipeline_runs", sql)
+        self.assertIn("run_source = 'cron'", sql)
+        self.assertNotIn("run_source = 'manual'", sql)
+
+    def test_cron_health_view_returns_only_terminal_statuses(self) -> None:
+        sql = read_cron_health_view_sql().lower()
+
+        self.assertIn("status in ('success', 'failed', 'partial')", sql)
+        self.assertNotIn("'running'", sql)
+
+    def test_cron_health_view_limits_to_latest_two(self) -> None:
+        sql = read_cron_health_view_sql().lower()
+
+        self.assertIn("limit 2", sql)
+
+    def test_cron_health_view_orders_by_started_at_desc(self) -> None:
+        sql = read_cron_health_view_sql().lower()
+
+        self.assertIn("order by started_at desc", sql)
+
+    def test_cron_health_view_exposes_error_summary(self) -> None:
+        sql = read_cron_health_view_sql().lower()
+
+        self.assertIn("summary->>'error_summary' as error_summary", sql)
+        self.assertRegex(sql, r"\bsummary\b")
+
+    def test_cron_health_view_is_recent_cron_failure_flag(self) -> None:
+        sql = read_cron_health_view_sql().lower()
+
+        self.assertIn("is_recent_cron_failure", sql)
+        self.assertIn("status in ('failed', 'partial')", sql)
+        self.assertIn("else false", sql)
 
 
 if __name__ == "__main__":
