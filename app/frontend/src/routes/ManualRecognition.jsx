@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, FileCheck2, RefreshCw, Search, X } from "lucide-react";
 
+import { EmptyRow } from "../components/EmptyState.jsx";
+
 const apiBase = import.meta.env.VITE_PROFIT_API_BASE ?? "/api";
 const pendingEndpoint = `${apiBase}/profit/admin/recognition/pending`;
 const overrideEndpoint = `${apiBase}/profit/admin/recognition/manual-override`;
@@ -375,9 +377,11 @@ export default function ManualRecognition() {
                 </tr>
               ))}
               {visiblePendingRows.length ? null : (
-                <tr>
-                  <td className="empty" colSpan={6}>No pending revenue events loaded</td>
-                </tr>
+                <EmptyRow
+                  colSpan={6}
+                  hint="Tax-deferred and $0/negative events are hidden by default — toggle the filters above to inspect them."
+                  label="No pending revenue events loaded"
+                />
               )}
             </tbody>
           </table>
@@ -504,9 +508,11 @@ export default function ManualRecognition() {
                 </tr>
               ))}
               {recentOverrides.length ? null : (
-                <tr>
-                  <td className="empty" colSpan={7}>No manual recognition overrides loaded</td>
-                </tr>
+                <EmptyRow
+                  colSpan={7}
+                  hint="Approved overrides will appear here with reason code and approver."
+                  label="No manual recognition overrides loaded"
+                />
               )}
             </tbody>
           </table>

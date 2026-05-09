@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckSquare, RefreshCw, Search } from "lucide-react";
 
+import { EmptyRow } from "../components/EmptyState.jsx";
 import PipelineRefreshDialog from "../components/PipelineRefreshDialog.jsx";
 import PipelineStatusSummary from "../components/PipelineStatusSummary.jsx";
 
@@ -532,9 +533,11 @@ export default function AuditDashboard() {
                 </tr>
               ))}
               {rows.length ? null : (
-                <tr>
-                  <td className="empty" colSpan={9}>No audit candidates match the current filters</td>
-                </tr>
+                <EmptyRow
+                  colSpan={9}
+                  hint="Try clearing filters above, or toggle 'Re-evaluation due' off to see all candidates."
+                  label="No audit candidates match the current filters"
+                />
               )}
             </tbody>
           </table>

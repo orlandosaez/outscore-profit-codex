@@ -1460,3 +1460,57 @@ td:nth-last-child(-n + 4) {
   background: #f8fafb;
   white-space: pre-wrap;
 }
+
+/* === V0.6.C.5: Empty-state CTAs === */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 12px;
+  text-align: center;
+}
+
+.empty-state-label {
+  margin: 0;
+  color: #5f6c72;
+  font-size: 0.9rem;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.empty-state-hint {
+  margin: 0;
+  max-width: 56ch;
+  color: #8693a0;
+  font-size: 0.8rem;
+}
+
+.empty-state-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  border: 1px solid #305f7a;
+  border-radius: 6px;
+  padding: 5px 11px;
+  background: #ffffff;
+  color: #305f7a;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.empty-state-cta:hover,
+.empty-state-cta:focus-visible {
+  background: #305f7a;
+  color: #ffffff;
+  outline: none;
+}
+
+.empty-cell {
+  padding: 0 !important;
+}
