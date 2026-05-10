@@ -139,6 +139,50 @@ class DataReferencesDocsTests(unittest.TestCase):
         self.assertIn("duplicate `revenue_event_key`", glossary)
         self.assertIn("What To Do When A Run Fails", glossary)
 
+    def test_sla_dashboard_contract_documents_v06d_operational_contracts(self) -> None:
+        contract_path = ROOT / "docs/data-contracts/sla-dashboard.md"
+        self.assertTrue(contract_path.exists())
+
+        contract = contract_path.read_text(encoding="utf-8")
+        tech_debt = (ROOT / "docs/tech-debt.md").read_text(encoding="utf-8")
+
+        for state in (
+            "on_track",
+            "at_risk",
+            "breached",
+            "waiting_on_client",
+            "not_applicable",
+        ):
+            self.assertIn(state, contract)
+
+        self.assertIn(
+            "age_days >= greatest(target_sla_day - 2, ceil(target_sla_day * 0.8))",
+            contract,
+        )
+        self.assertIn("SQL", contract)
+        self.assertIn("canonical", contract)
+        self.assertIn("task assignee", contract)
+        self.assertIn("client staff tags", contract)
+        self.assertIn("90-day", contract)
+        self.assertTrue(
+            "fixed" in contract.lower() or "no parameterization" in contract.lower()
+        )
+        self.assertIn("/api/profit/admin/sla/backfill", contract)
+        self.assertIn("SETTLED_VIA_QUICKBOOKS_PAYMENT", contract)
+        self.assertIn("read-only", contract)
+
+        self.assertIn(
+            "W16 (Profit - 16 Apply Recognition Triggers) fails when ready revenue events contain duplicate",
+            tech_debt,
+        )
+        self.assertIn("default_sla_day", tech_debt)
+        self.assertIn("Recognized tile drill-down", tech_debt)
+        self.assertIn('"Reviewed" tracking on review checklist', tech_debt)
+        self.assertIn("Per-tile staleness badges", tech_debt)
+        self.assertIn("Audit page service-tag density redesign", tech_debt)
+        self.assertIn("Frontend test infrastructure", tech_debt)
+        self.assertIn("Manual Recognition UI polish", tech_debt)
+
 
 if __name__ == "__main__":
     unittest.main()

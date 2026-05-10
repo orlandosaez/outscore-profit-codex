@@ -175,6 +175,10 @@ Deferred rules:
 - `SETTLED_VIA_QUICKBOOKS_PAYMENT` + `anchor_backfill_*` remains V0.6.D Anchor backfill queue work.
 - `INACTIVE_FORMER_CLIENT` + `any_active_signal_returns` remains handled by the re-emergence scan v2, not by the generic apply function.
 
+### QuickBooks-Settled Anchor Backfill
+
+V0.6.D links `SETTLED_VIA_QUICKBOOKS_PAYMENT` classifications to the SLA dashboard's Anchor backfill queue. `profit_sla_anchor_backfill_queue` and the `/admin/sla/backfill` route surface QBO payment evidence, missing-Anchor settlement signal, and auto-transition eligibility as a read-only convergence queue. See [SLA Dashboard Data Contract](sla-dashboard.md) for the full queue and API contract.
+
 Auto-transition correctness requires `profit_fc_client_anchor_matches.anchor_relationship_id` to be populated. Classifications without a persisted Anchor match are skipped silently by the function and surfaced through audit/dashboard diagnostics for manual review.
 
 Rules with `requires_service_type_match = true` use the composite service-type key:

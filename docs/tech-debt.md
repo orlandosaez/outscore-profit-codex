@@ -43,7 +43,7 @@ Address these in V0.6+ as the recognition pipeline matures. For V0.5.2, the stat
 ## FC Tag Endpoint Limits
 
 - FC task-level service/group tags are not exposed via the current completed-task endpoint. `profit_fc_task_tags` schema exists but is unused in V0.6.A. Investigate alternate FC endpoints, such as project-tasks listing, task-detail, or tag queries, before any V0.6.B/C/D work that depends on per-task tagging.
-- FC project-level workflow status tags (`Waiting on Client`, `Ready to Submit`, etc.) are exposed on `project.raw.tags` but deferred to V0.6.D SLA work. The `tag_type` check constraint on `profit_fc_project_tags` will need a `workflow_status` value added at V0.6.D time, or status tags can map to existing `unknown` if that design is cleaner.
+- ~~FC project-level workflow status tags (`Waiting on Client`, `Ready to Submit`, etc.) are exposed on `project.raw.tags` but deferred to V0.6.D SLA work. The `tag_type` check constraint on `profit_fc_project_tags` will need a `workflow_status` value added at V0.6.D time, or status tags can map to existing `unknown` if that design is cleaner.~~ **RESOLVED 2026-05-10 in V0.6.D:** SLA work extends `profit_fc_project_tags` to support `tag_type='workflow_status'`, backfills `Waiting on Client`, `In Preparation`, and `Ready to Submit`, and lets Workflow 17 maintain workflow-status tags directly.
 - Recognition trigger support for `form_941_quarterly` is deferred to V0.6.C alongside other quarterly and year-end compliance trigger work. The canonical recognition rule is seeded in migration `020a` so FC tag classification works correctly today.
 
 ## Transitional FC Tag Snapshot Audit
@@ -68,3 +68,13 @@ V0.6 must add proper canonical service resolution:
 - Joins to `profit_service_recognition_rules` should use `canonical_service_name`, not raw `service_name`.
 
 Reference unresolved name list at the time of capture: `/tmp/unresolved_service_names_20260504.csv` (16 distinct names blocking Workflow 15 before relaxation).
+
+## V0.6.D Deferred Items Kept Open
+
+- Service `default_sla_day` data quality remains a follow-up. The 13 `not_applicable` services and 2 blank/defaultless service rows reviewed during V0.6.D are intentional for the current SLA surface, but that does not close the gap forever; future service catalog changes can reintroduce missing or stale SLA defaults.
+- Recognized tile drill-down remains deferred. The main dashboard's Recognized tile still does not link to the underlying RevenueEvents, so audit-friendly recognized-revenue drill-down is still out of scope for V0.6.D.
+- "Reviewed" tracking on review checklist remains deferred. V0.6.D does not add a reviewed state, persistence, or operator identity to dashboard checklist items.
+- Per-tile staleness badges remain deferred. V0.6.D does not add freshness badges to existing dashboard metric tiles.
+- Audit page service-tag density redesign remains deferred. The audit dashboard keeps its existing service/tag density and does not add a compact redesign in V0.6.D.
+- Frontend test infrastructure remains deferred. V0.6.D does not introduce a broader frontend test runner or component-test harness beyond the existing static/backend checks.
+- Manual Recognition UI polish remains deferred. The four Manual Recognition polish items carried from V0.6.B.2.b are still outside V0.6.D's SLA dashboard scope.
