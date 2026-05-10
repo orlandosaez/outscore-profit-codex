@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, Hourglass, PauseCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Hourglass, PauseCircle, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { EmptyRow, EmptyState } from "../components/EmptyState.jsx";
@@ -12,34 +12,81 @@ const workloadEndpoint = `${apiBase}/profit/admin/sla/workload`;
 const queueEndpoint = `${apiBase}/profit/admin/sla/queue`;
 const performanceEndpoint = `${apiBase}/profit/admin/sla/performance`;
 
-const TABS = [
-  { id: "clients", label: "Clients", endpoint: clientsEndpoint },
-  { id: "workload", label: "Workload", endpoint: workloadEndpoint },
-  { id: "queue", label: "Queue", endpoint: queueEndpoint },
-  { id: "performance", label: "Performance", endpoint: performanceEndpoint },
-];
-
+const PANELS = {
+  clients: { label: "Per-client SLA status", endpoint: clientsEndpoint },
+  workload: { label: "Per-staff workload", endpoint: workloadEndpoint },
+  queue: { label: "Breach and at-risk queue", endpoint: queueEndpoint },
+  performance: { label: "90-day staff/service performance", endpoint: performanceEndpoint },
+};
 const EMPTY_PANEL = { rows: [], loading: false, error: "" };
+const STATE_LABELS = {
+  at_risk: "At-Risk",
+  breached: "Breached",
+  not_applicable: "Not Applicable",
+  on_track: "On Track",
+  waiting_on_client: "Waiting-on-Client",
+};
+const STATE_SEVERITY = { breached: 1, at_risk: 2 };
+
+function numberValue(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric.toLocaleString() : value;
+}
 
 function countValue(summary, keys) {
   for (const key of keys) {
-    if (summary[key] !== null && summary[key] !== undefined) return Number(summary[key]).toLocaleString();
+    if (summary[key] !== null && summary[key] !== undefined) return numberValue(summary[key]);
   }
   return "0";
 }
 
-function panelTitle(tabId) {
-  if (tabId === "clients") return "Per-client SLA status";
-  if (tabId === "workload") return "Per-staff workload";
-  if (tabId === "queue") return "Breach and at-risk queue";
-  return "90-day rolling performance";
+function textValue(...values) {
+  const value = values.find((item) => item !== null && item !== undefined && item !== "");
+  return value === undefined ? "-" : value;
+}
+
+function formatDate(value) {
+  if (!value || value === "-") return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function percentValue(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${(numeric * 100).toFixed(1)}%` : "-";
+}
+
+function stateBadge(state) {
+  const normalized = String(state ?? "unknown");
+  const className = `sla-state-badge sla-state-${normalized.replaceAll("_", "-")}`;
+  return <span className={className}>{STATE_LABELS[normalized] ?? normalized.replaceAll("_", " ")}</span>;
+}
+
+function PanelFrame({ children, error, id, loading, title }) {
+  return (
+    <section className="panel sla-panel" id={id}>
+      <div className="panel-title sla-panel-title">
+        <h2>{title}</h2>
+      </div>
+      {error ? <div className="error-toast sla-panel-error">{error}</div> : null}
+      {loading ? (
+        <EmptyState label={`Loading ${title}`} hint="Fetching the latest SLA snapshot." />
+      ) : children}
+    </section>
+  );
 }
 
 export default function SlaDashboard() {
   const [summary, setSummary] = useState({});
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState("");
-  const [activeTab, setActiveTab] = useState("clients");
   const [panels, setPanels] = useState({
     clients: EMPTY_PANEL,
     workload: EMPTY_PANEL,
@@ -47,11 +94,14 @@ export default function SlaDashboard() {
     performance: EMPTY_PANEL,
   });
 
-  const activeTabConfig = useMemo(
-    () => TABS.find((tab) => tab.id === activeTab) ?? TABS[0],
-    [activeTab],
-  );
-  const activePanel = panels[activeTab] ?? EMPTY_PANEL;
+  const sortedQueueRows = useMemo(() => {
+    const rows = panels.queue.rows ?? [];
+    return [...rows].sort((left, right) => {
+      const severityDelta = (STATE_SEVERITY[left.sla_state] ?? 9) - (STATE_SEVERITY[right.sla_state] ?? 9);
+      if (severityDelta !== 0) return severityDelta;
+      return Number(right.age_days ?? 0) - Number(left.age_days ?? 0);
+    });
+  }, [panels.queue.rows]);
 
   async function loadSummary() {
     setSummaryLoading(true);
@@ -69,132 +119,268 @@ export default function SlaDashboard() {
     }
   }
 
-  async function loadPanel(tab) {
+  async function loadPanel(panelKey, config) {
     setPanels((current) => ({
       ...current,
-      [tab.id]: { ...(current[tab.id] ?? EMPTY_PANEL), loading: true, error: "" },
+      [panelKey]: { ...(current[panelKey] ?? EMPTY_PANEL), loading: true, error: "" },
     }));
     try {
-      const response = await fetch(tab.endpoint);
+      const response = await fetch(config.endpoint);
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.detail?.message ?? `SLA ${tab.label} request failed: ${response.status}`);
+      if (!response.ok) throw new Error(payload.detail?.message ?? `SLA ${config.label} request failed: ${response.status}`);
       setPanels((current) => ({
         ...current,
-        [tab.id]: { rows: payload.rows ?? [], loading: false, error: "" },
+        [panelKey]: { rows: payload.rows ?? [], loading: false, error: "" },
       }));
     } catch (err) {
       setPanels((current) => ({
         ...current,
-        [tab.id]: {
+        [panelKey]: {
           rows: [],
           loading: false,
-          error: err instanceof Error ? err.message : `SLA ${tab.label} request failed`,
+          error: err instanceof Error ? err.message : `SLA ${config.label} request failed`,
         },
       }));
     }
   }
 
-  useEffect(() => {
+  function refreshPage() {
     loadSummary();
+    Object.entries(PANELS).forEach(([panelKey, config]) => loadPanel(panelKey, config));
+  }
+
+  useEffect(() => {
+    refreshPage();
   }, []);
 
-  useEffect(() => {
-    loadPanel(activeTabConfig);
-  }, [activeTabConfig]);
-
   return (
-    <main className="pipeline-page">
+    <main className="pipeline-page sla-dashboard-page">
       <header className="manual-recognition-hero">
         <div>
           <h1>SLA Dashboard</h1>
           <span>Read-only SLA status, workload, queue, and 90-day performance views.</span>
         </div>
-        <Link className="btn btn-secondary" to="/admin/sla/backfill">Anchor backfill</Link>
+        <div className="manual-hero-actions">
+          <Link className="btn btn-secondary" to="/admin/sla/backfill">Anchor backfill</Link>
+          <button className="icon-button" onClick={refreshPage} disabled={summaryLoading} title="Refresh SLA data" type="button">
+            <RefreshCw size={18} aria-hidden="true" />
+          </button>
+        </div>
       </header>
 
       {summaryError ? <div className="error-toast">{summaryError}</div> : null}
-      <div className="stat-grid">
+      <div className="stats-grid sla-summary-grid">
         <Stat
-          detail={summaryLoading ? "Loading" : "Current SLA work"}
+          detail={summaryLoading ? "Loading" : "Total applicable"}
           icon={Clock3}
-          label="Open"
-          value={countValue(summary, ["open_count", "total_open", "total_applicable"])}
+          label="Total Applicable"
+          value={countValue(summary, ["total_applicable", "total_clients", "open_count"])}
         />
         <Stat
           detail={summaryLoading ? "Loading" : "Past target"}
           icon={AlertTriangle}
           label="Breached"
           tone="bad"
-          value={countValue(summary, ["breached_count", "breach_count"])}
+          value={countValue(summary.states ?? summary, ["breached", "breached_count", "breach_count"])}
         />
         <Stat
           detail={summaryLoading ? "Loading" : "Near target"}
           icon={Hourglass}
-          label="At Risk"
+          label="At-Risk"
           tone="warn"
-          value={countValue(summary, ["at_risk_count", "atRisk_count"])}
+          value={countValue(summary.states ?? summary, ["at_risk", "at_risk_count"])}
         />
         <Stat
           detail={summaryLoading ? "Loading" : "Client-dependent"}
           icon={PauseCircle}
-          label="Waiting"
-          value={countValue(summary, ["waiting_on_client_count", "waiting_count"])}
+          label="Waiting-on-Client"
+          value={countValue(summary.states ?? summary, ["waiting_on_client", "waiting_on_client_count"])}
         />
         <Stat
           detail={summaryLoading ? "Loading" : "Outside SLA"}
           icon={CheckCircle2}
           label="Not Applicable"
           tone="good"
-          value={countValue(summary, ["not_applicable_count", "not_applicable"])}
+          value={countValue(summary.states ?? summary, ["not_applicable", "not_applicable_count"])}
         />
       </div>
 
-      <section className="panel">
-        <div className="panel-title">
-          <h2>{panelTitle(activeTab)}</h2>
-          <div className="button-row" role="tablist" aria-label="SLA read views">
-            {TABS.map((tab) => (
-              <button
-                aria-selected={activeTab === tab.id}
-                className={activeTab === tab.id ? "btn btn-primary" : "btn btn-secondary"}
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                role="tab"
-                type="button"
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+      <PanelFrame
+        error={panels.clients.error}
+        id="sla-client-status"
+        loading={panels.clients.loading}
+        title={PANELS.clients.label}
+      >
+        <div className="table-wrap sla-table-wrap">
+          <table className="sla-table sla-client-table">
+            <thead>
+              <tr>
+                <th>Target SLA Day</th>
+                <th>State</th>
+                <th>Age Days</th>
+                <th>Staff</th>
+                <th>Service</th>
+                <th>Workflow Status</th>
+                <th>Client/Group</th>
+                <th>Last Activity</th>
+              </tr>
+            </thead>
+            <tbody>
+              {panels.clients.rows.length ? (
+                panels.clients.rows.map((row, index) => (
+                  <tr key={row.anchor_relationship_id ?? row.fc_client_id ?? index}>
+                    <td>{numberValue(textValue(row.target_sla_day, row.default_sla_day))}</td>
+                    <td>{stateBadge(row.sla_state)}</td>
+                    <td>{numberValue(row.age_days)}</td>
+                    <td>{textValue(row.assigned_staff_name, row.staff_name, row.staff_source)}</td>
+                    <td>{textValue(row.service_name, row.macro_service_type, `${numberValue(row.service_count)} services`)}</td>
+                    <td>{textValue(row.latest_workflow_status, row.workflow_status)}</td>
+                    <td>
+                      <span className="sla-primary">{textValue(row.fc_client_name, row.anchor_client_business_name)}</span>
+                      <span className="sla-muted">{textValue(row.group_name, row.anchor_relationship_id)}</span>
+                    </td>
+                    <td>{formatDate(textValue(row.last_activity_at, row.latest_revenue_event_loaded_at, row.next_target_date))}</td>
+                  </tr>
+                ))
+              ) : (
+                <EmptyRow colSpan={8} label="No client SLA rows" hint="No applicable client SLA data is available for this view." />
+              )}
+            </tbody>
+          </table>
         </div>
-        {activePanel.error ? <div className="error-toast">{activePanel.error}</div> : null}
-        {activePanel.loading ? (
-          <EmptyState label={`Loading ${activeTabConfig.label.toLowerCase()} view`} hint="Fetching the latest SLA snapshot." />
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>View</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activePanel.rows.length ? (
-                  activePanel.rows.slice(0, 5).map((row, index) => (
-                    <tr key={row.id ?? row.fc_client_id ?? row.staff_name ?? index}>
-                      <td>{row.client_name ?? row.staff_name ?? activeTabConfig.label}</td>
-                      <td>Task 6 panel detail</td>
-                    </tr>
-                  ))
-                ) : (
-                  <EmptyRow colSpan={2} label={`No ${activeTabConfig.label.toLowerCase()} rows`} hint="There is no SLA data for this view yet." />
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      </PanelFrame>
+
+      <PanelFrame
+        error={panels.workload.error}
+        id="sla-staff-workload"
+        loading={panels.workload.loading}
+        title={PANELS.workload.label}
+      >
+        <div className="table-wrap sla-table-wrap">
+          <table className="sla-table sla-workload-table">
+            <thead>
+              <tr>
+                <th>Staff</th>
+                <th>Open</th>
+                <th>Breached</th>
+                <th>At-Risk</th>
+                <th>Waiting-on-Client</th>
+                <th>Total/In-Flight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {panels.workload.rows.length ? (
+                panels.workload.rows.map((row, index) => (
+                  <tr key={row.assigned_staff_name ?? row.staff_name ?? index}>
+                    <td>
+                      <span className="sla-primary">{textValue(row.assigned_staff_name, row.staff_name, "Unassigned")}</span>
+                      <span className="sla-muted">{textValue(row.staff_source)}</span>
+                    </td>
+                    <td>{numberValue(row.open_count)}</td>
+                    <td>{numberValue(row.breached_count)}</td>
+                    <td>{numberValue(row.at_risk_count)}</td>
+                    <td>{numberValue(row.waiting_on_client_count)}</td>
+                    <td>{numberValue(textValue(row.total_in_flight_count, row.in_flight_count))}</td>
+                  </tr>
+                ))
+              ) : (
+                <EmptyRow colSpan={6} label="No staff workload rows" hint="No staff workload data is available yet." />
+              )}
+            </tbody>
+          </table>
+        </div>
+      </PanelFrame>
+
+      <PanelFrame
+        error={panels.queue.error}
+        id="sla-breach-queue"
+        loading={panels.queue.loading}
+        title={PANELS.queue.label}
+      >
+        <div className="table-wrap sla-table-wrap">
+          <table className="sla-table sla-queue-table">
+            <thead>
+              <tr>
+                <th>State</th>
+                <th>Age Days</th>
+                <th>Target SLA Day</th>
+                <th>Staff</th>
+                <th>Service</th>
+                <th>Workflow Status</th>
+                <th>Client/Group</th>
+                <th>Last Activity</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedQueueRows.length ? (
+                sortedQueueRows.map((row, index) => (
+                  <tr key={row.anchor_relationship_id ?? row.fc_client_id ?? `${row.service_name}-${index}`}>
+                    <td>{stateBadge(row.sla_state)}</td>
+                    <td>{numberValue(row.age_days)}</td>
+                    <td>{numberValue(row.target_sla_day)}</td>
+                    <td>{textValue(row.assigned_staff_name, row.staff_source)}</td>
+                    <td>
+                      <span className="sla-primary">{textValue(row.service_name)}</span>
+                      <span className="sla-muted">{textValue(row.macro_service_type)}</span>
+                    </td>
+                    <td>{textValue(row.latest_workflow_status)}</td>
+                    <td>
+                      <span className="sla-primary">{textValue(row.fc_client_name, row.anchor_client_business_name)}</span>
+                      <span className="sla-muted">{textValue(row.anchor_client_business_name)}</span>
+                    </td>
+                    <td>{formatDate(textValue(row.latest_invoice_date, row.trigger_date, row.target_date))}</td>
+                  </tr>
+                ))
+              ) : (
+                <EmptyRow colSpan={8} label="No breached or at-risk rows" hint="The queue is empty for breached and at-risk SLA work." />
+              )}
+            </tbody>
+          </table>
+        </div>
+      </PanelFrame>
+
+      <PanelFrame
+        error={panels.performance.error}
+        id="sla-performance"
+        loading={panels.performance.loading}
+        title={PANELS.performance.label}
+      >
+        <p className="sla-panel-note">Fixed 90-day performance by staff and service.</p>
+        <div className="table-wrap sla-table-wrap">
+          <table className="sla-table sla-performance-table">
+            <thead>
+              <tr>
+                <th>Staff</th>
+                <th>Service</th>
+                <th>90-day Completed</th>
+                <th>90-day Breached</th>
+                <th>At-Risk/Partial</th>
+                <th>Breach Rate</th>
+                <th>Avg Age Days</th>
+                <th>Last Activity</th>
+              </tr>
+            </thead>
+            <tbody>
+              {panels.performance.rows.length ? (
+                panels.performance.rows.map((row, index) => (
+                  <tr key={`${row.staff_name ?? "staff"}-${row.service_name ?? "service"}-${index}`}>
+                    <td>{textValue(row.staff_name, "Unassigned")}</td>
+                    <td>{textValue(row.service_name)}</td>
+                    <td>{numberValue(row.total_completed)}</td>
+                    <td>{numberValue(row.total_breached)}</td>
+                    <td>{numberValue(row.total_partial_or_at_risk)}</td>
+                    <td>{percentValue(row.breach_rate)}</td>
+                    <td>{numberValue(row.avg_age_days_to_complete)}</td>
+                    <td>{formatDate(row.last_completed_at)}</td>
+                  </tr>
+                ))
+              ) : (
+                <EmptyRow colSpan={8} label="No 90-day performance rows" hint="Completed task performance will appear when the fixed 90-day window has data." />
+              )}
+            </tbody>
+          </table>
+        </div>
+      </PanelFrame>
     </main>
   );
 }

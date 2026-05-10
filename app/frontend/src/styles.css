@@ -1831,3 +1831,192 @@ button.stat {
 .empty-cell {
   padding: 0 !important;
 }
+
+/* === V0.6.D: SLA dashboard === */
+
+.sla-dashboard-page,
+.sla-backfill-page {
+  color: #182126;
+}
+
+.sla-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+
+.sla-panel {
+  scroll-margin-top: 64px;
+}
+
+.sla-panel-title {
+  justify-content: space-between;
+}
+
+.sla-panel-note {
+  padding: 10px 14px;
+  border-bottom: 1px solid #eef2f4;
+  color: #5f6d75;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.sla-panel-error {
+  margin: 10px 14px;
+}
+
+.sla-table-wrap {
+  width: 100%;
+}
+
+.sla-table {
+  min-width: 1080px;
+  table-layout: fixed;
+}
+
+.sla-table th,
+.sla-table td {
+  padding: 10px 11px;
+  vertical-align: top;
+}
+
+.sla-table td {
+  color: #24313a;
+}
+
+.sla-table td:nth-child(n + 2):nth-child(-n + 6) {
+  font-variant-numeric: tabular-nums;
+}
+
+.sla-client-table th:nth-child(1),
+.sla-client-table td:nth-child(1),
+.sla-queue-table th:nth-child(3),
+.sla-queue-table td:nth-child(3) {
+  width: 118px;
+}
+
+.sla-client-table th:nth-child(2),
+.sla-client-table td:nth-child(2),
+.sla-queue-table th:nth-child(1),
+.sla-queue-table td:nth-child(1) {
+  width: 132px;
+}
+
+.sla-client-table th:nth-child(3),
+.sla-client-table td:nth-child(3),
+.sla-queue-table th:nth-child(2),
+.sla-queue-table td:nth-child(2),
+.sla-workload-table th:nth-child(n + 2),
+.sla-workload-table td:nth-child(n + 2) {
+  width: 106px;
+  text-align: right;
+}
+
+.sla-workload-table th:first-child,
+.sla-workload-table td:first-child {
+  width: 240px;
+  text-align: left;
+}
+
+.sla-performance-table th:nth-child(n + 3),
+.sla-performance-table td:nth-child(n + 3) {
+  width: 128px;
+  text-align: right;
+}
+
+.sla-backfill-table {
+  min-width: 980px;
+}
+
+.sla-backfill-table th:nth-child(1),
+.sla-backfill-table td:nth-child(1),
+.sla-backfill-table th:nth-child(2),
+.sla-backfill-table td:nth-child(2),
+.sla-backfill-table th:nth-child(3),
+.sla-backfill-table td:nth-child(3) {
+  width: 250px;
+}
+
+.sla-backfill-table th:nth-child(4),
+.sla-backfill-table td:nth-child(4) {
+  width: 105px;
+  text-align: right;
+}
+
+.sla-backfill-table th:nth-child(5),
+.sla-backfill-table td:nth-child(5) {
+  width: 180px;
+}
+
+.sla-primary {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #1e2b33;
+  font-weight: 800;
+  white-space: normal;
+}
+
+.sla-muted {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+  color: #6c7982;
+  font-size: 0.78rem;
+  white-space: normal;
+}
+
+.sla-state-badge,
+.sla-boolean-badge {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.sla-state-breached {
+  background: #fbe7e7;
+  color: #8a2f2f;
+}
+
+.sla-state-at-risk {
+  background: #fff0df;
+  color: #8a4b08;
+}
+
+.sla-state-waiting-on-client {
+  background: #edf4f8;
+  color: #245a77;
+}
+
+.sla-state-on-track,
+.sla-boolean-yes {
+  background: #e5f4ed;
+  color: #146343;
+}
+
+.sla-state-not-applicable,
+.sla-state-unknown,
+.sla-boolean-no {
+  background: #eef1f3;
+  color: #5b6870;
+}
+
+@media (max-width: 980px) {
+  .sla-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .sla-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sla-table {
+    min-width: 920px;
+  }
+}

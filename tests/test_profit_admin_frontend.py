@@ -488,6 +488,69 @@ class SlaDashboardFrontendShellTests(unittest.TestCase):
             self.assertNotIn(f'method: "{method}"', route_source)
             self.assertNotIn(f"method: '{method}'", route_source)
 
+    def test_sla_dashboard_panel_contract(self) -> None:
+        route_source = (ROOT / "app/frontend/src/routes/SlaDashboard.jsx").read_text(
+            encoding="utf-8"
+        )
+
+        for anchor in [
+            'id="sla-client-status"',
+            'id="sla-staff-workload"',
+            'id="sla-breach-queue"',
+            'id="sla-performance"',
+        ]:
+            self.assertIn(anchor, route_source)
+
+        for field_label in [
+            "Target SLA Day",
+            "State",
+            "Age Days",
+            "Staff",
+            "Service",
+            "Workflow Status",
+            "Client/Group",
+            "Last Activity",
+        ]:
+            self.assertIn(field_label, route_source)
+
+        for workload_label in [
+            "Open",
+            "Breached",
+            "At-Risk",
+            "Waiting-on-Client",
+            "Total/In-Flight",
+        ]:
+            self.assertIn(workload_label, route_source)
+
+        self.assertIn("90-day", route_source)
+        self.assertNotIn("lookback", route_source.lower())
+        self.assertNotIn("card card", route_source)
+
+    def test_sla_backfill_panel_contract(self) -> None:
+        route_source = (ROOT / "app/frontend/src/routes/SlaBackfill.jsx").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('id="sla-anchor-backfill"', route_source)
+        for field_label in [
+            "Client/Group",
+            "QBO Payment Evidence",
+            "Missing Anchor State",
+            "Age Days",
+            "auto_transition_eligible",
+        ]:
+            self.assertIn(field_label, route_source)
+
+        self.assertNotIn("card card", route_source)
+
+    def test_sla_dashboard_styles_are_scoped(self) -> None:
+        styles_source = (ROOT / "app/frontend/src/styles.css").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("/* === V0.6.D: SLA dashboard === */", styles_source)
+        self.assertIn(".sla-", styles_source)
+
 
 if __name__ == "__main__":
     unittest.main()
