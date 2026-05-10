@@ -5,6 +5,7 @@ const NAV_LINKS = [
   { to: "/admin/audit", label: "Audit" },
   { to: "/admin/pipeline", label: "Pipeline" },
   { to: "/admin/recognition", label: "Manual Recognition" },
+  { to: "/admin/sla", label: "SLA" },
 ];
 
 export default function PortalNav() {

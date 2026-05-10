@@ -85,7 +85,7 @@ function dateTimeLabel(value) {
   });
 }
 
-function Stat({ icon: Icon, label, value, detail, tone = "neutral", to, onClick }) {
+export function Stat({ icon: Icon, label, value, detail, tone = "neutral", to, onClick }) {
   const className = `stat stat-${tone}${to || onClick ? " stat-clickable" : ""}`;
   const body = (
     <>

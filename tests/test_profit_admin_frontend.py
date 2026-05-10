@@ -439,5 +439,55 @@ class ProfitAdminFrontendTests(unittest.TestCase):
         self.assertIn("proxy", source)
 
 
+class SlaDashboardFrontendShellTests(unittest.TestCase):
+    def test_sla_routes_are_registered_and_linked_from_nav(self) -> None:
+        app_source = (ROOT / "app/frontend/src/App.jsx").read_text(encoding="utf-8")
+        nav_source = (
+            ROOT / "app/frontend/src/components/PortalNav.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("SlaDashboard", app_source)
+        self.assertIn("SlaBackfill", app_source)
+        self.assertIn("/admin/sla", app_source)
+        self.assertIn("/admin/sla/backfill", app_source)
+        self.assertIn("SLA", nav_source)
+        self.assertIn("/admin/sla", nav_source)
+
+    def test_sla_dashboard_route_shell_static_contract(self) -> None:
+        route_path = ROOT / "app/frontend/src/routes/SlaDashboard.jsx"
+
+        self.assertTrue(route_path.exists())
+        route_source = route_path.read_text(encoding="utf-8")
+
+        self.assertIn("/profit/admin/sla/summary", route_source)
+        self.assertIn("/profit/admin/sla/clients", route_source)
+        self.assertIn("/profit/admin/sla/workload", route_source)
+        self.assertIn("/profit/admin/sla/queue", route_source)
+        self.assertIn("/profit/admin/sla/performance", route_source)
+        self.assertIn("EmptyState", route_source)
+        self.assertIn("EmptyRow", route_source)
+        self.assertIn("/admin/sla/backfill", route_source)
+        self.assertNotIn("/profit/admin/sla/backfill", route_source)
+
+        for method in ["POST", "PATCH", "DELETE"]:
+            self.assertNotIn(f'method: "{method}"', route_source)
+            self.assertNotIn(f"method: '{method}'", route_source)
+
+    def test_sla_backfill_route_shell_static_contract(self) -> None:
+        route_path = ROOT / "app/frontend/src/routes/SlaBackfill.jsx"
+
+        self.assertTrue(route_path.exists())
+        route_source = route_path.read_text(encoding="utf-8")
+
+        self.assertIn("/profit/admin/sla/backfill", route_source)
+        self.assertIn("EmptyState", route_source)
+        self.assertIn("EmptyRow", route_source)
+        self.assertIn("/admin/sla", route_source)
+
+        for method in ["POST", "PATCH", "DELETE"]:
+            self.assertNotIn(f'method: "{method}"', route_source)
+            self.assertNotIn(f"method: '{method}'", route_source)
+
+
 if __name__ == "__main__":
     unittest.main()
