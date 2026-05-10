@@ -1,0 +1,38 @@
+Service Name,Macro Type,Tier,Recognition Pattern,Form,Existing Notes,Current SLA Day,Internal SLA Day (FILL THIS),Operator Notes
+Advisory,advisory,,one_time,,Hourly project/ad-hoc advisory.,,n/a,(no fixed cadence; one-time/ad-hoc)
+Audit Support Service,advisory,,one_time,,Audit support is work performed; not audit protection.,,n/a,(one-time work; SLA per engagement)
+Fractional CFO,advisory,,monthly_recurring,,Recognize on advisory delivery/monthly meeting cadence.,,,
+Setup and Onboarding,advisory,,one_time,,Recognize at onboarding delivery/completion.,,n/a,(one-time; SLA per engagement)
+Specialized Services,advisory,,manual_review,,Default $0/varies; review before automated recognition.,,n/a,(manual review only)
+Accounting Advanced,bookkeeping,Advanced,monthly_recurring,,Per-engagement SLA override allowed via profit_anchor_agreements.sla_day_override.,10,10,(already set)
+Accounting Essential,bookkeeping,Essential,monthly_recurring,,Recognize from FC bookkeeping completion for prior month.,20,20,(already set)
+Accounting Plus,bookkeeping,Plus,monthly_recurring,,Recognize from FC bookkeeping completion for prior month.,10,10,(already set)
+Year End Accounting Close,bookkeeping,,manual_review,,Default $0/varies; review before automated recognition.,,n/a,(manual review only)
+Audit Protection Business,other,Business,manual_review,,Insurance-style accrual; enum does not yet include insurance_accrual. Review before automated recognition.,,n/a,(insurance accrual; no service delivery SLA)
+Audit Protection Individual,other,Individual,manual_review,,Insurance-style accrual; enum does not yet include insurance_accrual. Review before automated recognition.,,n/a,(insurance accrual; no service delivery SLA)
+Billable Expenses,pass_through,,pass_through,,Exclude from service revenue recognition.,,n/a,(pass-through; no SLA)
+Other Income,pass_through,,pass_through,,Exclude from service recognition unless separately reviewed.,,n/a,(pass-through; no SLA)
+Remote Desktop Access,pass_through,,pass_through,,Client reimbursement/access cost recovery.,,n/a,(pass-through; no SLA)
+Remote QBD Access,pass_through,,pass_through,,Client reimbursement/access cost recovery.,,n/a,(pass-through; no SLA)
+Services,pass_through,,pass_through,,Generic product excluded by default; explicit classification required.,,n/a,(pass-through; no SLA)
+form_941_quarterly,payroll,,quarterly_recurring,,Quarterly Form 941 payroll compliance.,30,30,(already set)
+Payroll Service,payroll,,monthly_recurring,,SLA follows payroll cadence; recognize by payroll processed trigger.,,,
+Payroll Tax Compliance,payroll,,quarterly_recurring,,Quarterly federal/state deadline-driven SLA.,,30,(matches form_941 cadence: 30 days after quarter end)
+Work Comp Tax,payroll,,manual_review,,Workers comp/payroll-adjacent compliance; review before automation.,,n/a,(manual review only)
+Sales Tax Compliance,sales_tax,,monthly_recurring,,Sales tax compliance is not annual income tax; keep out of tax_filed matching.,20,20,(already set)
+1040 Advanced,tax,Advanced,tax_filing,1040,Tier is complexity; not timing.,,104,
+1040 Essentials,tax,Essentials,tax_filing,1040,Tier is complexity; not timing.,,104,
+1040 Plus,tax,Plus,tax_filing,1040,Tier is complexity; not timing.,,104,
+1065 Advanced,tax,Advanced,tax_filing,1065,Tier is complexity; not timing.,,74,
+1065 Essential,tax,Essential,tax_filing,1065,Tier is complexity; not timing.,,74,
+1065 Plus,tax,Plus,tax_filing,1065,Tier is complexity; not timing.,,74,
+1099 Preparation,tax,,manual_review,,Monthly $0 edge case; require explicit review before automation.,,31,
+1120 Advanced,tax,Advanced,tax_filing,1120,Matches 1120 and 1120S corporate returns.,,74,
+1120 Essential,tax,Essential,tax_filing,1120,Matches 1120 and 1120S corporate returns.,,74,
+1120 Plus,tax,Plus,tax_filing,1120,Matches 1120 and 1120S corporate returns.,,74,
+990 Full Return Essential,tax,Essential,tax_filing,990,Nonprofit full return.,,135,(May 15 deadline for calendar-year nonprofits)
+990 Full Return Plus,tax,Plus,tax_filing,990,Nonprofit full return.,,135,(May 15 deadline for calendar-year nonprofits)
+990-EZ Short Form,tax,Short Form,tax_filing,990-EZ,Nonprofit short form.,,135,(May 15 deadline for calendar-year nonprofits)
+990-T Unrelated Business,tax,,tax_filing,990-T,Unrelated business income return.,,135,(May 15 calendar-year approximation; varies by FY)
+Annual Estimate Tax Review,tax,,one_time,estimate review,Recognize when estimate review is delivered/completed.,,90,
+Tangible Property Tax,tax,,manual_review,,Monthly billing exists but annual tangible-property cadence requires review.,,91,(April 1 Florida deadline)

@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ANCHOR_CSV = ROOT / "docs/data-references/anchor services.csv"
 QBO_CSV = ROOT / "docs/data-references/qbo-product-services.csv"
+SERVICE_SLA_TARGETS_CSV = ROOT / "docs/data-references/service-sla-targets.csv"
 OUTPUT_SQL = ROOT / "supabase/sql/018_profit_service_recognition_rules_crosswalk.sql"
 
 
@@ -119,23 +120,44 @@ def load_qbo_products(path: Path = QBO_CSV) -> dict[str, QboProduct]:
     return rows
 
 
+def parse_sla_day(value: str | None) -> int | None:
+    normalized = (value or "").strip()
+    if not normalized or normalized.lower() == "n/a":
+        return None
+    return int(normalized)
+
+
+def load_service_sla_targets(path: Path = SERVICE_SLA_TARGETS_CSV) -> dict[str, int | None]:
+    with path.open(encoding="utf-8-sig", newline="") as file:
+        rows: dict[str, int | None] = {}
+        for row in csv.DictReader(file):
+            service_name = (row.get("Service Name") or "").strip()
+            if not service_name:
+                continue
+            rows[service_name] = parse_sla_day(row.get("Internal SLA Day (FILL THIS)"))
+    return rows
+
+
 def build_crosswalk_rows(
     anchor_services: dict[str, AnchorService],
     qbo_products: dict[str, QboProduct],
+    service_sla_targets: dict[str, int | None] | None = None,
 ) -> dict[str, CrosswalkRow]:
+    service_sla_targets = service_sla_targets or {}
     rows: dict[str, CrosswalkRow] = {}
     for service_name, anchor_service in sorted(anchor_services.items()):
         rule = SERVICE_RULE_DEFAULTS.get(service_name)
         if rule is None:
             raise ValueError(f"No service recognition rule default for {service_name!r}")
         qbo_product = qbo_products.get(service_name)
+        default_sla_day = service_sla_targets.get(service_name, rule.default_sla_day)
         rows[service_name] = CrosswalkRow(
             service_name=service_name,
             macro_service_type=rule.macro_service_type,
             service_tier=rule.service_tier,
             recognition_pattern=rule.recognition_pattern,
             service_period_rule=rule.service_period_rule,
-            default_sla_day=rule.default_sla_day,
+            default_sla_day=default_sla_day,
             form_type_pattern=rule.form_type_pattern,
             notes=rule.notes,
             fc_tag=anchor_service.fc_tag,
@@ -185,6 +207,7 @@ def render_sql(rows: dict[str, CrosswalkRow]) -> str:
 -- Source files:
 --   docs/data-references/anchor services.csv
 --   docs/data-references/qbo-product-services.csv
+--   docs/data-references/service-sla-targets.csv
 
 alter table profit_service_recognition_rules
   add column if not exists fc_tag text,
@@ -250,12 +273,14 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--anchor-csv", type=Path, default=ANCHOR_CSV)
     parser.add_argument("--qbo-csv", type=Path, default=QBO_CSV)
+    parser.add_argument("--service-sla-targets-csv", type=Path, default=SERVICE_SLA_TARGETS_CSV)
     parser.add_argument("--output", type=Path, default=OUTPUT_SQL)
     args = parser.parse_args()
 
     rows = build_crosswalk_rows(
         load_anchor_services(args.anchor_csv),
         load_qbo_products(args.qbo_csv),
+        load_service_sla_targets(args.service_sla_targets_csv),
     )
     args.output.write_text(render_sql(rows), encoding="utf-8")
 
