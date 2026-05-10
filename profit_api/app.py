@@ -18,6 +18,7 @@ from profit_api.pipeline import (
     PipelineService,
     PipelineTriggerError,
 )
+from profit_api.sla import SlaDashboardService, SlaDashboardValidationError
 from profit_api.supabase import SupabaseRestClient
 
 
@@ -58,6 +59,7 @@ def create_app(
     manual_recognition_service: ManualRecognitionService | None = None,
     audit_service: AuditDashboardService | None = None,
     pipeline_service: PipelineService | None = None,
+    sla_service: SlaDashboardService | None = None,
 ) -> Any:
     try:
         from fastapi import FastAPI, HTTPException
@@ -80,6 +82,7 @@ def create_app(
     )
     audit_dashboard_service = audit_service or AuditDashboardService(supabase_client)
     pipeline_dashboard_service = pipeline_service or PipelineService(supabase_client)
+    sla_dashboard_service = sla_service or SlaDashboardService(supabase_client)
 
     @app.get("/api/profit/admin/dashboard")
     def admin_dashboard_snapshot(period: str | None = None) -> dict[str, object]:
@@ -266,6 +269,114 @@ def create_app(
             raise HTTPException(status_code=409, detail=exc.detail) from exc
         except PipelineTriggerError as exc:
             raise HTTPException(status_code=500, detail=exc.detail) from exc
+
+    @app.get("/api/profit/admin/sla/summary")
+    def sla_summary() -> dict[str, object]:
+        return sla_dashboard_service.summary()
+
+    @app.get("/api/profit/admin/sla/clients")
+    def sla_clients(
+        state: str | None = None,
+        staff: str | None = None,
+        service: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, object]:
+        try:
+            return sla_dashboard_service.clients(
+                state=state,
+                staff=staff,
+                service=service,
+                limit=limit,
+                offset=offset,
+            )
+        except SlaDashboardValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
+
+    @app.get("/api/profit/admin/sla/workload")
+    def sla_workload(
+        state: str | None = None,
+        staff: str | None = None,
+        service: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, object]:
+        try:
+            return sla_dashboard_service.workload(
+                state=state,
+                staff=staff,
+                service=service,
+                limit=limit,
+                offset=offset,
+            )
+        except SlaDashboardValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
+
+    @app.get("/api/profit/admin/sla/queue")
+    def sla_queue(
+        state: str | None = None,
+        staff: str | None = None,
+        service: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, object]:
+        try:
+            return sla_dashboard_service.queue(
+                state=state,
+                staff=staff,
+                service=service,
+                limit=limit,
+                offset=offset,
+            )
+        except SlaDashboardValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
+
+    @app.get("/api/profit/admin/sla/performance")
+    def sla_performance(
+        state: str | None = None,
+        staff: str | None = None,
+        service: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        lookback_days: int | None = None,
+    ) -> dict[str, object]:
+        if lookback_days is not None:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "field": "lookback_days",
+                    "message": "performance lookback is fixed at 90 days",
+                },
+            )
+        try:
+            return sla_dashboard_service.performance(
+                state=state,
+                staff=staff,
+                service=service,
+                limit=limit,
+                offset=offset,
+            )
+        except SlaDashboardValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
+
+    @app.get("/api/profit/admin/sla/backfill")
+    def sla_backfill(
+        state: str | None = None,
+        staff: str | None = None,
+        service: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, object]:
+        try:
+            return sla_dashboard_service.backfill(
+                state=state,
+                staff=staff,
+                service=service,
+                limit=limit,
+                offset=offset,
+            )
+        except SlaDashboardValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
 
     return app
 
