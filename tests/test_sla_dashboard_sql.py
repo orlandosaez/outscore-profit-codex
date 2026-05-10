@@ -4,6 +4,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = ROOT / "supabase/sql/028_profit_sla_core_views.sql"
+BACKFILL_MIGRATION = (
+    ROOT / "supabase/sql/028a_profit_sla_backfill_and_performance_views.sql"
+)
 
 
 class SlaDashboardCoreSqlTests(unittest.TestCase):
@@ -59,3 +62,42 @@ class SlaDashboardCoreSqlTests(unittest.TestCase):
         sql = MIGRATION.read_text().lower()
 
         self.assertNotIn("create function", sql)
+
+
+class SlaDashboardBackfillSqlTests(unittest.TestCase):
+    def test_sla_backfill_migration_exists(self) -> None:
+        self.assertTrue(BACKFILL_MIGRATION.exists())
+
+    def test_staff_service_performance_view_is_fixed_90_days(self) -> None:
+        sql = BACKFILL_MIGRATION.read_text().lower()
+
+        self.assertIn(
+            "create or replace view profit_sla_staff_service_performance_90d",
+            sql,
+        )
+        self.assertIn("interval '90 days'", sql)
+        self.assertIn("fixed 90-day", sql)
+        self.assertIn("staff fallback", sql)
+
+    def test_backfill_migration_defines_views_only(self) -> None:
+        sql = BACKFILL_MIGRATION.read_text().lower()
+
+        self.assertNotIn("create function", sql)
+        self.assertNotIn("create or replace function", sql)
+
+    def test_anchor_backfill_queue_view_contract(self) -> None:
+        sql = BACKFILL_MIGRATION.read_text()
+        lower_sql = sql.lower()
+
+        self.assertIn(
+            "create or replace view profit_sla_anchor_backfill_queue",
+            lower_sql,
+        )
+        self.assertIn("'SETTLED_VIA_QUICKBOOKS_PAYMENT'", sql)
+        self.assertIn("profit_cash_collections", lower_sql)
+        self.assertIn("qbo_payment_id", lower_sql)
+        self.assertIn("collected_at", lower_sql)
+        self.assertIn("collected_amount", lower_sql)
+        self.assertIn("profit_client_groups", lower_sql)
+        self.assertIn("auto_transition_eligible", lower_sql)
+        self.assertIn("read-only backfill", lower_sql)
