@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, Hourglass, PauseCircle, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -9,13 +9,11 @@ const apiBase = import.meta.env.VITE_PROFIT_API_BASE ?? "/api";
 const summaryEndpoint = `${apiBase}/profit/admin/sla/summary`;
 const clientsEndpoint = `${apiBase}/profit/admin/sla/clients`;
 const workloadEndpoint = `${apiBase}/profit/admin/sla/workload`;
-const queueEndpoint = `${apiBase}/profit/admin/sla/queue`;
 const performanceEndpoint = `${apiBase}/profit/admin/sla/performance`;
 
 const PANELS = {
   clients: { label: "Per-client SLA status", endpoint: clientsEndpoint },
   workload: { label: "Per-staff workload", endpoint: workloadEndpoint },
-  queue: { label: "Breach and at-risk queue", endpoint: queueEndpoint },
   performance: { label: "90-day staff/service performance", endpoint: performanceEndpoint },
 };
 const EMPTY_PANEL = { rows: [], loading: false, error: "" };
@@ -26,7 +24,6 @@ const STATE_LABELS = {
   on_track: "On Track",
   waiting_on_client: "Waiting-on-Client",
 };
-const STATE_SEVERITY = { breached: 1, at_risk: 2 };
 
 function numberValue(value) {
   if (value === null || value === undefined || value === "") return "-";
@@ -90,18 +87,8 @@ export default function SlaDashboard() {
   const [panels, setPanels] = useState({
     clients: EMPTY_PANEL,
     workload: EMPTY_PANEL,
-    queue: EMPTY_PANEL,
     performance: EMPTY_PANEL,
   });
-
-  const sortedQueueRows = useMemo(() => {
-    const rows = panels.queue.rows ?? [];
-    return [...rows].sort((left, right) => {
-      const severityDelta = (STATE_SEVERITY[left.sla_state] ?? 9) - (STATE_SEVERITY[right.sla_state] ?? 9);
-      if (severityDelta !== 0) return severityDelta;
-      return Number(right.age_days ?? 0) - Number(left.age_days ?? 0);
-    });
-  }, [panels.queue.rows]);
 
   async function loadSummary() {
     setSummaryLoading(true);
@@ -161,6 +148,7 @@ export default function SlaDashboard() {
           <span>Read-only SLA status, workload, queue, and 90-day performance views.</span>
         </div>
         <div className="manual-hero-actions">
+          <Link className="btn btn-secondary" to="/admin/weekly-review">Weekly Review</Link>
           <Link className="btn btn-secondary" to="/admin/sla/backfill">Anchor backfill</Link>
           <button className="icon-button" onClick={refreshPage} disabled={summaryLoading} title="Refresh SLA data" type="button">
             <RefreshCw size={18} aria-hidden="true" />
@@ -285,54 +273,6 @@ export default function SlaDashboard() {
                 ))
               ) : (
                 <EmptyRow colSpan={6} label="No staff workload rows" hint="No staff workload data is available yet." />
-              )}
-            </tbody>
-          </table>
-        </div>
-      </PanelFrame>
-
-      <PanelFrame
-        error={panels.queue.error}
-        id="sla-breach-queue"
-        loading={panels.queue.loading}
-        title={PANELS.queue.label}
-      >
-        <div className="table-wrap sla-table-wrap">
-          <table className="sla-table sla-queue-table">
-            <thead>
-              <tr>
-                <th>State</th>
-                <th>Age Days</th>
-                <th>Target SLA Day</th>
-                <th>Staff</th>
-                <th>Service</th>
-                <th>Workflow Status</th>
-                <th>Client/Group</th>
-                <th>Last Activity</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedQueueRows.length ? (
-                sortedQueueRows.map((row, index) => (
-                  <tr key={row.anchor_relationship_id ?? row.fc_client_id ?? `${row.service_name}-${index}`}>
-                    <td>{stateBadge(row.sla_state)}</td>
-                    <td>{numberValue(row.age_days)}</td>
-                    <td>{numberValue(row.target_sla_day)}</td>
-                    <td>{textValue(row.assigned_staff_name, row.staff_source)}</td>
-                    <td>
-                      <span className="sla-primary">{textValue(row.service_name)}</span>
-                      <span className="sla-muted">{textValue(row.macro_service_type)}</span>
-                    </td>
-                    <td>{textValue(row.latest_workflow_status)}</td>
-                    <td>
-                      <span className="sla-primary">{textValue(row.fc_client_name, row.anchor_client_business_name)}</span>
-                      <span className="sla-muted">{textValue(row.anchor_client_business_name)}</span>
-                    </td>
-                    <td>{formatDate(textValue(row.latest_invoice_date, row.trigger_date, row.target_date))}</td>
-                  </tr>
-                ))
-              ) : (
-                <EmptyRow colSpan={8} label="No breached or at-risk rows" hint="The queue is empty for breached and at-risk SLA work." />
               )}
             </tbody>
           </table>

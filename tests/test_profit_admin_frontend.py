@@ -438,6 +438,75 @@ class ProfitAdminFrontendTests(unittest.TestCase):
         self.assertIn("VITE_BASE_PATH", source)
         self.assertIn("proxy", source)
 
+    def test_weekly_review_renders_sla_breached_verdict(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/WeeklyReview.jsx"
+        ).read_text(encoding="utf-8")
+
+        # New verdict code + label registered in ITEM_TYPE_LABELS
+        self.assertIn("SLA_BREACHED", route_source)
+        self.assertIn("SLA Breached", route_source)
+
+    def test_weekly_review_reads_sla_specific_fields(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/WeeklyReview.jsx"
+        ).read_text(encoding="utf-8")
+
+        for field in [
+            "breach_state",
+            "breach_age_days",
+            "target_date",
+            "assigned_staff_name",
+            "staff_source",
+        ]:
+            self.assertIn(field, route_source)
+
+    def test_weekly_review_keeps_operator_controls_for_all_rows(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/WeeklyReview.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("Mark reviewed", route_source)
+        self.assertIn("Snooze 7 days", route_source)
+
+    def test_sla_dashboard_drops_breach_queue_endpoint(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/SlaDashboard.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("/profit/admin/sla/queue", route_source)
+
+    def test_sla_dashboard_drops_breach_queue_anchor(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/SlaDashboard.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn('id="sla-breach-queue"', route_source)
+
+    def test_sla_dashboard_drops_sorted_queue_rows(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/SlaDashboard.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("sortedQueueRows", route_source)
+
+    def test_sla_dashboard_links_to_weekly_review(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/SlaDashboard.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('to="/admin/weekly-review"', route_source)
+
+    def test_weekly_review_styles_include_sla_breached_section(self) -> None:
+        styles_source = (
+            ROOT / "app/frontend/src/styles.css"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "/* === V0.7.B: SLA breached rendering === */",
+            styles_source,
+        )
+
 
 class SlaDashboardFrontendShellTests(unittest.TestCase):
     def test_sla_routes_are_registered_and_linked_from_nav(self) -> None:
@@ -462,7 +531,6 @@ class SlaDashboardFrontendShellTests(unittest.TestCase):
         self.assertIn("/profit/admin/sla/summary", route_source)
         self.assertIn("/profit/admin/sla/clients", route_source)
         self.assertIn("/profit/admin/sla/workload", route_source)
-        self.assertIn("/profit/admin/sla/queue", route_source)
         self.assertIn("/profit/admin/sla/performance", route_source)
         self.assertIn("EmptyState", route_source)
         self.assertIn("EmptyRow", route_source)
@@ -496,7 +564,6 @@ class SlaDashboardFrontendShellTests(unittest.TestCase):
         for anchor in [
             'id="sla-client-status"',
             'id="sla-staff-workload"',
-            'id="sla-breach-queue"',
             'id="sla-performance"',
         ]:
             self.assertIn(anchor, route_source)

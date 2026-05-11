@@ -2128,3 +2128,43 @@ button.stat {
     min-width: 800px;
   }
 }
+
+/* === V0.7.B: SLA breached rendering === */
+
+.weekly-review-sla-details,
+.weekly-review-manual-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.85rem;
+}
+
+.weekly-review-sla-overdue {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.weekly-review-sla-target,
+.weekly-review-sla-staff,
+.weekly-review-manual-rev {
+  color: #4b5563;
+}
+
+.weekly-review-breach-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.weekly-review-breach-breached {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.weekly-review-breach-at-risk {
+  background: #fef3c7;
+  color: #92400e;
+}

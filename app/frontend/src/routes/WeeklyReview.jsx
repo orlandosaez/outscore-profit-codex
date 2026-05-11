@@ -8,6 +8,7 @@ const itemsEndpoint = `${apiBase}/profit/admin/weekly-review/items`;
 
 const ITEM_TYPE_LABELS = {
   MANUAL_INVOICE_PENDING: "Manual Invoice Pending",
+  SLA_BREACHED: "SLA Breached",
 };
 
 function itemTypeBadge(itemType) {
@@ -26,6 +27,59 @@ function currencyValue(value) {
 function textValue(...values) {
   const found = values.find((v) => v !== null && v !== undefined && v !== "");
   return found === undefined ? "-" : found;
+}
+
+function formatDate(value) {
+  if (!value || value === "-") return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function breachStateBadge(breachState) {
+  if (!breachState) return "-";
+  const normalized = String(breachState);
+  const className = `weekly-review-breach-badge weekly-review-breach-${normalized.replaceAll("_", "-")}`;
+  const label = normalized === "at_risk" ? "at risk" : normalized;
+  return <span className={className}>{label}</span>;
+}
+
+function SlaDetails({ row }) {
+  const staff = textValue(row.assigned_staff_name);
+  const source = row.staff_source ? ` (${row.staff_source})` : "";
+  const overdueText =
+    row.breach_age_days !== null && row.breach_age_days !== undefined
+      ? `${row.breach_age_days} days overdue`
+      : null;
+  return (
+    <div className="weekly-review-sla-details">
+      <div>{breachStateBadge(row.breach_state)}</div>
+      {overdueText ? (
+        <div className="weekly-review-sla-overdue">{overdueText}</div>
+      ) : null}
+      <div className="weekly-review-sla-target">
+        Target: {formatDate(row.target_date)}
+      </div>
+      <div className="weekly-review-sla-staff">
+        Staff: {staff}{source}
+      </div>
+    </div>
+  );
+}
+
+function ManualInvoiceDetails({ row }) {
+  return (
+    <div className="weekly-review-manual-details">
+      <div>{textValue(row.invoice_state)}</div>
+      <div className="weekly-review-manual-rev">
+        Est. annual rev: {currencyValue(row.est_annual_revenue ?? row.estimated_annual_revenue)}
+      </div>
+    </div>
+  );
 }
 
 export default function WeeklyReview() {
@@ -137,8 +191,8 @@ export default function WeeklyReview() {
                 <th>Age (days)</th>
                 <th>Client</th>
                 <th>Services</th>
-                <th>Invoice State</th>
-                <th>Est. Annual Rev</th>
+                <th>Type</th>
+                <th>Details</th>
                 <th>Action</th>
                 <th>Controls</th>
               </tr>
@@ -153,8 +207,14 @@ export default function WeeklyReview() {
                       <span className="weekly-review-primary">{textValue(row.client_name, row.anchor_client_business_name)}</span>
                     </td>
                     <td>{textValue(row.service_name, row.services)}</td>
-                    <td>{itemTypeBadge(row.item_type ?? "MANUAL_INVOICE_PENDING")}</td>
-                    <td>{currencyValue(row.est_annual_revenue ?? row.estimated_annual_revenue)}</td>
+                    <td>{itemTypeBadge(row.item_type ?? row.verdict_code ?? "MANUAL_INVOICE_PENDING")}</td>
+                    <td>
+                      {row.verdict_code === "SLA_BREACHED" ? (
+                        <SlaDetails row={row} />
+                      ) : (
+                        <ManualInvoiceDetails row={row} />
+                      )}
+                    </td>
                     <td>
                       {row.action_url ? (
                         <a
@@ -163,7 +223,7 @@ export default function WeeklyReview() {
                           rel="noopener noreferrer"
                           target="_blank"
                         >
-                          Open in Anchor
+                          Open work item
                         </a>
                       ) : (
                         "-"
