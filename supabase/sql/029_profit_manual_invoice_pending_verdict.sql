@@ -80,7 +80,7 @@ select
   end as invoice_state,
   greatest(
     0,
-    current_date - coalesce(active_manual_classification.classified_at::date, agreement.effective_date, current_date)
+    current_date - coalesce(active_manual_classification.classified_at::date, agreement.effective_date::date, current_date)
   )::integer as age_days,
   coalesce(manual_services.estimated_annual_revenue, 0)::numeric as estimated_annual_revenue,
   coalesce(
