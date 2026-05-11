@@ -147,7 +147,7 @@ export default function WeeklyReview() {
               {items.length ? (
                 items.map((row, index) => (
                   <tr key={row.classification_id ?? index}>
-                    <td>{index + 1}</td>
+                    <td>{row.sort_rank ?? index + 1}</td>
                     <td>{textValue(row.age_days)}</td>
                     <td>
                       <span className="weekly-review-primary">{textValue(row.client_name, row.anchor_client_business_name)}</span>
@@ -171,17 +171,23 @@ export default function WeeklyReview() {
                     </td>
                     <td className="weekly-review-controls-cell">
                       <button
-                        className="btn btn-secondary btn-sm"
+                        className="btn btn-secondary weekly-review-btn-sm"
+                        disabled={row.classification_id == null}
                         onClick={() => markReviewed(row.classification_id)}
-                        title="Mark this item as reviewed"
+                        title={row.classification_id == null
+                          ? "Available after next pipeline run creates the classification"
+                          : "Mark this item as reviewed"}
                         type="button"
                       >
                         Mark reviewed
                       </button>
                       <button
-                        className="btn btn-secondary btn-sm"
+                        className="btn btn-secondary weekly-review-btn-sm"
+                        disabled={row.classification_id == null}
                         onClick={() => snoozeItem(row.classification_id)}
-                        title="Snooze this item for 7 days"
+                        title={row.classification_id == null
+                          ? "Available after next pipeline run creates the classification"
+                          : "Snooze this item for 7 days"}
                         type="button"
                       >
                         Snooze 7 days

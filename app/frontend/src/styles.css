@@ -2113,9 +2113,14 @@ button.stat {
   align-items: center;
 }
 
-.btn-sm {
+.weekly-review-btn-sm {
   padding: 0.25rem 0.6rem;
   font-size: 0.8125rem;
+}
+
+.weekly-review-btn-sm[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @media (max-width: 640px) {
