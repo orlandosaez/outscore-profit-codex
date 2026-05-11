@@ -11,6 +11,7 @@ SQL_025C = ROOT / "supabase/sql/025c_profit_inactive_client_reemergence_scan_v2.
 SQL_025D = ROOT / "supabase/sql/025d_profit_apply_classification_transitions.sql"
 SQL_029 = ROOT / "supabase/sql/029_profit_manual_invoice_pending_verdict.sql"
 SQL_029A = ROOT / "supabase/sql/029a_profit_weekly_review_items.sql"
+SQL_030 = ROOT / "supabase/sql/030_profit_sla_breached_verdict.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -32,6 +33,10 @@ CANONICAL_VERDICTS = [
 
 
 class FulfillmentClassificationSqlTests(unittest.TestCase):
+    def _read_sql_030(self) -> str:
+        self.assertTrue(SQL_030.exists(), "030 SLA breached migration file must exist")
+        return SQL_030.read_text(encoding="utf-8")
+
     def test_migration_023_creates_verdict_lookup_and_classification_history(self) -> None:
         sql = SQL_023.read_text(encoding="utf-8")
         lower = sql.lower()
@@ -279,6 +284,79 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
             "updated_at" in lower and ("trigger" in lower or "returns trigger" in lower),
             "029a must include an updated_at maintenance mechanism",
         )
+
+    def test_migration_030_exists(self) -> None:
+        self.assertTrue(SQL_030.exists(), "030 SLA breached migration file must exist")
+
+    def test_migration_030_seeds_sla_breached_verdict_attributes(self) -> None:
+        sql = self._read_sql_030()
+        lower = sql.lower()
+
+        self.assertIn("insert into profit_classification_verdicts", lower)
+        self.assertIn("SLA_BREACHED", sql)
+        self.assertIn(
+            "('SLA_BREACHED', 'SLA breached', 'pending', 'show', false, true",
+            sql,
+        )
+        self.assertIn("auto_transition_enabled", lower)
+        self.assertIn("on conflict (verdict_code) do update set", lower)
+
+    def test_migration_030_seeds_sla_clearance_transition_rules(self) -> None:
+        sql = self._read_sql_030()
+        lower = sql.lower()
+
+        self.assertIn("insert into profit_classification_transition_rules", lower)
+        self.assertIn("('SLA_BREACHED', 'sla_task_complete', 'SLA_BREACHED', false, true", sql)
+        self.assertIn("('SLA_BREACHED', 'sla_project_archived', 'SLA_BREACHED', false, true", sql)
+        self.assertIn("is_completed = true or completed_at is not null", lower)
+        self.assertIn("is_closed = true or closed_at is not null", lower)
+
+    def test_migration_030_creates_sla_breached_candidate_view_contract(self) -> None:
+        sql = self._read_sql_030()
+        lower = sql.lower()
+
+        self.assertIn("create or replace view profit_sla_breached_candidates", lower)
+        self.assertIn("from profit_sla_service_items", lower)
+        self.assertIn("sla_state in ('breached', 'at_risk')", lower)
+        self.assertIn("default_sla_day is not null", lower)
+        self.assertIn("target_sla_day is not null", lower)
+        self.assertIn("target_date is not null", lower)
+
+        for column in [
+            "classification_id",
+            "classified_at",
+            "verdict_code",
+            "fc_client_id",
+            "anchor_relationship_id",
+            "agreement_id",
+            "client_name",
+            "service_name",
+            "macro_service_type",
+            "fc_tag",
+            "breach_state",
+            "age_days",
+            "breach_age_days",
+            "work_age_days",
+            "target_date",
+            "target_sla_day",
+            "assigned_staff_name",
+            "staff_source",
+            "latest_workflow_status",
+            "fc_task_id",
+            "fc_project_id",
+            "action_url",
+        ]:
+            self.assertIn(column, lower)
+
+    def test_migration_030_candidate_view_dedupes_active_sla_classifications(self) -> None:
+        sql = self._read_sql_030()
+        lower = sql.lower()
+
+        self.assertIn("active_sla_classification", lower)
+        self.assertIn("classification.verdict_code = 'SLA_BREACHED'", sql)
+        self.assertIn("classification.superseded_at is null", lower)
+        self.assertIn("distinct on (classification.fc_client_id, split_part(classification.source_audit_row_hash, ':', 3))", lower)
+        self.assertIn("'sla_breached:' || item.fc_client_id::text || ':' || item.service_name", lower)
 
     def test_migration_029a_creates_weekly_review_items_queue_view(self) -> None:
         self.assertTrue(SQL_029A.exists(), "029a migration file must exist")
