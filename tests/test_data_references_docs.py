@@ -205,6 +205,30 @@ class DataReferencesDocsTests(unittest.TestCase):
         self.assertIn("practice_id", contract)
         self.assertIn("V0.7.E", contract)
 
+    def test_v07a_tech_debt_and_clearance_documented(self) -> None:
+        tech_debt = (ROOT / "docs/tech-debt.md").read_text(encoding="utf-8")
+        weekly_review = (ROOT / "docs/data-contracts/weekly-review.md").read_text(
+            encoding="utf-8"
+        )
+        fulfillment = (ROOT / "docs/data-contracts/fulfillment-classifications.md").read_text(
+            encoding="utf-8"
+        )
+
+        # Tech debt: stale MANUAL_INVOICE_PENDING cleanup deferred to V0.7.D
+        self.assertIn("MANUAL_INVOICE_PENDING", tech_debt)
+        self.assertIn("V0.7.D", tech_debt)
+
+        # Tech debt: Anchor action_url discovery (raw->>'link' field) documented
+        self.assertIn("raw->>'link'", tech_debt)
+
+        # Fulfillment contract: both V0.7.A clearance conditions
+        self.assertIn("manual_invoice_issued", fulfillment)
+        self.assertIn("manual_invoice_agreement_terminated", fulfillment)
+
+        # Weekly Review docs: default visible-verdict filtering documented
+        self.assertIn("Default Filtering", weekly_review)
+        self.assertIn("profit_weekly_review_visible_verdicts", weekly_review)
+
 
 if __name__ == "__main__":
     unittest.main()
