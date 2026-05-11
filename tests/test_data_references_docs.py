@@ -184,5 +184,27 @@ class DataReferencesDocsTests(unittest.TestCase):
         self.assertIn("Manual Recognition UI polish", tech_debt)
 
 
+    def test_weekly_review_contract_documents_v07a_queue_semantics(self) -> None:
+        contract_path = ROOT / "docs/data-contracts/weekly-review.md"
+        self.assertTrue(contract_path.exists(), "docs/data-contracts/weekly-review.md must exist")
+
+        contract = contract_path.read_text(encoding="utf-8")
+
+        # Core tables and views
+        self.assertIn("profit_weekly_review_item_state", contract)
+        self.assertIn("profit_weekly_review_items", contract)
+
+        # UI interaction semantics
+        self.assertIn("Snooze 7 days", contract)
+        self.assertIn("Show reviewed", contract)
+
+        # V0.7.A verdict registered
+        self.assertIn("MANUAL_INVOICE_PENDING", contract)
+
+        # practice_id deferred
+        self.assertIn("practice_id", contract)
+        self.assertIn("V0.7.E", contract)
+
+
 if __name__ == "__main__":
     unittest.main()

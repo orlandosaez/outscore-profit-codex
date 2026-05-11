@@ -10,6 +10,7 @@ SQL_025A = ROOT / "supabase/sql/025a_profit_inactive_client_reemergence_scan.sql
 SQL_025C = ROOT / "supabase/sql/025c_profit_inactive_client_reemergence_scan_v2.sql"
 SQL_025D = ROOT / "supabase/sql/025d_profit_apply_classification_transitions.sql"
 SQL_029 = ROOT / "supabase/sql/029_profit_manual_invoice_pending_verdict.sql"
+SQL_029A = ROOT / "supabase/sql/029a_profit_weekly_review_items.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -248,6 +249,83 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
             "cash_collected_standalone_mid_cycle",
         ]:
             self.assertIn(existing_signal, sql)
+
+    def test_migration_029a_creates_weekly_review_state_table(self) -> None:
+        self.assertTrue(SQL_029A.exists(), "029a migration file must exist")
+        sql = SQL_029A.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        # Table must be created
+        self.assertIn("create table if not exists profit_weekly_review_item_state", lower)
+
+        # Primary key + FK to profit_classifications
+        self.assertIn("classification_id bigint", lower)
+        self.assertIn("references profit_classifications", lower)
+
+        # Review state columns
+        self.assertIn("reviewed_at timestamptz", lower)
+        self.assertIn("snoozed_until date", lower)
+
+        # Operator + practice metadata
+        self.assertIn("operator_id text not null default 'orlando'", lower)
+        self.assertIn("practice_id text", lower)
+
+        # Audit timestamps
+        self.assertIn("created_at timestamptz", lower)
+        self.assertIn("updated_at timestamptz", lower)
+
+        # updated_at trigger or explicit mechanism
+        self.assertTrue(
+            "updated_at" in lower and ("trigger" in lower or "returns trigger" in lower),
+            "029a must include an updated_at maintenance mechanism",
+        )
+
+    def test_migration_029a_creates_weekly_review_items_queue_view(self) -> None:
+        self.assertTrue(SQL_029A.exists(), "029a migration file must exist")
+        sql = SQL_029A.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        # Queue view must be created
+        self.assertIn("create or replace view profit_weekly_review_items", lower)
+
+        # Required output columns
+        for column in [
+            "practice_id",
+            "item_type",
+            "verdict_code",
+            "classification_id",
+            "reviewed_at",
+            "snoozed_until",
+            "operator_id",
+            "action_url",
+            "age_days",
+            "sort_rank",
+        ]:
+            self.assertIn(column, lower)
+
+        # Joins candidate view
+        self.assertIn("profit_manual_invoice_pending_candidates", lower)
+
+        # Left-joins review state
+        self.assertIn("left join profit_weekly_review_item_state", lower)
+
+        # Filters to registered visible verdicts (via visible_verdicts registry)
+        self.assertIn("profit_weekly_review_visible_verdicts", lower)
+
+        # MANUAL_INVOICE_PENDING seeded into visible_verdicts registry
+        self.assertIn("manual_invoice_pending", lower)
+
+        # View must not contain INSERT/UPDATE/DELETE (read-only)
+        lower_stripped = lower.replace("-- ", "")
+        self.assertNotIn("\ninsert into profit_classifications", lower_stripped)
+        self.assertNotIn("\nupdate profit_classifications", lower_stripped)
+        self.assertNotIn("\ndelete from profit_classifications", lower_stripped)
+
+        # sort_rank must use row_number or rank window function
+        self.assertTrue(
+            "row_number()" in lower or "rank()" in lower,
+            "sort_rank must be defined using a window function",
+        )
 
 
 if __name__ == "__main__":
