@@ -7,6 +7,7 @@ import ManualRecognition from "./routes/ManualRecognition.jsx";
 import PipelineRuns from "./routes/PipelineRuns.jsx";
 import SlaBackfill from "./routes/SlaBackfill.jsx";
 import SlaDashboard from "./routes/SlaDashboard.jsx";
+import WeeklyReview from "./routes/WeeklyReview.jsx";
 
 const basename = import.meta.env.VITE_BASE_PATH ?? "/";
 
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/admin/recognition" element={<ManualRecognition />} />
         <Route path="/admin/sla" element={<SlaDashboard />} />
         <Route path="/admin/sla/backfill" element={<SlaBackfill />} />
+        <Route path="/admin/weekly-review" element={<WeeklyReview />} />
       </Routes>
     </BrowserRouter>
   );

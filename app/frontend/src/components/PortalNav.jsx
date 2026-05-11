@@ -6,6 +6,7 @@ const NAV_LINKS = [
   { to: "/admin/pipeline", label: "Pipeline" },
   { to: "/admin/recognition", label: "Manual Recognition" },
   { to: "/admin/sla", label: "SLA" },
+  { to: "/admin/weekly-review", label: "Weekly Review" },
 ];
 
 export default function PortalNav() {

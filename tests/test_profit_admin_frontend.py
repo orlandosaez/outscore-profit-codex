@@ -551,6 +551,61 @@ class SlaDashboardFrontendShellTests(unittest.TestCase):
         self.assertIn("/* === V0.6.D: SLA dashboard === */", styles_source)
         self.assertIn(".sla-", styles_source)
 
+    def test_weekly_review_route_is_registered_and_linked_from_nav(self) -> None:
+        app_source = (ROOT / "app/frontend/src/App.jsx").read_text(encoding="utf-8")
+        nav_source = (ROOT / "app/frontend/src/components/PortalNav.jsx").read_text(encoding="utf-8")
+
+        self.assertIn("WeeklyReview", app_source)
+        self.assertIn("/admin/weekly-review", app_source)
+        self.assertIn("/admin/weekly-review", nav_source)
+        self.assertIn("Weekly Review", nav_source)
+
+    def test_weekly_review_route_shell_static_contract(self) -> None:
+        route_path = ROOT / "app/frontend/src/routes/WeeklyReview.jsx"
+        self.assertTrue(route_path.exists())
+        route_source = route_path.read_text(encoding="utf-8")
+
+        # Fetches the weekly review items endpoint
+        self.assertIn("/profit/admin/weekly-review/items", route_source)
+
+        # Surfaces MANUAL_INVOICE_PENDING items
+        self.assertIn("MANUAL_INVOICE_PENDING", route_source)
+
+        # Operator controls
+        self.assertIn("Show reviewed", route_source)
+        self.assertIn("Snooze 7 days", route_source)
+        self.assertIn("Mark reviewed", route_source)
+
+        # Uses empty/loading conventions
+        self.assertTrue(
+            "EmptyState" in route_source or "EmptyRow" in route_source,
+            "WeeklyReview must use EmptyState or EmptyRow for empty/loading states",
+        )
+
+    def test_weekly_review_route_action_and_link_contract(self) -> None:
+        route_source = (ROOT / "app/frontend/src/routes/WeeklyReview.jsx").read_text(
+            encoding="utf-8"
+        )
+
+        # Posts to action endpoints
+        self.assertIn("/weekly-review/items/", route_source)
+
+        # Renders Anchor link when action_url exists
+        self.assertIn("action_url", route_source)
+
+        # No nested cards
+        self.assertNotIn("card card", route_source)
+
+    def test_weekly_review_styles_are_scoped(self) -> None:
+        styles_source = (ROOT / "app/frontend/src/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn("/* === V0.7.A: Weekly review === */", styles_source)
+        # Route-scoped selectors
+        self.assertTrue(
+            ".weekly-review" in styles_source or ".weekly-" in styles_source,
+            "Weekly review styles must use .weekly-review or .weekly- prefix",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

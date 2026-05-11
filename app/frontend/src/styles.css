@@ -2020,3 +2020,106 @@ button.stat {
     min-width: 920px;
   }
 }
+
+/* === V0.7.A: Weekly review === */
+
+.weekly-review-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1.25rem 2.5rem;
+}
+
+.weekly-review-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  margin-bottom: 0.5rem;
+}
+
+.weekly-review-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+  user-select: none;
+}
+
+.weekly-review-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.weekly-review-table th,
+.weekly-review-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.weekly-review-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.weekly-review-table tr:last-child td {
+  border-bottom: none;
+}
+
+.weekly-review-table tbody tr:hover {
+  background: #f0f4f8;
+}
+
+.weekly-review-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: #fef3c7;
+  color: #92400e;
+  white-space: nowrap;
+}
+
+.weekly-review-action-link {
+  font-size: 0.8125rem;
+  color: #2563eb;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.weekly-review-action-link:hover {
+  text-decoration: underline;
+}
+
+.weekly-review-primary {
+  display: block;
+  font-weight: 500;
+  color: #111827;
+}
+
+.weekly-review-controls-cell {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 640px) {
+  .weekly-review-table {
+    min-width: 800px;
+  }
+}
