@@ -6,9 +6,10 @@ from typing import Protocol
 
 WeeklyReviewRow = dict[str, object]
 
-# Verdict codes registered in profit_weekly_review_visible_verdicts for V0.7.A.
-# V0.7.B-D will add additional codes here alongside the SQL seed.
-VISIBLE_VERDICT_CODES: frozenset[str] = frozenset({"MANUAL_INVOICE_PENDING"})
+# Verdict codes registered in profit_weekly_review_visible_verdicts.
+# V0.7.A: MANUAL_INVOICE_PENDING; V0.7.B: SLA_BREACHED.
+# V0.7.C-D will add additional codes here alongside the SQL seed.
+VISIBLE_VERDICT_CODES: frozenset[str] = frozenset({"MANUAL_INVOICE_PENDING", "SLA_BREACHED"})
 
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200

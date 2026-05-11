@@ -199,6 +199,36 @@ class WeeklyReviewApiListTests(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 422)
 
+    def test_list_verdict_code_filter_accepts_sla_breached(self) -> None:
+        rows = [_make_row(1, verdict_code="SLA_BREACHED")]
+        client, _ = self.build_client({"profit_weekly_review_items": rows})
+        resp = client.get(
+            "/api/profit/admin/weekly-review/items?verdict_code=SLA_BREACHED"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()["rows"]), 1)
+        self.assertEqual(resp.json()["rows"][0]["verdict_code"], "SLA_BREACHED")
+
+    def test_list_mixed_verdict_rows_sort_by_sql_sort_rank(self) -> None:
+        # SQL sort_rank already band-orders SLA_BREACHED before MANUAL_INVOICE_PENDING.
+        # API must preserve that ordering when no verdict_code filter is set.
+        rows = [
+            _make_row(1, verdict_code="MANUAL_INVOICE_PENDING", sort_rank=3),
+            _make_row(2, verdict_code="SLA_BREACHED", sort_rank=1),
+            _make_row(3, verdict_code="SLA_BREACHED", sort_rank=2),
+        ]
+        client, _ = self.build_client({"profit_weekly_review_items": rows})
+        resp = client.get("/api/profit/admin/weekly-review/items")
+        self.assertEqual(resp.status_code, 200)
+        ordered = [r["classification_id"] for r in resp.json()["rows"]]
+        self.assertEqual(ordered, [2, 3, 1])
+
+    def test_visible_verdict_codes_now_includes_sla_breached(self) -> None:
+        from profit_api.weekly_review import VISIBLE_VERDICT_CODES
+
+        self.assertIn("MANUAL_INVOICE_PENDING", VISIBLE_VERDICT_CODES)
+        self.assertIn("SLA_BREACHED", VISIBLE_VERDICT_CODES)
+
     def test_list_limit_clamps_to_1_200(self) -> None:
         rows = [_make_row(i) for i in range(1, 6)]
         client, _ = self.build_client({"profit_weekly_review_items": rows})
