@@ -73,6 +73,9 @@ Reference unresolved name list at the time of capture: `/tmp/unresolved_service_
 
 V0.7.B Task 1 SLA profiling surfaced three structural V0.7.D dependencies. V0.7.D scope was expanded on 2026-05-11 to cover them alongside its original "manual recognition + pipeline failures" scope. Estimated effort grew from 1d to 2d.
 
+**Deploy-time SQL fix (folded into V0.7.B ship commit):** Migration 030's `profit_apply_classification_transitions` referenced `project.project_title` in the `sla_project_archived` clearance branch, but `profit_fc_projects.project_title` does not exist (column is `title`). Caught at psql apply during Task 8; fixed to `project.title` and re-applied. Same V0.6.D/V0.7.A pattern of schema mismatch caught by live SQL rather than static tests. Consider adding a deploy-time `psql --dry-run` step to catch these earlier.
+
+
 - **FC sync expansion: `tag_type='service'` on `profit_fc_project_tags`.** Live data has ZERO rows of `tag_type='service'` on `profit_fc_project_tags` (only `tag_type='workflow_status'`). This bridge is required by the SLA staff fallback chain (task_assignee lookup uses `service_tag.tag_type='service' AND tag_name=item.fc_tag`) AND by the `latest_workflow_status` join. Until V0.7.D backfills these tags from FC sync, all `SLA_BREACHED` Weekly Review rows show `assigned_staff_name='Unassigned'` and `latest_workflow_status=NULL`. Affects 142+ FC projects.
 
 - **FC client staff tag sync: `tag_type='staff'` on `profit_fc_client_tags`.** Live data has ZERO rows of `tag_type='staff'` on `profit_fc_client_tags` (only `service` and `group`). This is the client-level fallback when task-level staff lookup fails. Needed alongside the previous item to make SLA staff routing work end-to-end.

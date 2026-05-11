@@ -468,7 +468,7 @@ begin
         jsonb_build_object(
           'service_name', current_classifications.service_name,
           'fc_project_id', project.fc_project_id,
-          'project_title', project.project_title,
+          'project_title', project.title,
           'closed_at', project.closed_at,
           'is_closed', project.is_closed,
           'resolution', 'no-op resolution'
@@ -504,7 +504,7 @@ begin
            where service_tag.tag_type = 'service'
              and service_tag.tag_name = service_item.fc_tag
          )
-         or project.project_title ilike '%' || current_classifications.service_name || '%'
+         or project.title ilike '%' || current_classifications.service_name || '%'
        )
       where current_classifications.from_verdict_code = 'SLA_BREACHED'
         and current_classifications.service_name is not null
