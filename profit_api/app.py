@@ -20,6 +20,7 @@ from profit_api.pipeline import (
 )
 from profit_api.sla import SlaDashboardService, SlaDashboardValidationError
 from profit_api.supabase import SupabaseRestClient
+from profit_api.weekly_review import WeeklyReviewService, WeeklyReviewValidationError
 
 
 class ManualOverridePayload(BaseModel):
@@ -60,6 +61,7 @@ def create_app(
     audit_service: AuditDashboardService | None = None,
     pipeline_service: PipelineService | None = None,
     sla_service: SlaDashboardService | None = None,
+    weekly_review_service: WeeklyReviewService | None = None,
 ) -> Any:
     try:
         from fastapi import FastAPI, HTTPException
@@ -83,6 +85,7 @@ def create_app(
     audit_dashboard_service = audit_service or AuditDashboardService(supabase_client)
     pipeline_dashboard_service = pipeline_service or PipelineService(supabase_client)
     sla_dashboard_service = sla_service or SlaDashboardService(supabase_client)
+    weekly_review_dashboard_service = weekly_review_service or WeeklyReviewService(supabase_client)
 
     @app.get("/api/profit/admin/dashboard")
     def admin_dashboard_snapshot(period: str | None = None) -> dict[str, object]:
@@ -376,6 +379,39 @@ def create_app(
                 offset=offset,
             )
         except SlaDashboardValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
+
+    @app.get("/api/profit/admin/weekly-review/items")
+    def weekly_review_items(
+        include_reviewed: bool = False,
+        include_snoozed: bool = False,
+        verdict_code: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, object]:
+        try:
+            return weekly_review_dashboard_service.list_items(
+                include_reviewed=include_reviewed,
+                include_snoozed=include_snoozed,
+                verdict_code=verdict_code,
+                limit=limit,
+                offset=offset,
+            )
+        except WeeklyReviewValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
+
+    @app.post("/api/profit/admin/weekly-review/items/{classification_id}/reviewed")
+    def weekly_review_mark_reviewed(classification_id: int) -> dict[str, object]:
+        try:
+            return weekly_review_dashboard_service.mark_reviewed(classification_id)
+        except WeeklyReviewValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
+
+    @app.post("/api/profit/admin/weekly-review/items/{classification_id}/snooze")
+    def weekly_review_snooze(classification_id: int) -> dict[str, object]:
+        try:
+            return weekly_review_dashboard_service.snooze(classification_id)
+        except WeeklyReviewValidationError as exc:
             raise HTTPException(status_code=422, detail=exc.detail) from exc
 
     return app
