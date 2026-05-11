@@ -9,6 +9,7 @@ SQL_023 = ROOT / "supabase/sql/023_profit_fulfillment_classifications.sql"
 SQL_025A = ROOT / "supabase/sql/025a_profit_inactive_client_reemergence_scan.sql"
 SQL_025C = ROOT / "supabase/sql/025c_profit_inactive_client_reemergence_scan_v2.sql"
 SQL_025D = ROOT / "supabase/sql/025d_profit_apply_classification_transitions.sql"
+SQL_029 = ROOT / "supabase/sql/029_profit_manual_invoice_pending_verdict.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -159,6 +160,94 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
         self.assertIn("E & O Automotive LLC", sql)
         self.assertIn("dry-run writes zero rows", lower)
         self.assertIn("idempotent", lower)
+
+    def test_migration_029_seeds_manual_invoice_pending_verdict_and_rules(self) -> None:
+        sql = SQL_029.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn("insert into profit_classification_verdicts", lower)
+        self.assertIn("MANUAL_INVOICE_PENDING", sql)
+        self.assertIn(
+            "('MANUAL_INVOICE_PENDING', 'Manual invoice pending', 'pending', 'show', false, true",
+            sql,
+        )
+        self.assertIn("on conflict (verdict_code) do update set", lower)
+
+        self.assertIn("insert into profit_classification_transition_rules", lower)
+        self.assertIn("manual_invoice_issued", sql)
+        self.assertIn("INVOICE_OUTSTANDING_PAYMENT_PENDING", sql)
+        self.assertIn("manual_invoice_agreement_terminated", sql)
+        self.assertIn("no-op resolution", lower)
+        self.assertIn("superseded_by_classification_id = null", lower)
+
+    def test_migration_029_creates_manual_invoice_candidate_view_contract(self) -> None:
+        sql = SQL_029.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn(
+            "create or replace view profit_manual_invoice_pending_candidates",
+            lower,
+        )
+        for relation in [
+            "profit_anchor_agreements",
+            "profit_anchor_invoices",
+            "profit_classifications",
+            "profit_fc_client_anchor_matches",
+        ]:
+            self.assertIn(relation, lower)
+
+        self.assertIn("raw->'profitSyncServiceSummary'", sql)
+        self.assertIn("s->>'trigger' = 'manual'", sql)
+        self.assertNotIn("s->>'trigger' = 'Manual'", sql)
+        self.assertIn("agreement.display_status = 'active'", lower)
+        self.assertIn("qbo_status is not null", lower)
+        self.assertIn("count(*) filter (where invoice.qbo_status is not null)", lower)
+        self.assertIn("invoice_state", lower)
+        self.assertIn("no_invoice", sql)
+        self.assertIn("draft_only", sql)
+        self.assertIn("raw->>'link'", sql)
+        self.assertIn(
+            "'https://app.sayanchor.com/home/relationship/' || agreement.anchor_relationship_id || '/agreement'",
+            sql,
+        )
+
+        for column in [
+            "classification_id",
+            "classified_at",
+            "verdict_code",
+            "fc_client_id",
+            "anchor_relationship_id",
+            "agreement_id",
+            "client_name",
+            "service_name",
+            "invoice_state",
+            "age_days",
+            "estimated_annual_revenue",
+            "action_url",
+        ]:
+            self.assertIn(column, lower)
+
+    def test_migration_029_replaces_apply_transitions_with_manual_invoice_branches(self) -> None:
+        sql = SQL_029.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn("create or replace function profit_apply_classification_transitions", lower)
+        self.assertIn("p_run_at timestamptz default now()", lower)
+        self.assertIn("p_dry_run boolean default true", lower)
+        self.assertIn("manual_invoice_pending_candidates", lower)
+        self.assertIn("manual_invoice_detected", sql)
+        self.assertIn("manual_invoice_issued", sql)
+        self.assertIn("manual_invoice_agreement_terminated", sql)
+        self.assertIn("agreement.terminated_at is not null", lower)
+
+        for existing_signal in [
+            "active_agreement_appears",
+            "first_matching_anchor_invoice_group_billed",
+            "first_matching_anchor_invoice_mid_cycle",
+            "cash_collected_group_parent",
+            "cash_collected_standalone_mid_cycle",
+        ]:
+            self.assertIn(existing_signal, sql)
 
 
 if __name__ == "__main__":

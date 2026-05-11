@@ -6,9 +6,22 @@
 
 ## Verdict Lookup
 
-`profit_classification_verdicts` is the source of truth for the 14 canonical verdicts, labels, categories, default visibility, required re-evaluation behavior, and auto-transition eligibility. UI and API code must read `default_visibility` instead of hardcoding hidden verdict names.
+`profit_classification_verdicts` is the source of truth for the canonical verdicts, labels, categories, default visibility, required re-evaluation behavior, and auto-transition eligibility. UI and API code must read `default_visibility` instead of hardcoding hidden verdict names.
 
 The seeded canon includes operational verdicts even when the 2026-05-04 audit did not observe rows for every value. This keeps the picker and transition layer aligned with doctrine rather than with one audit's observed distribution.
+
+### Manual Invoice Pending
+
+V0.7.A adds `MANUAL_INVOICE_PENDING` for active Anchor agreements whose `raw->'profitSyncServiceSummary'` contains at least one service with `trigger = 'manual'` and no issued matching invoice yet. The verdict is visible by default and auto-transition enabled because it represents an operator action queue: issue the manual invoice in Anchor.
+
+`profit_manual_invoice_pending_candidates` is the SQL source for these rows. It uses `profit_anchor_agreements.raw->>'link'` as the primary `action_url`, with a fallback to `https://app.sayanchor.com/home/relationship/<anchor_relationship_id>/agreement` only when Anchor omits the link.
+
+Invoice state is intentionally narrow:
+
+- `no_invoice`: no matching `profit_anchor_invoices` rows exist for the agreement.
+- `draft_only`: one or more matching invoice rows exist, but every row still has `qbo_status is null`.
+
+Draft-only rows remain pending. A manual invoice is considered issued only when at least one matching invoice row has `qbo_status is not null`; `display_status` is not used for this decision because historical invoice rows have that field empty.
 
 ## Classification History
 
@@ -170,10 +183,21 @@ Executable rules in C.a:
 - `INVOICE_OUTSTANDING_PAYMENT_PENDING` + `cash_collected_group_parent` -> `CONSOLIDATED_VIA_GROUP_BILLED`
 - `INVOICE_OUTSTANDING_PAYMENT_PENDING` + `cash_collected_standalone_mid_cycle` -> `BILLING_OUTSIDE_AUDIT_WINDOW`
 
+V0.7.A adds manual-invoice executable paths:
+
+- active manual-trigger agreement with no issued invoice -> insert `MANUAL_INVOICE_PENDING`
+- `MANUAL_INVOICE_PENDING` + `manual_invoice_issued` -> `INVOICE_OUTSTANDING_PAYMENT_PENDING`
+- `MANUAL_INVOICE_PENDING` + `manual_invoice_agreement_terminated` -> no-successor resolution
+
+The issued-invoice clearance requires at least one `profit_anchor_invoices` row for the agreement with `qbo_status is not null`. The terminated-agreement clearance requires `profit_anchor_agreements.display_status = 'terminated'` and `terminated_at is not null`.
+
+The current verdict taxonomy has no terminated-agreement successor equivalent to `CLIENT_TERMINATED`. V0.7.A therefore resolves terminated manual-invoice rows by setting `superseded_at` while leaving `superseded_by_classification_id` null. This is a documented no-op resolution path, not a failed transition.
+
 Deferred rules:
 
 - `SETTLED_VIA_QUICKBOOKS_PAYMENT` + `anchor_backfill_*` remains V0.6.D Anchor backfill queue work.
 - `INACTIVE_FORMER_CLIENT` + `any_active_signal_returns` remains handled by the re-emergence scan v2, not by the generic apply function.
+- Stale terminated/reopened cleanup for manual-invoice rows is deferred to V0.7.D. V0.7.A only clears rows with the confirmed terminated signal above; it does not attempt to repair historical stale/reopened agreement drift.
 
 ### QuickBooks-Settled Anchor Backfill
 
