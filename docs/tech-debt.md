@@ -69,6 +69,24 @@ V0.6 must add proper canonical service resolution:
 
 Reference unresolved name list at the time of capture: `/tmp/unresolved_service_names_20260504.csv` (16 distinct names blocking Workflow 15 before relaxation).
 
+## V0.7.B Deferred Items Kept Open (all consolidated into expanded V0.7.D scope)
+
+V0.7.B Task 1 SLA profiling surfaced three structural V0.7.D dependencies. V0.7.D scope was expanded on 2026-05-11 to cover them alongside its original "manual recognition + pipeline failures" scope. Estimated effort grew from 1d to 2d.
+
+- **FC sync expansion: `tag_type='service'` on `profit_fc_project_tags`.** Live data has ZERO rows of `tag_type='service'` on `profit_fc_project_tags` (only `tag_type='workflow_status'`). This bridge is required by the SLA staff fallback chain (task_assignee lookup uses `service_tag.tag_type='service' AND tag_name=item.fc_tag`) AND by the `latest_workflow_status` join. Until V0.7.D backfills these tags from FC sync, all `SLA_BREACHED` Weekly Review rows show `assigned_staff_name='Unassigned'` and `latest_workflow_status=NULL`. Affects 142+ FC projects.
+
+- **FC client staff tag sync: `tag_type='staff'` on `profit_fc_client_tags`.** Live data has ZERO rows of `tag_type='staff'` on `profit_fc_client_tags` (only `service` and `group`). This is the client-level fallback when task-level staff lookup fails. Needed alongside the previous item to make SLA staff routing work end-to-end.
+
+- **Service catalog `entity_type` column for 1120 C/S disambiguation.** `profit_service_recognition_rules` and the SLA target chain do not distinguish 1120 (C-corp, April 15 deadline) from 1120S (S-corp, March 15 deadline). Live data has 24 1120-related breached rows all flagged with `target_date = 2026-03-16`; some are likely C-corps that aren't truly overdue until May 15 each year. V0.7.D adds entity_type metadata + per-entity-type SLA target rules.
+
+- **Blank SLA targets for Payroll Service + Year End Accounting Close.** Two services have `default_sla_day = NULL`: Payroll Service (9 rows) and Year End Accounting Close (1 row). V0.7.B excludes them from `SLA_BREACHED` candidates via the `default_sla_day IS NOT NULL AND target_sla_day IS NOT NULL AND target_date IS NOT NULL` predicate in `profit_sla_breached_candidates`. V0.7.D should decide per-service whether to seed defaults, leave excluded, or surface as `BILLING_SETUP_GAP` verdicts. (Note: V0.7.A locks anticipated Payroll Service + Fractional CFO; Task 1 corrected this to Payroll Service + Year End Accounting Close.)
+
+- **`waiting_on_client` SLA state generation.** `profit_sla_service_items.sla_state` returns zero `waiting_on_client` rows despite 142 backfilled `workflow_status` tags. Root cause: the SLA view joins via `service_tag.tag_type='service'` (which doesn't exist in live data). Same root cause as the FC sync expansion item above. V0.7.D fixes via FC sync; no view-level repair needed once the service tags are populated.
+
+- **Action URL FC-task tier unreachable in current data.** `profit_sla_breached_candidates.action_url` falls back FC task → FC project → Anchor. Live data has ZERO open FC tasks across all 67 sampled breach clients, so the FC-task tier is unreachable; rows resolve to FC-project (where available) or Anchor. Not a bug — documented contract behavior tied to the FC sync gap.
+
+- **`age_days` semantics for SLA verdicts.** `profit_sla_breached_candidates.age_days` resets to 0 when `profit_apply_classification_transitions` first creates the classification. Operator-relevant "how overdue" is exposed separately as `breach_age_days = current_date - target_date::date`. Frontend renders both: `age_days` (sort tiebreak) and `breach_age_days` (operator label). No further action needed; documented in `docs/data-contracts/weekly-review.md`.
+
 ## V0.7.A Deferred Items Kept Open
 
 - Stale `MANUAL_INVOICE_PENDING` cleanup is deferred to V0.7.D. V0.7.A clears manual-invoice classifications only via the two confirmed signals: `manual_invoice_issued` (matching `profit_anchor_invoices` row with `qbo_status is not null`) and `manual_invoice_agreement_terminated` (`profit_anchor_agreements.display_status = 'terminated'` and `terminated_at is not null`). It does not attempt to repair historical stale/reopened agreement drift, orphaned state rows from agreements that transitioned outside of these signals, or `MANUAL_INVOICE_PENDING` rows whose underlying agreement no longer has any manual-trigger services. V0.7.D will sweep these along with broader stale-classification cleanup.

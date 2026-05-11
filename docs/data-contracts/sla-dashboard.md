@@ -2,16 +2,15 @@
 
 ## Overview
 
-The SLA dashboard is the read-only operator surface for fulfillment timeliness, staff workload, breach triage, fixed-window staff performance, and Anchor backfill convergence. SQL owns the canonical SLA facts; the API exposes paginated rows with validation; the frontend renders those facts without recomputing SLA state.
+The SLA dashboard is the read-only operator surface for fulfillment timeliness analytics: per-client SLA status, staff workload, fixed-window staff performance, and Anchor backfill convergence. SQL owns the canonical SLA facts; the API exposes paginated rows with validation; the frontend renders those facts without recomputing SLA state.
+
+**V0.7.B scope change:** breach triage moved from the SLA dashboard to the universal Weekly Review. The breach-queue panel and its scroll anchor are removed from `/admin/sla`; SLA dashboard now links out to `/admin/weekly-review` for actionable breached/at-risk work. The `GET /api/profit/admin/sla/queue` endpoint and the `profit_sla_breach_queue` view both remain in the codebase for diagnostic use, but they are no longer surfaced on the frontend.
 
 Frontend routes:
 
-- `/admin/sla`
-- `/admin/sla/clients`
-- `/admin/sla/workload`
-- `/admin/sla/queue`
-- `/admin/sla/performance`
-- `/admin/sla/backfill`
+- `/admin/sla` (clients status, staff workload, 90-day performance — analytics only)
+- `/admin/sla/backfill` (Anchor backfill convergence queue)
+- `/admin/weekly-review` (actionable queue — owns SLA_BREACHED rows as of V0.7.B)
 
 ## SQL Views
 

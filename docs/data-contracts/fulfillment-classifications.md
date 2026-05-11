@@ -193,11 +193,25 @@ The issued-invoice clearance requires at least one `profit_anchor_invoices` row 
 
 The current verdict taxonomy has no terminated-agreement successor equivalent to `CLIENT_TERMINATED`. V0.7.A therefore resolves terminated manual-invoice rows by setting `superseded_at` while leaving `superseded_by_classification_id` null. This is a documented no-op resolution path, not a failed transition.
 
+V0.7.B adds SLA-breach executable paths:
+
+- breached or at-risk service item -> insert `SLA_BREACHED`
+- `SLA_BREACHED` + `sla_task_complete` -> no-successor resolution
+- `SLA_BREACHED` + `sla_project_archived` -> no-successor resolution
+
+The SLA detection branch reads `profit_sla_breached_candidates` (migration 030) which filters `profit_sla_service_items` to `sla_state IN ('breached', 'at_risk')` and excludes rows where `default_sla_day IS NULL`, `target_sla_day IS NULL`, or `target_date IS NULL`. The `sla_task_complete` clearance fires when a matching FC task has `is_completed = true OR completed_at IS NOT NULL`; the `sla_project_archived` clearance fires when a matching FC project has `is_closed = true OR closed_at IS NOT NULL`. Both clearance branches use no-op resolution because the existing taxonomy has no clean "work-complete-outside-billing" successor; `SETTLED_VIA_QUICKBOOKS_PAYMENT` is QBO-cash-specific and is not appropriate here.
+
+The matching FC task or project must share a service tag with the SLA service item via `profit_fc_project_tags.tag_type='service'`. Per V0.7.B Task 1 profiling, that bridge does not yet exist in live data (FC sync has not been extended to populate service tags); the apply function therefore falls back to `task.project_title ILIKE '%' || service_name || '%'` for task matching. The `tag_type='service'` data backfill is deferred to V0.7.D.
+
+The `profit_apply_classification_transitions` ranked-signals UNION includes a SLA-aware dedup key (`'detect:sla:' || fc_client_id || ':' || service_name`) so multiple service rows for the same anchor relationship dedup independently.
+
 Deferred rules:
 
 - `SETTLED_VIA_QUICKBOOKS_PAYMENT` + `anchor_backfill_*` remains V0.6.D Anchor backfill queue work.
 - `INACTIVE_FORMER_CLIENT` + `any_active_signal_returns` remains handled by the re-emergence scan v2, not by the generic apply function.
 - Stale terminated/reopened cleanup for manual-invoice rows is deferred to V0.7.D. V0.7.A only clears rows with the confirmed terminated signal above; it does not attempt to repair historical stale/reopened agreement drift.
+- SLA staff-routing and waiting_on_client repair require FC sync to populate `tag_type='service'` on `profit_fc_project_tags` and `tag_type='staff'` on `profit_fc_client_tags`. Both are deferred to V0.7.D.
+- 1120 C-corp/S-corp entity_type disambiguation requires a service-catalog schema extension. Deferred to V0.7.D. V0.7.B surfaces all 1120 rows as SLA_BREACHED; operator triages C-corp false positives via Snooze if observed in the April 15 → May 15 window.
 
 ### QuickBooks-Settled Anchor Backfill
 

@@ -1,6 +1,7 @@
 # Weekly Review Data Contract
 
 **V0.7.A — Manual Invoice Pending + Weekly Review skeleton**
+**V0.7.B — SLA Breached folded in (universal queue contract)**
 
 ---
 
@@ -30,11 +31,12 @@ Persists operator interaction state for each queue item. One row per active clas
 
 Registry table controlling which verdict codes appear in the queue. Insert a row here to enable a new verdict type in the UI; no code change required.
 
-| Verdict code seeded in V0.7.A |
-|---|
-| `MANUAL_INVOICE_PENDING` |
+| Verdict code | Added in | sort_order |
+|---|---|---|
+| `MANUAL_INVOICE_PENDING` | V0.7.A | 10 |
+| `SLA_BREACHED` | V0.7.B | 20 |
 
-V0.7.B will add SLA-breach verdicts. V0.7.C will add Anchor backfill verdicts. V0.7.D will add stale recognition + pipeline failure verdicts.
+V0.7.C will add Anchor backfill verdicts. V0.7.D will add stale recognition + pipeline failure verdicts + FC sync expansion (service tags + staff tags) + service-catalog entity_type (1120 C/S disambiguation).
 
 ---
 
@@ -42,30 +44,63 @@ V0.7.B will add SLA-breach verdicts. V0.7.C will add Anchor backfill verdicts. V
 
 ### `profit_weekly_review_items`
 
-Universal queue view. Joins candidate views (one per registered verdict type) with operator review state.
+Universal queue view. **V0.7.B replaces this view with a `UNION ALL` of two candidate sources**, one per registered verdict type, each left-joined with operator review state.
 
-**Source in V0.7.A:** `profit_manual_invoice_pending_candidates` (from migration 029).
+**Sources (V0.7.B):**
+- `profit_manual_invoice_pending_candidates` (from migration 029, V0.7.A)
+- `profit_sla_breached_candidates` (from migration 030, V0.7.B)
 
-**Output columns:**
+**UNION column shape:** every branch SELECTs the same column list. Columns common to both branches are populated by each. Columns that only make sense for one verdict family are `NULL`-cast on the other branch. The frontend conditionally renders based on `verdict_code`.
+
+**Common columns (both branches populate):**
 
 | Column | Description |
 |---|---|
-| `classification_id` | FK into `profit_classifications`. NULL for candidates not yet classified by the pipeline |
-| `verdict_code` | E.g. `MANUAL_INVOICE_PENDING` |
-| `item_type` | Category discriminator (mirrors verdict_code in V0.7.A; may diverge in V0.7.B+) |
+| `classification_id` | FK into `profit_classifications`. NULL for candidates not yet classified |
+| `verdict_code` | `MANUAL_INVOICE_PENDING` or `SLA_BREACHED` |
+| `item_type` | Mirror of verdict_code; reserved for future cross-verdict grouping |
+| `fc_client_id` | Financial Cents client ID (NULL if no match) |
 | `anchor_relationship_id` | Anchor agreement identifier |
-| `fc_client_id` | Financial Cents client ID (NULL if no match row) |
-| `client_name` | `client_business_name` from the Anchor agreement |
-| `service_name` | Concatenated manual-trigger service names |
-| `invoice_state` | `no_invoice` or `draft_only` |
-| `age_days` | Days since classification was created (or since `effective_date`) |
-| `estimated_annual_revenue` | Sum of manual service prices from `profitSyncServiceSummary` |
-| `action_url` | `raw->>'link'` from the agreement, fallback to hardcoded template |
+| `client_name` | Business name (FC or Anchor) |
+| `service_name` | Concatenated manual services for MANUAL_INVOICE_PENDING; single SLA service name for SLA_BREACHED |
+| `action_url` | Anchor relationship URL (manual) or FC task→project→Anchor fallback (SLA) |
+| `age_days` | Days since classification was created |
 | `reviewed_at` | NULL if not reviewed |
 | `snoozed_until` | NULL if not snoozed |
 | `operator_id` | Defaults to `'orlando'` |
 | `practice_id` | NULL until V0.7.E |
-| `sort_rank` | Integer row rank; **1 = most urgent**. Ordered: oldest age_days first → highest revenue → client name A-Z |
+| `sort_rank` | Integer row rank; **1 = most urgent** |
+
+**Manual-invoice-only columns (NULL on SLA rows):**
+
+| Column | Description |
+|---|---|
+| `invoice_state` | `no_invoice` or `draft_only` |
+| `estimated_annual_revenue` | Sum of manual service prices |
+
+**SLA-only columns (NULL on manual-invoice rows):**
+
+| Column | Description |
+|---|---|
+| `breach_state` | `breached` or `at_risk` (the SLA state from `profit_sla_service_items`) |
+| `breach_age_days` | `current_date - target_date::date`, clamped to ≥0 — operator-relevant "how overdue" measure |
+| `work_age_days` | Underlying work-item age from `profit_sla_service_items` |
+| `target_date` | The SLA target date (e.g. tax-return deadline + SLA grace) |
+| `target_sla_day` | Day-of-year SLA target |
+| `macro_service_type` | `tax`, `bookkeeping`, `payroll`, etc. |
+| `fc_tag` | The service-tag string from FC |
+| `assigned_staff_name` | NULL/'Unassigned' until V0.7.D fixes FC sync (see tech-debt) |
+| `staff_source` | `task_assignee`, `client_staff_tag`, or `unassigned` |
+| `latest_workflow_status` | NULL until V0.7.D backfills `tag_type='service'` rows |
+| `fc_task_id` | NULL until V0.7.D (no open tasks in current data) |
+| `fc_project_id` | Available where the FC service-tag join resolves |
+
+**`sort_rank` ordering (V0.7.B UNION-wide):**
+1. SLA breached (band 1)
+2. SLA at_risk (band 2)
+3. MANUAL_INVOICE_PENDING (band 3)
+4. Within band: `coalesce(breach_age_days, age_days) desc nulls last`
+5. Tiebreak: `estimated_annual_revenue desc nulls last`, then `client_name asc`
 
 ---
 
@@ -112,8 +147,15 @@ To register a new verdict type in the queue:
 
 ---
 
+## Dual-Row Co-occurrence
+
+Same client/agreement may appear in BOTH `MANUAL_INVOICE_PENDING` and `SLA_BREACHED` simultaneously (e.g. a Schmidli-like client whose tax return is past SLA and whose invoice was never issued). The `UNION ALL` produces two distinct rows. Each row tracks its own review/snooze state via its own `classification_id` so the operator can Mark reviewed or Snooze each verdict independently.
+
 ## Deferred Gaps
 
 - **Stale MANUAL_INVOICE_PENDING cleanup** — if an agreement transitions outside of normal invoice issuance, orphaned state rows may remain. Scheduled cleanup deferred to V0.7.D.
+- **SLA verdict staff routing** — V0.7.B SLA rows show `assigned_staff_name = 'Unassigned'` for ALL day-one rows because `profit_fc_project_tags` has no `tag_type='service'` rows and `profit_fc_client_tags` has no `tag_type='staff'` rows. FC sync expansion deferred to V0.7.D.
+- **SLA verdict workflow_status** — same root cause as staff routing; `latest_workflow_status` is always NULL until V0.7.D backfills service tags.
+- **1120 C/S entity_type disambiguation** — service catalog lacks entity_type metadata; ~24 1120 rows in current data may include C-corp false positives in the April 15 → May 15 window each year. Deferred to V0.7.D.
 - **Multi-user operator support** — `operator_id` is single-valued per state row; concurrent multi-user access deferred beyond V0.7.
 - **Per-practice queue filtering** — deferred to V0.7.E.

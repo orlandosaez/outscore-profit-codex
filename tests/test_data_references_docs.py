@@ -229,6 +229,38 @@ class DataReferencesDocsTests(unittest.TestCase):
         self.assertIn("Default Filtering", weekly_review)
         self.assertIn("profit_weekly_review_visible_verdicts", weekly_review)
 
+    def test_v07b_sla_breaches_documented(self) -> None:
+        weekly_review = (ROOT / "docs/data-contracts/weekly-review.md").read_text(encoding="utf-8")
+        sla_dashboard = (ROOT / "docs/data-contracts/sla-dashboard.md").read_text(encoding="utf-8")
+        fulfillment = (ROOT / "docs/data-contracts/fulfillment-classifications.md").read_text(
+            encoding="utf-8"
+        )
+        tech_debt = (ROOT / "docs/tech-debt.md").read_text(encoding="utf-8")
+
+        # Weekly Review docs: SLA_BREACHED + UNION + dual-row co-occurrence
+        self.assertIn("SLA_BREACHED", weekly_review)
+        self.assertIn("UNION ALL", weekly_review)
+        self.assertIn("breach_age_days", weekly_review)
+        self.assertIn("MANUAL_INVOICE_PENDING", weekly_review)
+
+        # SLA Dashboard docs: queue panel removed; link to weekly-review
+        self.assertIn("/admin/weekly-review", sla_dashboard)
+        self.assertIn("V0.7.B", sla_dashboard)
+
+        # Fulfillment contract: V0.7.B clearance signals + state predicates
+        self.assertIn("SLA_BREACHED", fulfillment)
+        self.assertIn("sla_task_complete", fulfillment)
+        self.assertIn("sla_project_archived", fulfillment)
+        self.assertIn("is_closed", fulfillment)
+
+        # Tech debt: V0.7.B deferrals (all three structural V0.7.D items)
+        self.assertIn("waiting_on_client", tech_debt)
+        self.assertIn("tag_type='service'", tech_debt)
+        self.assertIn("1120", tech_debt)
+        # blank SLA target services
+        self.assertIn("Payroll Service", tech_debt)
+        self.assertIn("Year End Accounting Close", tech_debt)
+
 
 if __name__ == "__main__":
     unittest.main()
