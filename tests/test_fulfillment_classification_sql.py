@@ -12,6 +12,7 @@ SQL_025D = ROOT / "supabase/sql/025d_profit_apply_classification_transitions.sql
 SQL_029 = ROOT / "supabase/sql/029_profit_manual_invoice_pending_verdict.sql"
 SQL_029A = ROOT / "supabase/sql/029a_profit_weekly_review_items.sql"
 SQL_030 = ROOT / "supabase/sql/030_profit_sla_breached_verdict.sql"
+SQL_030A = ROOT / "supabase/sql/030a_profit_weekly_review_sla_union.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -36,6 +37,10 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
     def _read_sql_030(self) -> str:
         self.assertTrue(SQL_030.exists(), "030 SLA breached migration file must exist")
         return SQL_030.read_text(encoding="utf-8")
+
+    def _read_sql_030a(self) -> str:
+        self.assertTrue(SQL_030A.exists(), "030a weekly review SLA union migration file must exist")
+        return SQL_030A.read_text(encoding="utf-8")
 
     def test_migration_023_creates_verdict_lookup_and_classification_history(self) -> None:
         sql = SQL_023.read_text(encoding="utf-8")
@@ -464,6 +469,76 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
             "row_number()" in lower or "rank()" in lower,
             "sort_rank must be defined using a window function",
         )
+
+    def test_migration_030a_exists(self) -> None:
+        self.assertTrue(SQL_030A.exists(), "030a weekly review SLA union migration file must exist")
+
+    def test_migration_030a_registers_sla_breached_visible_verdict(self) -> None:
+        sql = self._read_sql_030a()
+        lower = sql.lower()
+
+        self.assertIn("insert into profit_weekly_review_visible_verdicts", lower)
+        self.assertIn("values ('SLA_BREACHED', 20)", sql)
+        self.assertIn("on conflict (verdict_code) do update set sort_order = excluded.sort_order", lower)
+
+    def test_migration_030a_replaces_weekly_review_items_with_union_sources(self) -> None:
+        sql = self._read_sql_030a()
+        lower = sql.lower()
+
+        self.assertIn("create or replace view profit_weekly_review_items", lower)
+        self.assertIn("union all", lower)
+        self.assertIn("profit_manual_invoice_pending_candidates", lower)
+        self.assertIn("profit_sla_breached_candidates", lower)
+        self.assertIn("left join profit_weekly_review_item_state", lower)
+        self.assertIn("state.classification_id = candidate.classification_id", lower)
+        self.assertIn("inner join profit_weekly_review_visible_verdicts", lower)
+
+    def test_migration_030a_weekly_review_union_column_contract(self) -> None:
+        sql = self._read_sql_030a()
+        lower = sql.lower()
+
+        for column in [
+            "classification_id",
+            "verdict_code",
+            "item_type",
+            "client_name",
+            "anchor_relationship_id",
+            "action_url",
+            "reviewed_at",
+            "snoozed_until",
+            "operator_id",
+            "practice_id",
+            "age_days",
+            "sort_rank",
+        ]:
+            self.assertIn(column, lower)
+
+        for column in [
+            "breach_state",
+            "breach_age_days",
+            "work_age_days",
+            "target_date",
+            "assigned_staff_name",
+            "staff_source",
+        ]:
+            self.assertIn(column, lower)
+
+    def test_migration_030a_weekly_review_union_null_casts_branch_specific_columns(self) -> None:
+        sql = self._read_sql_030a()
+        lower = sql.lower()
+
+        self.assertIn("null::text as breach_state", lower)
+        self.assertIn("null::text as invoice_state", lower)
+
+    def test_migration_030a_weekly_review_sort_rank_uses_row_number(self) -> None:
+        sql = self._read_sql_030a()
+        lower = sql.lower()
+
+        self.assertIn("row_number() over", lower)
+        self.assertIn("when verdict_code = 'SLA_BREACHED' and breach_state = 'breached' then 1", sql)
+        self.assertIn("when verdict_code = 'SLA_BREACHED' and breach_state = 'at_risk'  then 2", sql)
+        self.assertIn("when verdict_code = 'MANUAL_INVOICE_PENDING'                     then 3", sql)
+        self.assertIn("coalesce(breach_age_days, age_days) desc nulls last", lower)
 
 
 if __name__ == "__main__":
