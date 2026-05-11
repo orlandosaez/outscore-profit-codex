@@ -358,6 +358,66 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
         self.assertIn("distinct on (classification.fc_client_id, split_part(classification.source_audit_row_hash, ':', 3))", lower)
         self.assertIn("'sla_breached:' || item.fc_client_id::text || ':' || item.service_name", lower)
 
+    def test_migration_030_replaces_apply_transitions_with_sla_branches(self) -> None:
+        sql = self._read_sql_030()
+        lower = sql.lower()
+
+        self.assertIn("create or replace function profit_apply_classification_transitions", lower)
+        self.assertIn("p_run_at timestamptz default now()", lower)
+        self.assertIn("p_dry_run boolean default true", lower)
+
+        for signal in [
+            "manual_invoice_detected",
+            "manual_invoice_issued",
+            "manual_invoice_agreement_terminated",
+            "active_agreement_appears",
+            "first_matching_anchor_invoice_group_billed",
+            "first_matching_anchor_invoice_mid_cycle",
+            "cash_collected_group_parent",
+            "cash_collected_standalone_mid_cycle",
+            "sla_breach_detected",
+            "sla_task_complete",
+            "sla_project_archived",
+        ]:
+            self.assertIn(signal, sql)
+
+    def test_migration_030_sla_apply_branch_contracts(self) -> None:
+        sql = self._read_sql_030()
+        lower = sql.lower()
+
+        self.assertIn("sla_breach_detection_signals as", lower)
+        self.assertIn("from profit_sla_breached_candidates candidate", lower)
+        self.assertIn("where candidate.classification_id is null", lower)
+        self.assertIn("'system:sla_breached'::text as source_audit_file", lower)
+        self.assertIn("'sla_breached:' || candidate.fc_client_id::text || ':' || candidate.service_name", lower)
+        self.assertIn("null::numeric as estimated_annual_revenue", lower)
+
+        self.assertIn("sla_task_complete_signals as", lower)
+        self.assertIn("join profit_fc_tasks task", lower)
+        self.assertIn("task.is_completed = true", lower)
+        self.assertIn("task.completed_at is not null", lower)
+
+        self.assertIn("sla_project_archived_signals as", lower)
+        self.assertIn("join profit_fc_projects project", lower)
+        self.assertIn("project.is_closed = true", lower)
+        self.assertIn("project.closed_at is not null", lower)
+
+        self.assertGreaterEqual(lower.count("null::text as to_verdict_code"), 3)
+        self.assertIn("ranked_signals.signal_name = 'sla_breach_detected'", lower)
+        self.assertIn("'detect:sla:' || ranked_signals.fc_client_id::text || ':' || ranked_signals.service_name", lower)
+
+    def test_migration_030_apply_transitions_keeps_dry_run_write_guard(self) -> None:
+        sql = self._read_sql_030()
+        lower = sql.lower()
+
+        self.assertIn("if not p_dry_run then", lower)
+        guard_start = lower.index("if not p_dry_run then")
+        guard_end = lower.index("classification_id :=", guard_start)
+        guarded_block = lower[guard_start:guard_end]
+
+        self.assertIn("insert into profit_classifications", guarded_block)
+        self.assertIn("update profit_classifications", guarded_block)
+
     def test_migration_029a_creates_weekly_review_items_queue_view(self) -> None:
         self.assertTrue(SQL_029A.exists(), "029a migration file must exist")
         sql = SQL_029A.read_text(encoding="utf-8")
