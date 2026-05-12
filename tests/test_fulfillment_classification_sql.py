@@ -21,6 +21,7 @@ SQL_032A = ROOT / "supabase/sql/032a_profit_sla_invoice_paid_after_target_date.s
 SQL_033 = ROOT / "supabase/sql/033_revert_sla_invoice_paid_clearance.sql"
 SQL_034 = ROOT / "supabase/sql/034_profit_parse_anchor_service_name.sql"
 SQL_034A = ROOT / "supabase/sql/034a_profit_anchor_services_attributed.sql"
+SQL_034B = ROOT / "supabase/sql/034b_profit_sla_candidates_use_attribution.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -887,6 +888,62 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
 
         # DISTINCT ON to dedupe service duplicates (Ultimate II has 4 "1040 Plus")
         self.assertIn("distinct on", lower)
+
+    def test_migration_034b_sla_candidates_use_attribution(self) -> None:
+        """V0.7.B.4 T4: rewrite profit_sla_breached_candidates to source from
+        attribution view + recognition rules. Drops V0.7.B.3 content-specific
+        regex. Includes services without revenue events (ICE/Lee's manual
+        annual services)."""
+        self.assertTrue(SQL_034B.exists())
+        sql = SQL_034B.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn("create or replace view profit_sla_breached_candidates", lower)
+
+        # Sources from attribution view (Orlando's rule)
+        self.assertIn("profit_anchor_services_attributed", lower)
+
+        # Joins to recognition rules for SLA target computation
+        self.assertIn("profit_service_recognition_rules", lower)
+
+        # No more 1040-on-business regex (V0.7.B.3 content-specific rule REMOVED)
+        self.assertNotIn("(llc|inc\\.?|corp\\.?|llp|pa)", lower)
+        self.assertNotIn("1040%'", lower)  # No 1040 literal in candidate logic
+
+        # Inherits 030c/031 task + project completion clearance
+        self.assertIn(
+            "task.is_completed = true or task.completed_at is not null", lower
+        )
+        self.assertIn(
+            "project.is_closed = true or project.closed_at is not null", lower
+        )
+
+        # sla_state breach computation inline
+        self.assertIn("'breached'", sql)
+        self.assertIn("'at_risk'", sql)
+
+        # Required output columns (per V0.7.B contract)
+        for col in [
+            "classification_id",
+            "verdict_code",
+            "fc_client_id",
+            "anchor_relationship_id",
+            "client_name",
+            "service_name",
+            "breach_state",
+            "breach_age_days",
+            "target_date",
+            "action_url",
+        ]:
+            self.assertIn(col, lower)
+
+        # New attribution-aware columns surfaced
+        self.assertIn("label", lower)
+        self.assertIn("label_unresolved", lower)
+
+        # Active classification dedup preserved
+        self.assertIn("source_audit_row_hash", lower)
+        self.assertIn("superseded_at is null", lower)
 
 
 if __name__ == "__main__":
