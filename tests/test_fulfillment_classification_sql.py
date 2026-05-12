@@ -16,6 +16,7 @@ SQL_030A = ROOT / "supabase/sql/030a_profit_weekly_review_sla_union.sql"
 SQL_030B = ROOT / "supabase/sql/030b_profit_sla_clearance_predicate_fix.sql"
 SQL_030C = ROOT / "supabase/sql/030c_profit_sla_candidates_exclude_cleared_work.sql"
 SQL_031 = ROOT / "supabase/sql/031_profit_sla_candidates_exclude_1040_on_business.sql"
+SQL_032 = ROOT / "supabase/sql/032_profit_sla_widen_regex_and_invoice_paid_clearance.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -688,6 +689,82 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
         )
 
         # Preserves 030c filters (completed task + closed project exclusions)
+        self.assertIn("task.is_completed = true or task.completed_at is not null", lower)
+        self.assertIn("project.is_closed = true or project.closed_at is not null", lower)
+
+    def test_migration_032_widens_regex_and_adds_invoice_paid_clearance(self) -> None:
+        """V0.7.B.3 audit fix: widen the 1040-on-business regex to match
+        business suffixes anywhere in the name (e.g., 'SamDee Enterprises
+        Inc (Lakeland)') AND add an Anchor-invoice-paid clearance signal
+        because 15 of 25 active SLA rows have paid invoices but stay
+        stuck."""
+        self.assertTrue(SQL_032.exists(), "032 migration file must exist")
+        sql = SQL_032.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        # === 1. Transition rule seed for sla_invoice_paid ===
+        self.assertIn(
+            "insert into profit_classification_transition_rules",
+            lower,
+        )
+        self.assertIn("sla_invoice_paid", sql)
+
+        # === 2. Candidate view CREATE OR REPLACE ===
+        self.assertIn(
+            "create or replace view profit_sla_breached_candidates",
+            lower,
+        )
+
+        # Widened regex uses word-boundary anchor (\m or \y), not end-anchor only
+        # Must match 'SamDee Enterprises Inc (Lakeland)' (Inc mid-name)
+        self.assertTrue(
+            "\\m" in sql or "\\y" in sql or "\\b" in sql,
+            "Widened regex must use a word-boundary anchor to catch suffix mid-name",
+        )
+
+        # Old end-anchor regex (031) is NO LONGER the sole pattern
+        # We keep it removed in favor of the wider pattern
+        self.assertNotIn(
+            "(llc|inc\\.?|corp\\.?|llp|pa)\\s*$",
+            lower,
+        )
+
+        # New invoice-paid NOT EXISTS filter in candidate view
+        self.assertIn("not exists", lower)
+        self.assertIn("profit_anchor_invoices", lower)
+        self.assertTrue(
+            "paymentsynced" in lower or "amount_paid" in lower,
+            "Invoice-paid filter must check qbo_status='paymentSynced' OR amount_paid > 0",
+        )
+
+        # === 3. Apply function CREATE OR REPLACE with new clearance branch ===
+        self.assertIn(
+            "create or replace function profit_apply_classification_transitions",
+            lower,
+        )
+        # The new sla_invoice_paid clearance CTE must exist in the function body
+        self.assertIn("sla_invoice_paid_signals", lower)
+
+        # The function must still preserve all earlier signals
+        for signal in [
+            "manual_invoice_detected",
+            "manual_invoice_issued",
+            "manual_invoice_agreement_terminated",
+            "sla_breach_detected",
+            "sla_task_complete",
+            "sla_project_archived",
+            "active_agreement_appears",
+            "first_matching_anchor_invoice_group_billed",
+            "first_matching_anchor_invoice_mid_cycle",
+            "cash_collected_group_parent",
+            "cash_collected_standalone_mid_cycle",
+        ]:
+            self.assertIn(signal, sql, f"Signal {signal!r} must be preserved in 032")
+
+        # SLA clearance branches use no-op resolution (null::text to_verdict_code)
+        self.assertIn("null::text as to_verdict_code", lower)
+
+        # Preserves 030c task+project filters via inheritance
         self.assertIn("task.is_completed = true or task.completed_at is not null", lower)
         self.assertIn("project.is_closed = true or project.closed_at is not null", lower)
 
