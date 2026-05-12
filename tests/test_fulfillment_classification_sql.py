@@ -15,6 +15,7 @@ SQL_030 = ROOT / "supabase/sql/030_profit_sla_breached_verdict.sql"
 SQL_030A = ROOT / "supabase/sql/030a_profit_weekly_review_sla_union.sql"
 SQL_030B = ROOT / "supabase/sql/030b_profit_sla_clearance_predicate_fix.sql"
 SQL_030C = ROOT / "supabase/sql/030c_profit_sla_candidates_exclude_cleared_work.sql"
+SQL_031 = ROOT / "supabase/sql/031_profit_sla_candidates_exclude_1040_on_business.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -650,6 +651,45 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
         self.assertNotIn(
             "create or replace function profit_apply_classification_transitions", lower
         )
+
+    def test_migration_031_candidate_view_excludes_1040_on_business_clients(self) -> None:
+        """V0.7.B.3 (revised): encode the FC client-hierarchy structural rule
+        directly in profit_sla_breached_candidates. 1040 services are
+        individual personal returns; LLC/Inc/Corp/LLP/PA suffixes are
+        business entities. A 1040 on a business client is structurally wrong
+        (work happens on the owner's individual FC client per
+        fc_client_hierarchy.md). Removing 16 of 40 day-one SLA queue rows
+        without operator clicks."""
+        self.assertTrue(SQL_031.exists(), "031 migration file must exist")
+        sql = SQL_031.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        # Replaces the candidate view, not the apply function
+        self.assertIn("create or replace view profit_sla_breached_candidates", lower)
+        self.assertNotIn(
+            "create or replace function profit_apply_classification_transitions", lower
+        )
+
+        # Filter encodes the 1040-on-business rule
+        # Service must match 1040* pattern
+        self.assertIn("1040", sql)
+        self.assertIn("ilike '1040%'", lower)
+
+        # Client name suffix pattern (all 5 business suffixes)
+        for suffix in ["LLC", "Inc", "Corp", "LLP", "PA"]:
+            self.assertIn(suffix, sql)
+
+        # Anchored at end-of-name (avoids false positives like "Pacific" matching "PA")
+        # Either uses ~* with anchored regex, or RIGHT() / LIKE % suffix pattern
+        self.assertTrue(
+            "$'" in sql or "rtrim" in lower or "regexp" in lower or "~*" in sql,
+            "Migration must anchor business-suffix match at end of client name "
+            "(use ~* '(...)$' regex or equivalent), not naive substring",
+        )
+
+        # Preserves 030c filters (completed task + closed project exclusions)
+        self.assertIn("task.is_completed = true or task.completed_at is not null", lower)
+        self.assertIn("project.is_closed = true or project.closed_at is not null", lower)
 
 
 if __name__ == "__main__":
