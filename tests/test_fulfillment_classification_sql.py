@@ -17,6 +17,7 @@ SQL_030B = ROOT / "supabase/sql/030b_profit_sla_clearance_predicate_fix.sql"
 SQL_030C = ROOT / "supabase/sql/030c_profit_sla_candidates_exclude_cleared_work.sql"
 SQL_031 = ROOT / "supabase/sql/031_profit_sla_candidates_exclude_1040_on_business.sql"
 SQL_032 = ROOT / "supabase/sql/032_profit_sla_widen_regex_and_invoice_paid_clearance.sql"
+SQL_032A = ROOT / "supabase/sql/032a_profit_sla_invoice_paid_after_target_date.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -767,6 +768,44 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
         # Preserves 030c task+project filters via inheritance
         self.assertIn("task.is_completed = true or task.completed_at is not null", lower)
         self.assertIn("project.is_closed = true or project.closed_at is not null", lower)
+
+    def test_migration_032a_tightens_invoice_paid_to_target_date_or_later(self) -> None:
+        """032 over-cleared 7 of 10 sampled rows by matching prior-billing-cycle
+        invoices. 032a tightens both the candidate view and apply function
+        clearance to require invoice.issue_date >= target_date."""
+        self.assertTrue(SQL_032A.exists(), "032a migration file must exist")
+        sql = SQL_032A.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        # CREATE OR REPLACE candidate view
+        self.assertIn("create or replace view profit_sla_breached_candidates", lower)
+
+        # Candidate view's invoice-paid NOT EXISTS must require issue_date >= target_date
+        self.assertIn("invoice.issue_date::date >= item.target_date", lower)
+
+        # CREATE OR REPLACE apply function
+        self.assertIn(
+            "create or replace function profit_apply_classification_transitions",
+            lower,
+        )
+
+        # Apply function's sla_invoice_paid_signals CTE must join target_date
+        # via a lateral lookup against profit_sla_service_items and require
+        # invoice.issue_date::date >= service_item.target_date
+        self.assertIn("sla_invoice_paid_signals", lower)
+        self.assertIn("from profit_sla_service_items item", lower)
+        self.assertIn("invoice.issue_date::date >= service_item.target_date", lower)
+
+        # All earlier signals preserved
+        for signal in [
+            "manual_invoice_detected",
+            "sla_breach_detected",
+            "sla_task_complete",
+            "sla_project_archived",
+            "sla_invoice_paid",
+            "active_agreement_appears",
+        ]:
+            self.assertIn(signal, sql)
 
 
 if __name__ == "__main__":
