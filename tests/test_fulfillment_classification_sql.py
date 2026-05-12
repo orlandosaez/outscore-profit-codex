@@ -13,6 +13,7 @@ SQL_029 = ROOT / "supabase/sql/029_profit_manual_invoice_pending_verdict.sql"
 SQL_029A = ROOT / "supabase/sql/029a_profit_weekly_review_items.sql"
 SQL_030 = ROOT / "supabase/sql/030_profit_sla_breached_verdict.sql"
 SQL_030A = ROOT / "supabase/sql/030a_profit_weekly_review_sla_union.sql"
+SQL_030B = ROOT / "supabase/sql/030b_profit_sla_clearance_predicate_fix.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -41,6 +42,10 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
     def _read_sql_030a(self) -> str:
         self.assertTrue(SQL_030A.exists(), "030a weekly review SLA union migration file must exist")
         return SQL_030A.read_text(encoding="utf-8")
+
+    def _read_sql_030b(self) -> str:
+        self.assertTrue(SQL_030B.exists(), "030b SLA clearance predicate fix migration file must exist")
+        return SQL_030B.read_text(encoding="utf-8")
 
     def test_migration_023_creates_verdict_lookup_and_classification_history(self) -> None:
         sql = SQL_023.read_text(encoding="utf-8")
@@ -539,6 +544,68 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
         self.assertIn("when verdict_code = 'SLA_BREACHED' and breach_state = 'at_risk'  then 2", sql)
         self.assertIn("when verdict_code = 'MANUAL_INVOICE_PENDING'                     then 3", sql)
         self.assertIn("coalesce(breach_age_days, age_days) desc nulls last", lower)
+
+    def test_migration_030b_exists(self) -> None:
+        self.assertTrue(SQL_030B.exists(), "030b SLA clearance predicate fix migration file must exist")
+
+    def test_migration_030b_replaces_apply_transitions_function(self) -> None:
+        sql = self._read_sql_030b()
+        lower = sql.lower()
+
+        self.assertIn("create or replace function profit_apply_classification_transitions", lower)
+
+    def test_migration_030b_relaxes_sla_clearance_ilike_predicates(self) -> None:
+        sql = self._read_sql_030b()
+
+        self.assertIn(
+            "task.project_title ilike '%' || split_part(current_classifications.service_name, ' ', 1) || '%'",
+            sql,
+        )
+        self.assertIn(
+            "project.title ilike '%' || split_part(current_classifications.service_name, ' ', 1) || '%'",
+            sql,
+        )
+        self.assertNotIn(
+            "task.project_title ilike '%' || current_classifications.service_name || '%'",
+            sql,
+        )
+        self.assertNotIn(
+            "project.title ilike '%' || current_classifications.service_name || '%'",
+            sql,
+        )
+
+    def test_migration_030b_preserves_existing_transition_signals(self) -> None:
+        sql = self._read_sql_030b()
+
+        for signal in [
+            "manual_invoice_detected",
+            "manual_invoice_issued",
+            "manual_invoice_agreement_terminated",
+            "sla_breach_detected",
+            "sla_task_complete",
+            "sla_project_archived",
+            "active_agreement_appears",
+            "first_matching_anchor_invoice_group_billed",
+            "first_matching_anchor_invoice_mid_cycle",
+            "cash_collected_group_parent",
+            "cash_collected_standalone_mid_cycle",
+        ]:
+            self.assertIn(signal, sql)
+
+    def test_migration_030b_preserves_sla_clearance_no_op_resolution(self) -> None:
+        sql = self._read_sql_030b()
+        lower = sql.lower()
+
+        self.assertIn("sla_task_complete_signals as", lower)
+        self.assertIn("sla_project_archived_signals as", lower)
+        self.assertGreaterEqual(lower.count("null::text as to_verdict_code"), 3)
+
+    def test_migration_030b_does_not_add_rules_or_candidate_views(self) -> None:
+        sql = self._read_sql_030b()
+        lower = sql.lower()
+
+        self.assertNotIn("insert into profit_classification_transition_rules", lower)
+        self.assertNotIn("create or replace view profit_sla_breached_candidates", lower)
 
 
 if __name__ == "__main__":
