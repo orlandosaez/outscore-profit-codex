@@ -18,6 +18,8 @@ SQL_030C = ROOT / "supabase/sql/030c_profit_sla_candidates_exclude_cleared_work.
 SQL_031 = ROOT / "supabase/sql/031_profit_sla_candidates_exclude_1040_on_business.sql"
 SQL_032 = ROOT / "supabase/sql/032_profit_sla_widen_regex_and_invoice_paid_clearance.sql"
 SQL_032A = ROOT / "supabase/sql/032a_profit_sla_invoice_paid_after_target_date.sql"
+SQL_033 = ROOT / "supabase/sql/033_revert_sla_invoice_paid_clearance.sql"
+SQL_034 = ROOT / "supabase/sql/034_profit_parse_anchor_service_name.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -806,6 +808,40 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
             "active_agreement_appears",
         ]:
             self.assertIn(signal, sql)
+
+    def test_migration_034_creates_anchor_service_name_parser(self) -> None:
+        """V0.7.B.4 T2: pure SQL function that extracts (canonical, label) from
+        an Anchor service raw name. Foundation for the attribution view.
+        Data-driven: no content-specific rules; just regex-based pattern
+        extraction."""
+        self.assertTrue(SQL_034.exists(), "034 parser migration must exist")
+        sql = SQL_034.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        # Function exists with the locked signature
+        self.assertIn(
+            "create or replace function profit_parse_anchor_service_name",
+            lower,
+        )
+        # Returns 2 columns: canonical text + label text
+        self.assertIn("returns table", lower)
+        self.assertIn("canonical_service_name", lower)
+        self.assertIn("label", lower)
+
+        # Both patterns documented
+        # Parens pattern: "<service> (<label>)"
+        self.assertIn("(", sql)
+        # Dash pattern: "<service> - <label>" (must require surrounding spaces)
+        self.assertTrue(
+            " - " in sql or "\\s+-\\s+" in sql or "[[:space:]]+-[[:space:]]+" in sql,
+            "Parser must require space-dash-space (not hyphenated words)",
+        )
+
+        # Uses regexp_match or regexp_matches (PostgreSQL pattern extraction)
+        self.assertTrue(
+            "regexp_match" in lower or "regexp_matches" in lower or "regexp_replace" in lower,
+            "Parser must use PostgreSQL regex extraction",
+        )
 
 
 if __name__ == "__main__":
