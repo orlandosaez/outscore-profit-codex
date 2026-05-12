@@ -22,6 +22,7 @@ SQL_033 = ROOT / "supabase/sql/033_revert_sla_invoice_paid_clearance.sql"
 SQL_034 = ROOT / "supabase/sql/034_profit_parse_anchor_service_name.sql"
 SQL_034A = ROOT / "supabase/sql/034a_profit_anchor_services_attributed.sql"
 SQL_034B = ROOT / "supabase/sql/034b_profit_sla_candidates_use_attribution.sql"
+SQL_034C = ROOT / "supabase/sql/034c_profit_weekly_review_items_expose_attribution.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -944,6 +945,30 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
         # Active classification dedup preserved
         self.assertIn("source_audit_row_hash", lower)
         self.assertIn("superseded_at is null", lower)
+
+    def test_migration_034c_queue_view_exposes_attribution_columns(self) -> None:
+        """V0.7.B.4 T7 step 1: UNION queue view exposes the 3 new attribution
+        columns (label, label_unresolved, agreement_client_business_name) so
+        the frontend can render label badges and grouping context."""
+        self.assertTrue(SQL_034C.exists())
+        sql = SQL_034C.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn("create or replace view profit_weekly_review_items", lower)
+
+        # New columns surfaced from SLA branch (passed through)
+        for col in ["label", "label_unresolved", "agreement_client_business_name"]:
+            self.assertIn(col, lower)
+
+        # Manual branch null-casts these new columns
+        self.assertIn("null::text as label", lower)
+
+        # Preserves sort_rank computation
+        self.assertIn("row_number()", lower)
+
+        # Both sources still present
+        self.assertIn("profit_manual_invoice_pending_candidates", lower)
+        self.assertIn("profit_sla_breached_candidates", lower)
 
 
 if __name__ == "__main__":
