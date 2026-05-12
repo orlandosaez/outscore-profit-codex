@@ -20,6 +20,7 @@ SQL_032 = ROOT / "supabase/sql/032_profit_sla_widen_regex_and_invoice_paid_clear
 SQL_032A = ROOT / "supabase/sql/032a_profit_sla_invoice_paid_after_target_date.sql"
 SQL_033 = ROOT / "supabase/sql/033_revert_sla_invoice_paid_clearance.sql"
 SQL_034 = ROOT / "supabase/sql/034_profit_parse_anchor_service_name.sql"
+SQL_034A = ROOT / "supabase/sql/034a_profit_anchor_services_attributed.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -842,6 +843,50 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
             "regexp_match" in lower or "regexp_matches" in lower or "regexp_replace" in lower,
             "Parser must use PostgreSQL regex extraction",
         )
+
+    def test_migration_034a_creates_attribution_view(self) -> None:
+        """V0.7.B.4 T3: attribution view resolves labeled services to the
+        correct FC client (orphan + flag if unresolved). Data-driven; no
+        content-specific rules."""
+        self.assertTrue(SQL_034A.exists(), "034a attribution view migration must exist")
+        sql = SQL_034A.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        # View exists
+        self.assertIn(
+            "create or replace view profit_anchor_services_attributed",
+            lower,
+        )
+
+        # Uses the parser function from 034
+        self.assertIn("profit_parse_anchor_service_name", lower)
+
+        # Sources from active anchor agreements
+        self.assertIn("profit_anchor_agreements", lower)
+        self.assertIn("profitsyncservicesummary", lower)
+
+        # Joins to FC clients for resolution
+        self.assertIn("profit_fc_clients", lower)
+
+        # Joins to fc_client_anchor_matches for agreement-holder lookup
+        self.assertIn("profit_fc_client_anchor_matches", lower)
+
+        # Required output columns
+        for col in [
+            "anchor_relationship_id",
+            "raw_service_name",
+            "canonical_service_name",
+            "label",
+            "agreement_holder_fc_client_id",
+            "attributed_fc_client_id",
+            "label_unresolved",
+            "service_trigger",
+            "service_occurrence",
+        ]:
+            self.assertIn(col, lower)
+
+        # DISTINCT ON to dedupe service duplicates (Ultimate II has 4 "1040 Plus")
+        self.assertIn("distinct on", lower)
 
 
 if __name__ == "__main__":
