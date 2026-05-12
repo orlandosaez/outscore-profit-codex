@@ -572,6 +572,68 @@ class ProfitAdminFrontendTests(unittest.TestCase):
             styles_source,
         )
 
+    def test_weekly_review_has_sortable_column_headers(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/WeeklyReview.jsx"
+        ).read_text(encoding="utf-8")
+
+        # Client-side sort state
+        self.assertIn("sortColumn", route_source)
+        self.assertIn("sortDirection", route_source)
+        # Clickable headers for the four sortable columns
+        self.assertIn("weekly-review-sort-header", route_source)
+        self.assertIn('"rank"', route_source)
+        self.assertIn('"client_name"', route_source)
+        self.assertIn('"service_name"', route_source)
+        self.assertIn('"verdict_code"', route_source)
+        # Visual arrow indicator
+        self.assertIn("weekly-review-sort-arrow", route_source)
+
+    def test_weekly_review_has_parent_grouping_toggle(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/WeeklyReview.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("viewMode", route_source)
+        self.assertIn("Flat list", route_source)
+        self.assertIn("Grouped by agreement", route_source)
+        self.assertIn("weekly-review-view-toggle", route_source)
+        self.assertIn("weekly-review-group-section", route_source)
+
+    def test_weekly_review_reads_attribution_columns(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/WeeklyReview.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("row.label", route_source)
+        self.assertIn("label_unresolved", route_source)
+        self.assertIn("agreement_client_business_name", route_source)
+
+    def test_weekly_review_renders_attribution_badge_via(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/WeeklyReview.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("attributionBadge", route_source)
+        self.assertIn("via ", route_source)
+        self.assertIn("weekly-review-label-badge-via", route_source)
+        self.assertIn("weekly-review-label-badge-unresolved", route_source)
+
+    def test_weekly_review_styles_include_v07b4_section(self) -> None:
+        styles_source = (
+            ROOT / "app/frontend/src/styles.css"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "/* === V0.7.B.4: Attribution UI === */",
+            styles_source,
+        )
+        self.assertIn(".weekly-review-sort-header", styles_source)
+        self.assertIn(".weekly-review-view-toggle", styles_source)
+        self.assertIn(".weekly-review-group-section", styles_source)
+        self.assertIn(".weekly-review-label-badge-via", styles_source)
+        self.assertIn(".weekly-review-label-badge-unresolved", styles_source)
+
 
 class SlaDashboardFrontendShellTests(unittest.TestCase):
     def test_sla_routes_are_registered_and_linked_from_nav(self) -> None:
