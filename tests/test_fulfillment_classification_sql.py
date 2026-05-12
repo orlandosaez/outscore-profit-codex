@@ -14,6 +14,7 @@ SQL_029A = ROOT / "supabase/sql/029a_profit_weekly_review_items.sql"
 SQL_030 = ROOT / "supabase/sql/030_profit_sla_breached_verdict.sql"
 SQL_030A = ROOT / "supabase/sql/030a_profit_weekly_review_sla_union.sql"
 SQL_030B = ROOT / "supabase/sql/030b_profit_sla_clearance_predicate_fix.sql"
+SQL_030C = ROOT / "supabase/sql/030c_profit_sla_candidates_exclude_cleared_work.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -606,6 +607,49 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
 
         self.assertNotIn("insert into profit_classification_transition_rules", lower)
         self.assertNotIn("create or replace view profit_sla_breached_candidates", lower)
+
+    def test_migration_030c_candidate_view_excludes_completed_work(self) -> None:
+        """V0.7.B.1 T6a: candidate view must filter out service items where a
+        matching FC task is complete or matching FC project is closed.
+        Without this, the apply function re-detects already-cleared work on
+        every pipeline run (churn)."""
+        self.assertTrue(SQL_030C.exists(), "030c migration file must exist")
+        sql = SQL_030C.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        # Re-defines the candidate view
+        self.assertIn("create or replace view profit_sla_breached_candidates", lower)
+
+        # Filters out completed tasks
+        self.assertIn("not exists", lower)
+        self.assertIn("profit_fc_tasks", lower)
+        self.assertIn(
+            "task.is_completed = true or task.completed_at is not null", lower
+        )
+
+        # Filters out closed projects
+        self.assertIn("profit_fc_projects", lower)
+        self.assertIn(
+            "project.is_closed = true or project.closed_at is not null", lower
+        )
+
+        # Match predicate uses split_part on service_name (mirrors 030b clearance)
+        self.assertIn(
+            "task.project_title ilike '%' || split_part(item.service_name, ' ', 1) || '%'",
+            lower,
+        )
+        self.assertIn(
+            "project.title ilike '%' || split_part(item.service_name, ' ', 1) || '%'",
+            lower,
+        )
+
+        # Service-tag bridge still attempted (V0.7.D will activate it)
+        self.assertIn("tag_type = 'service'", lower)
+
+        # Does NOT touch the apply function
+        self.assertNotIn(
+            "create or replace function profit_apply_classification_transitions", lower
+        )
 
 
 if __name__ == "__main__":
