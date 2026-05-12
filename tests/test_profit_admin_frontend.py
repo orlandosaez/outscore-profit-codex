@@ -507,6 +507,71 @@ class ProfitAdminFrontendTests(unittest.TestCase):
             styles_source,
         )
 
+    def test_weekly_review_no_longer_renders_age_days_column(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/WeeklyReview.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("<th>Age (days)</th>", route_source)
+        self.assertNotIn("textValue(row.age_days)", route_source)
+
+    def test_sla_dashboard_clients_panel_renders_aggregate_columns(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/SlaDashboard.jsx"
+        ).read_text(encoding="utf-8")
+
+        for header in [
+            "<th>Worst State</th>",
+            "<th>Services</th>",
+            "<th>Breached</th>",
+            "<th>At-Risk</th>",
+            "<th>Waiting</th>",
+            "<th>Next Target</th>",
+        ]:
+            self.assertIn(header, route_source)
+
+        for field in [
+            "row.service_count",
+            "row.breached_count",
+            "row.at_risk_count",
+            "row.waiting_on_client_count",
+        ]:
+            self.assertIn(field, route_source)
+
+        # The clients panel must no longer reference per-service-item fields
+        # that don't exist in the per-client aggregate view. Scope the check
+        # to the clients panel block (between sla-client-status and the next
+        # PanelFrame for sla-staff-workload).
+        clients_start = route_source.index('id="sla-client-status"')
+        clients_end = route_source.index('id="sla-staff-workload"')
+        clients_block = route_source[clients_start:clients_end]
+        for broken_field in [
+            "row.target_sla_day",
+            "row.age_days",
+            "row.assigned_staff_name",
+            "row.latest_workflow_status",
+        ]:
+            self.assertNotIn(broken_field, clients_block)
+
+    def test_sla_dashboard_renders_data_gap_banner(self) -> None:
+        route_source = (
+            ROOT / "app/frontend/src/routes/SlaDashboard.jsx"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("sla-data-gap-banner", route_source)
+        self.assertIn("Scheduled for V0.7.D", route_source)
+        self.assertIn('href="/admin/weekly-review"', route_source)
+
+    def test_sla_dashboard_styles_data_gap_banner_under_v07b1_section(self) -> None:
+        styles_source = (
+            ROOT / "app/frontend/src/styles.css"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "/* === V0.7.B.1: SLA data-gap banner === */",
+            styles_source,
+        )
+
 
 class SlaDashboardFrontendShellTests(unittest.TestCase):
     def test_sla_routes_are_registered_and_linked_from_nav(self) -> None:
@@ -567,18 +632,6 @@ class SlaDashboardFrontendShellTests(unittest.TestCase):
             'id="sla-performance"',
         ]:
             self.assertIn(anchor, route_source)
-
-        for field_label in [
-            "Target SLA Day",
-            "State",
-            "Age Days",
-            "Staff",
-            "Service",
-            "Workflow Status",
-            "Client/Group",
-            "Last Activity",
-        ]:
-            self.assertIn(field_label, route_source)
 
         for workload_label in [
             "Open",

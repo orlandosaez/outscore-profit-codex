@@ -188,7 +188,6 @@ export default function WeeklyReview() {
             <thead>
               <tr>
                 <th>Rank</th>
-                <th>Age (days)</th>
                 <th>Client</th>
                 <th>Services</th>
                 <th>Type</th>
@@ -202,7 +201,6 @@ export default function WeeklyReview() {
                 items.map((row, index) => (
                   <tr key={row.classification_id ?? index}>
                     <td>{row.sort_rank ?? index + 1}</td>
-                    <td>{textValue(row.age_days)}</td>
                     <td>
                       <span className="weekly-review-primary">{textValue(row.client_name, row.anchor_client_business_name)}</span>
                     </td>
@@ -257,7 +255,7 @@ export default function WeeklyReview() {
                 ))
               ) : (
                 <EmptyRow
-                  colSpan={8}
+                  colSpan={7}
                   hint="No items require attention this week."
                   label="Queue is empty"
                 />

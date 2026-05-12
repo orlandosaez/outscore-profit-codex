@@ -2168,3 +2168,44 @@ button.stat {
   background: #fef3c7;
   color: #92400e;
 }
+
+/* === V0.7.B.1: SLA dashboard count emphasis === */
+.sla-count-bad {
+  color: #a02c2c;
+  font-weight: 700;
+}
+.sla-count-warn {
+  color: #a07a2c;
+  font-weight: 700;
+}
+
+/* === V0.7.B.1: SLA data-gap banner === */
+.sla-data-gap-banner {
+  margin: 12px 0 18px;
+  padding: 12px 14px;
+  border: 1px solid #d4a437;
+  border-radius: 6px;
+  background: #fdf6e3;
+  color: #5c4720;
+  font-size: 0.88rem;
+}
+
+.sla-data-gap-banner strong {
+  color: #3d3014;
+  font-weight: 700;
+}
+
+.sla-data-gap-banner ul {
+  margin: 6px 0 8px;
+  padding-left: 20px;
+}
+
+.sla-data-gap-banner li {
+  margin: 2px 0;
+}
+
+.sla-data-gap-banner a {
+  color: #1d5f76;
+  font-weight: 700;
+  text-decoration: underline;
+}

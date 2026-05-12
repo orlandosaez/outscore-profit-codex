@@ -157,6 +157,20 @@ export default function SlaDashboard() {
       </header>
 
       {summaryError ? <div className="error-toast">{summaryError}</div> : null}
+
+      <div className="sla-data-gap-banner" role="status">
+        <strong>Some panels show incomplete data:</strong>
+        <ul>
+          <li>
+            <em>Per-Staff Workload</em> and <em>90-Day Performance</em> show "Unassigned" / 0 rows because Financial Cents service-tag and staff-tag sync is incomplete. Scheduled for V0.7.D.
+          </li>
+          <li>
+            <em>At-Risk</em> count is 0 because no current work item is within 20% of its SLA target. Will populate as new work begins.
+          </li>
+        </ul>
+        Actionable breached items live in <a href="/admin/weekly-review">/admin/weekly-review</a>.
+      </div>
+
       <div className="stats-grid sla-summary-grid">
         <Stat
           detail={summaryLoading ? "Loading" : "Total applicable"}
@@ -203,35 +217,33 @@ export default function SlaDashboard() {
           <table className="sla-table sla-client-table">
             <thead>
               <tr>
-                <th>Target SLA Day</th>
-                <th>State</th>
-                <th>Age Days</th>
-                <th>Staff</th>
-                <th>Service</th>
-                <th>Workflow Status</th>
-                <th>Client/Group</th>
-                <th>Last Activity</th>
+                <th>Client / Group</th>
+                <th>Worst State</th>
+                <th>Services</th>
+                <th>Breached</th>
+                <th>At-Risk</th>
+                <th>Waiting</th>
+                <th>Next Target</th>
               </tr>
             </thead>
             <tbody>
               {panels.clients.rows.length ? (
                 panels.clients.rows.map((row, index) => (
                   <tr key={row.anchor_relationship_id ?? row.fc_client_id ?? index}>
-                    <td>{numberValue(textValue(row.target_sla_day, row.default_sla_day))}</td>
-                    <td>{stateBadge(row.sla_state)}</td>
-                    <td>{numberValue(row.age_days)}</td>
-                    <td>{textValue(row.assigned_staff_name, row.staff_name, row.staff_source)}</td>
-                    <td>{textValue(row.service_name, row.macro_service_type, `${numberValue(row.service_count)} services`)}</td>
-                    <td>{textValue(row.latest_workflow_status, row.workflow_status)}</td>
                     <td>
                       <span className="sla-primary">{textValue(row.fc_client_name, row.anchor_client_business_name)}</span>
-                      <span className="sla-muted">{textValue(row.group_name, row.anchor_relationship_id)}</span>
+                      <span className="sla-muted">{textValue(row.anchor_relationship_id)}</span>
                     </td>
-                    <td>{formatDate(textValue(row.last_activity_at, row.latest_revenue_event_loaded_at, row.next_target_date))}</td>
+                    <td>{stateBadge(row.sla_state)}</td>
+                    <td>{numberValue(row.service_count)}</td>
+                    <td className={Number(row.breached_count) > 0 ? "sla-count-bad" : ""}>{numberValue(row.breached_count)}</td>
+                    <td className={Number(row.at_risk_count) > 0 ? "sla-count-warn" : ""}>{numberValue(row.at_risk_count)}</td>
+                    <td>{numberValue(row.waiting_on_client_count)}</td>
+                    <td>{formatDate(row.next_target_date)}</td>
                   </tr>
                 ))
               ) : (
-                <EmptyRow colSpan={8} label="No client SLA rows" hint="No applicable client SLA data is available for this view." />
+                <EmptyRow colSpan={7} label="No client SLA rows" hint="No applicable client SLA data is available for this view." />
               )}
             </tbody>
           </table>
