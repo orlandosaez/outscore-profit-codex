@@ -246,6 +246,44 @@ class WeeklyReviewApiListTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["limit"], 200)
 
+    def test_default_limit_is_200_not_50(self) -> None:
+        """V0.7.B.1 T2: default limit raised from 50 to 200 so V0.7.A
+        manual-invoice rows at the bottom of V0.7.B's 69-row queue
+        no longer silent-truncate."""
+        from profit_api.weekly_review import DEFAULT_LIMIT
+
+        self.assertEqual(DEFAULT_LIMIT, 200)
+
+    def test_default_request_returns_up_to_200_rows_with_total_count(self) -> None:
+        """A 100-row queue at default limit must return all 100 rows
+        (no silent truncation) and total_count must equal returned len."""
+        rows = [_make_row(i) for i in range(1, 101)]
+        client, _ = self.build_client({"profit_weekly_review_items": rows})
+        resp = client.get("/api/profit/admin/weekly-review/items")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["limit"], 200)
+        self.assertEqual(body["total_count"], 100)
+        self.assertEqual(len(body["rows"]), 100)
+
+    def test_default_request_returns_both_verdict_codes_when_mixed(self) -> None:
+        """Regression test for V0.7.B's silent truncation that hid all 5
+        manual-invoice rows at sort_rank 65-69. With limit=200, both
+        verdict codes must surface in a single default request."""
+        rows = (
+            [_make_row(i, verdict_code="SLA_BREACHED", sort_rank=i) for i in range(1, 65)]
+            + [_make_row(64 + i, verdict_code="MANUAL_INVOICE_PENDING", sort_rank=64 + i) for i in range(1, 6)]
+        )
+        client, _ = self.build_client({"profit_weekly_review_items": rows})
+        resp = client.get("/api/profit/admin/weekly-review/items")
+        self.assertEqual(resp.status_code, 200)
+        from collections import Counter
+
+        codes = Counter(r["verdict_code"] for r in resp.json()["rows"])
+        self.assertEqual(codes["SLA_BREACHED"], 64)
+        self.assertEqual(codes["MANUAL_INVOICE_PENDING"], 5)
+        self.assertEqual(resp.json()["total_count"], 69)
+
     def test_list_sorting_uses_sql_provided_sort_rank(self) -> None:
         rows = [_make_row(1, sort_rank=3), _make_row(2, sort_rank=1), _make_row(3, sort_rank=2)]
         client, _ = self.build_client({"profit_weekly_review_items": rows})

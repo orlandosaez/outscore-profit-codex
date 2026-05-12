@@ -11,7 +11,7 @@ WeeklyReviewRow = dict[str, object]
 # V0.7.C-D will add additional codes here alongside the SQL seed.
 VISIBLE_VERDICT_CODES: frozenset[str] = frozenset({"MANUAL_INVOICE_PENDING", "SLA_BREACHED"})
 
-DEFAULT_LIMIT = 50
+DEFAULT_LIMIT = 200  # V0.7.B.1: raised from 50 after V0.7.B's 14x queue-volume jump (69 rows) silently truncated V0.7.A manual-invoice rows at sort_rank 65-69
 MAX_LIMIT = 200
 DEFAULT_OPERATOR_ID = "orlando"
 DEFAULT_SNOOZE_DAYS = 7

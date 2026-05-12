@@ -386,7 +386,7 @@ def create_app(
         include_reviewed: bool = False,
         include_snoozed: bool = False,
         verdict_code: str | None = None,
-        limit: int = 50,
+        limit: int = 200,
         offset: int = 0,
     ) -> dict[str, object]:
         try:
