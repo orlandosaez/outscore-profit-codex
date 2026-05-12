@@ -95,6 +95,16 @@ Universal queue view. **V0.7.B replaces this view with a `UNION ALL` of two cand
 | `fc_task_id` | NULL until V0.7.D (no open tasks in current data) |
 | `fc_project_id` | Available where the FC service-tag join resolves |
 
+**Attribution columns (V0.7.B.4, appended after `sort_rank`):**
+
+| Column | Description |
+|---|---|
+| `label` | Parsed label text from the Anchor service name (e.g., `"Lee Wolfson"` from `"1040 Plus - Lee Wolfson"`). NULL on unlabeled services and on manual-invoice rows |
+| `label_unresolved` | Boolean. TRUE when a label exists but the fuzzy resolver could not map it to an FC client (Type 2 annotations like `"proration for monthly billing"` land here). NULL on unlabeled services and manual-invoice rows |
+| `agreement_client_business_name` | The source agreement holder's business name. Used by the UI for the `via {X}` badge and for parent-grouping rows |
+
+The SLA branch sources these from `profit_anchor_services_attributed` (migration 034a); the manual-invoice branch null-casts them (V0.7.A candidates don't yet go through attribution). See [Attribution Layer (V0.7.B.4)](#attribution-layer-v07b4) below.
+
 **`sort_rank` ordering (V0.7.B UNION-wide):**
 1. SLA breached (band 1)
 2. SLA at_risk (band 2)
@@ -150,6 +160,54 @@ To register a new verdict type in the queue:
 ## Dual-Row Co-occurrence
 
 Same client/agreement may appear in BOTH `MANUAL_INVOICE_PENDING` and `SLA_BREACHED` simultaneously (e.g. a Schmidli-like client whose tax return is past SLA and whose invoice was never issued). The `UNION ALL` produces two distinct rows. Each row tracks its own review/snooze state via its own `classification_id` so the operator can Mark reviewed or Snooze each verdict independently.
+
+## Attribution Layer (V0.7.B.4)
+
+**The labeled-service attribution rule (Orlando, 2026-05-12):**
+
+> For every service NOT labeled, it applies to the agreement client name. Otherwise, if there is a label on the service name, the SLA/billing scope goes to the LABELED client as resolved within Financial Cents.
+
+This rule is fully data-driven. No content-specific regex, no hardcoded client names. Operators encode attribution in Anchor by typing the FC client name into the service name; the system parses + resolves it.
+
+### Migrations
+
+| Migration | Object | Role |
+|---|---|---|
+| `034_profit_parse_anchor_service_name.sql` | `profit_parse_anchor_service_name(text)` | Pure SQL parser. Returns `(canonical_service_name, label)`. Paren-depth-aware so labels with nested parens (`"1065 Essential (Samdee RE - Spring Hill)"`) parse correctly |
+| `034a_profit_anchor_services_attributed.sql` | view `profit_anchor_services_attributed` | Joins parsed services to FC clients via 4-strategy fuzzy resolver (normalized-exact / normalized-prefix / last-token-first reorder / comma-format token-prefix). One row per `(anchor_relationship_id, canonical_service_name, label)`. Emits `attributed_fc_client_id`, `attributed_fc_client_name`, `label`, `label_unresolved`, `resolution_strategy` |
+| `034b_profit_sla_candidates_use_attribution.sql` | view `profit_sla_breached_candidates` (rewritten) | Sources from the attribution view instead of `profit_sla_service_items`. Surfaces every active Anchor service (not just those with revenue events). SLA state computed inline (mirrors `profit_sla_service_items`'s state machine; workflow_status integration deferred to V0.7.D) |
+| `034c_profit_weekly_review_items_expose_attribution.sql` | view `profit_weekly_review_items` (rebuilt) | Appends the 3 attribution columns to the UNION shape. Manual branch null-casts them |
+
+### Resolver strategies (4-tier deterministic fuzzy match)
+
+| # | Strategy | Example |
+|---|---|---|
+| 1 | Normalized-exact (whitespace/case/punct-normalized) | `"NDH Holdings LLC"` ↔ FC `"NDH Holdings, LLC"` |
+| 2 | Normalized-prefix | `"Menist, Samuel"` ↔ FC `"Menist, Samuel E (1040)"` |
+| 3 | Last-token-first reorder (N-token) | `"Ken & Nancy Wong"` ↔ FC `"Wong, Ken & Nancy"`; also `"Roy Surber"` ↔ FC `"Surber, Roy"` |
+| 4 | Comma-format token-prefix tolerance | `"Sullivan, Chris"` ↔ FC `"Sullivan, Christopher"` |
+
+Strategy chosen recorded in `resolution_strategy`. Failed resolution (no FC match across all 4 strategies) keeps the row attributed to the agreement holder and sets `label_unresolved = TRUE` so operators can investigate.
+
+### Collapse rule
+
+Candidate view applies `DISTINCT ON (fc_client_id, service_name)` with `ORDER BY (label IS NULL) DESC, label_unresolved ASC NULLS FIRST, target_date ASC NULLS LAST`. Effect: if the same `(attributed-client, canonical-service)` pair appears multiple times (e.g., a personal 1040 attributed to Lee Wolfson from both Lee's Food and Lee's Ice agreements; or YV's `"1040 Plus"` plus its `"1040 Plus - proration..."` annotation), the queue shows ONE row, preferring the unlabeled main entry over the annotation duplicate.
+
+### UI rendering rules
+
+| Condition | Rendering |
+|---|---|
+| `label IS NULL` | No attribution badge. Row groups under `client_name` |
+| `label IS NOT NULL AND label_unresolved = FALSE` | Gray badge `via {agreement_client_business_name}`. Row groups under the resolved FC client |
+| `label IS NOT NULL AND label_unresolved = TRUE` | Amber ⚠ badge `via {agreement_client_business_name}` (orphan). Row groups under the agreement holder (since FC client didn't resolve) |
+
+The flat-vs-grouped toggle is operator-controlled. Grouped view uses the resolved attribution client (or agreement holder for orphans) as the parent.
+
+### What this rule does NOT do (deferred)
+
+- **Per-service `MANUAL_INVOICE_PENDING`** — V0.7.A's `profit_manual_invoice_pending_candidates` is per-agreement (concatenated service names). Per-service rewrite deferred (T5 skipped this sprint; revisit only if operator surfaces specific gaps).
+- **Workflow status integration** — `latest_workflow_status` still NULL until V0.7.D backfills `tag_type='service'` rows on `profit_fc_project_tags`.
+- **AI-agent supplement** — soft-judgment cases (Samdee RE 1065 billing-convention vs operational handling) flagged for post-V0.7 consideration. Pure data rules cannot disambiguate; an agent layer reading conversational context may.
 
 ## Deferred Gaps
 

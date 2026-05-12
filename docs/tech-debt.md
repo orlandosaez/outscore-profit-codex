@@ -90,6 +90,37 @@ V0.7.B Task 1 SLA profiling surfaced three structural V0.7.D dependencies. V0.7.
 
 - **`age_days` semantics for SLA verdicts.** `profit_sla_breached_candidates.age_days` resets to 0 when `profit_apply_classification_transitions` first creates the classification. Operator-relevant "how overdue" is exposed separately as `breach_age_days = current_date - target_date::date`. Frontend renders both: `age_days` (sort tiebreak) and `breach_age_days` (operator label). No further action needed; documented in `docs/data-contracts/weekly-review.md`.
 
+## V0.7.B.4 SHIPPED — Labeled-Service Attribution Rule (2026-05-12)
+
+Implements Orlando's domain rule: Anchor service names carry labels (e.g., `"1065 Essential - NDH Holdings LLC"`, `"1040 Plus (Ken & Nancy Wong)"`). The system parses each label, fuzzy-matches it to an FC client, and attributes the service to the labeled entity instead of the agreement holder. Unresolved labels (descriptive annotations like `"proration for monthly billing"`) stay on the agreement holder with an `label_unresolved=true` flag for operator visibility.
+
+**No content-specific rules** anywhere in the implementation (per `coordination/decisions.md` 2026-05-12 entry). The fuzzy resolver is the discriminator between entity labels (attribute) and annotations (keep on agreement holder).
+
+**Migrations (5 total):**
+- `034_profit_parse_anchor_service_name.sql` — pure SQL parser with paren-depth-aware discriminator
+- `034a_profit_anchor_services_attributed.sql` — attribution view with 4-strategy fuzzy resolver
+- `034b_profit_sla_candidates_use_attribution.sql` — SLA candidate view sources from attribution; drops V0.7.B.3 content rules
+- `034c_profit_weekly_review_items_expose_attribution.sql` — UNION queue view surfaces 3 new attribution columns
+- (skipped: T5 per-service MANUAL_INVOICE_PENDING — symmetric verdict-family duplication not operator-correct)
+
+**Frontend:**
+- Sortable column headers (Rank, Client, Services, Type)
+- Parent grouping toggle (Flat ⇄ Grouped by agreement)
+- Label badges (gray "via {agreement holder}" for resolved; amber ⚠ for unresolved)
+
+**Live operator outcome (verified 2026-05-12):**
+- Queue: ~59 visible rows (was 24 pre-V0.7.B.4 attribution)
+- Attribution working: Wolfson Lee A / Stephen T / William I each surface as own FC client rows; Samdee RE 1065 moved from SamDee Lakeland; DVH 1065 cleared via FC post-mortem project
+- ICE / Accelerated / Lee's tax services now visible (previously hidden by V0.6.D revenue-event-only filter)
+
+**Supersedes V0.7.B.3 entirely:**
+
+~~**V0.7.B.3 1040-on-business structural rule** (migration `031`)~~ — **SUPERSEDED 2026-05-12 in V0.7.B.4.** Content-specific regex (`client_name ~* '\m(LLC|Inc|Corp|LLP|PA)\M'` paired with `service_name ILIKE '1040%'`) replaced by data-driven labeled-service attribution. 031's view body is overwritten by 034b's `CREATE OR REPLACE VIEW profit_sla_breached_candidates`.
+
+~~**V0.7.B.3 sla_invoice_paid clearance** (migrations `032`, `032a`, `033`)~~ — **DISABLED 2026-05-12 in V0.7.B.1 T3 via 033's UPDATE.** The transition rule `sla_invoice_paid` is set to `enabled=false` and stays that way. The candidate view + apply function reverted to pre-032 shape. Domain lesson: payment is not delivery.
+
+**Architectural thought logged for future (Orlando 2026-05-12):** Soft-judgment cases like Samdee RE's "1065 for billing only; work flows via Sam's individual 1040" need a layer above deterministic rules. Possible future AI-agent supplement that reviews queue rows for operator-correct semantic alignment + flags anomalies. NOT V0.7 scope. Captured in `coordination/decisions.md`.
+
 ## V0.7.A Deferred Items Kept Open
 
 - Stale `MANUAL_INVOICE_PENDING` cleanup is deferred to V0.7.D. V0.7.A clears manual-invoice classifications only via the two confirmed signals: `manual_invoice_issued` (matching `profit_anchor_invoices` row with `qbo_status is not null`) and `manual_invoice_agreement_terminated` (`profit_anchor_agreements.display_status = 'terminated'` and `terminated_at is not null`). It does not attempt to repair historical stale/reopened agreement drift, orphaned state rows from agreements that transitioned outside of these signals, or `MANUAL_INVOICE_PENDING` rows whose underlying agreement no longer has any manual-trigger services. V0.7.D will sweep these along with broader stale-classification cleanup.
