@@ -1258,6 +1258,42 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/rpc/profit_record_audit_summary",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_run_id: $('Finalize Pipeline Run Summary').first().json.pipeline_run_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        10780,
+        0
+      ],
+      "id": "041audit-26cb-4b2b-9a0d-000041000041",
+      "name": "Record Audit Summary",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { accepted: true, pipeline_run_id: $json.body?.pipeline_run_id ?? null } }}",
         "options": {
@@ -2003,6 +2039,17 @@
         [
           {
             "node": "Patch Pipeline Run Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patch Pipeline Run Final Status": {
+      "main": [
+        [
+          {
+            "node": "Record Audit Summary",
             "type": "main",
             "index": 0
           }

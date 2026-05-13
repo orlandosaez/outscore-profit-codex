@@ -523,9 +523,20 @@ class N8nWorkflowTests(unittest.TestCase):
         ]
         self.assertEqual(
             {node["name"] for node in rpc_nodes},
-            {"Run Inactive Reemergence Scan", "Apply Classification Transitions"},
+            {
+                "Run Inactive Reemergence Scan",
+                "Apply Classification Transitions",
+                # V0.7.E.0.1 T4 — self-audit post-step calls profit_record_audit_summary
+                # after the final status patch on every pipeline run.
+                "Record Audit Summary",
+            },
         )
         for node in rpc_nodes:
+            # Record Audit Summary is a post-step (after Patch Pipeline Run Final Status);
+            # it doesn't need alwaysOutputData because no downstream node depends on its
+            # output. The two recognition/classification RPC nodes do need it.
+            if node["name"] == "Record Audit Summary":
+                continue
             self.assertTrue(
                 node.get("alwaysOutputData"),
                 f"{node['name']} must emit an item even when the RPC returns zero rows.",
@@ -554,7 +565,9 @@ class N8nWorkflowTests(unittest.TestCase):
             for node in workflow["nodes"]
             if not workflow["connections"].get(node["name"], {}).get("main")
         ]
-        self.assertEqual(terminal_nodes, ["Patch Pipeline Run Final Status"])
+        # V0.7.E.0.1 T4 — "Record Audit Summary" is now the terminal node:
+        # the audit RPC fires AFTER the final status patch on every pipeline run.
+        self.assertEqual(terminal_nodes, ["Record Audit Summary"])
 
         for node in workflow["nodes"]:
             if node["type"] == "n8n-nodes-base.if":

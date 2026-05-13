@@ -11,6 +11,10 @@ from profit_api.audit import (
     AuditDashboardValidationError,
 )
 from profit_api.dashboard import AdminDashboardService
+from profit_api.data_quality import (
+    DataQualityService,
+    DataQualityValidationError,
+)
 from profit_api.manual_recognition import ManualRecognitionError, ManualRecognitionService
 from profit_api.periods import validate_period_month
 from profit_api.pipeline import (
@@ -62,6 +66,7 @@ def create_app(
     pipeline_service: PipelineService | None = None,
     sla_service: SlaDashboardService | None = None,
     weekly_review_service: WeeklyReviewService | None = None,
+    data_quality_service: DataQualityService | None = None,
 ) -> Any:
     try:
         from fastapi import FastAPI, HTTPException
@@ -86,6 +91,7 @@ def create_app(
     pipeline_dashboard_service = pipeline_service or PipelineService(supabase_client)
     sla_dashboard_service = sla_service or SlaDashboardService(supabase_client)
     weekly_review_dashboard_service = weekly_review_service or WeeklyReviewService(supabase_client)
+    data_quality_dashboard_service = data_quality_service or DataQualityService(supabase_client)
 
     @app.get("/api/profit/admin/dashboard")
     def admin_dashboard_snapshot(period: str | None = None) -> dict[str, object]:
@@ -272,6 +278,29 @@ def create_app(
             raise HTTPException(status_code=409, detail=exc.detail) from exc
         except PipelineTriggerError as exc:
             raise HTTPException(status_code=500, detail=exc.detail) from exc
+
+    # V0.7.E.0.1 T1 — self-audit data-quality alerts surface.
+    # Reads profit_data_quality_alerts (11 alert categories A–K).
+    @app.get("/api/profit/admin/data-quality-alerts")
+    def data_quality_alerts(
+        severity: str | None = None,
+        category: str | None = None,
+        limit: int = 200,
+        offset: int = 0,
+    ) -> dict[str, object]:
+        try:
+            return data_quality_dashboard_service.list_alerts(
+                severity=severity,
+                category=category,
+                limit=min(max(limit, 1), 1000),
+                offset=max(offset, 0),
+            )
+        except DataQualityValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/profit/admin/data-quality-alerts/summary")
+    def data_quality_alerts_summary() -> dict[str, object]:
+        return data_quality_dashboard_service.summary()
 
     @app.get("/api/profit/admin/sla/summary")
     def sla_summary() -> dict[str, object]:

@@ -15,6 +15,7 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import DataQualityChip from "../components/DataQualityChip.jsx";
 import { EmptyRow, EmptyState } from "../components/EmptyState.jsx";
 import PipelineRefreshDialog from "../components/PipelineRefreshDialog.jsx";
 import PipelineStatusBanner from "../components/PipelineStatusBanner.jsx";
@@ -598,6 +599,8 @@ function Dashboard() {
         latestRun={latestPipelineRun}
         onRerun={() => setPipelineDialogOpen(true)}
       />
+
+      <DataQualityChip />
 
       <ReviewChecklist />
 

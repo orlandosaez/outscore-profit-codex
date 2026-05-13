@@ -1572,6 +1572,17 @@ html {
   border-color: #efd9a0;
 }
 
+.pipeline-banner-good {
+  color: #146343;
+  background: #e5f4ed;
+  border-color: #bce0cf;
+}
+
+.pipeline-banner-good .pipeline-banner-icon {
+  background: #cce7da;
+  color: #146343;
+}
+
 .pipeline-banner-icon {
   display: grid;
   place-items: center;

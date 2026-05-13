@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import PortalNav from "./components/PortalNav.jsx";
 import AuditDashboard from "./routes/AuditDashboard.jsx";
 import Dashboard from "./routes/Dashboard.jsx";
+import DataQuality from "./routes/DataQuality.jsx";
 import ManualRecognition from "./routes/ManualRecognition.jsx";
 import PipelineRuns from "./routes/PipelineRuns.jsx";
 import SlaBackfill from "./routes/SlaBackfill.jsx";
@@ -18,6 +19,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/admin/audit" element={<AuditDashboard />} />
+        <Route path="/admin/data-quality" element={<DataQuality />} />
         <Route path="/admin/pipeline" element={<PipelineRuns />} />
         <Route path="/admin/pipeline/:pipelineRunId" element={<PipelineRuns />} />
         <Route path="/admin/recognition" element={<ManualRecognition />} />
