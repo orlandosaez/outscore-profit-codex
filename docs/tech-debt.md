@@ -30,6 +30,28 @@
 - Detail panel service tasks omit assigned staff unless exposed by existing views. The V0.6.B.2.b detail payload uses the capped `profit_fc_task_delivery_classification` rows already available to the API. Revisit if SLA context needs assigned-staff or reviewer display in B.2.b+.
 - Frontend clears all row selection after successful bulk apply. This keeps the operator in a clean triage state after each mutation, but it does not preserve unrelated selected rows for multi-step batch workflows. Revisit if reviewers need longer staged batches.
 
+## W17 FC Sync — Missing Stale-Record Sweep (V0.7.D-3 Part C, deferred)
+
+**Discovered 2026-05-13 operator audit.** W17 (Financial Cents sync) does INSERT/UPDATE only. When a client is renamed or deleted in FC and FC's `/clients` endpoint stops returning the old record, W17 does nothing — the stale row in `profit_fc_clients` persists indefinitely with `is_archived = false` and a stale `last_seen_at`.
+
+**Observed impact 2026-05-13:**
+- `4385653 "Lee's Food Store of Sarasota Inc"` (no comma) — stale since 2026-05-09, swept manually via migration 038a
+- `4385662 "Lee's Ice of Southwest Florida, Inc."` (trailing dot) — same
+- Ghost records polluted V0.7.B.4 attribution and SLA candidate views until V0.7.D-3 Part B (migration 038b) added `is_archived = false` filter to the resolver
+
+**Permanent fix (deferred to next FC-sync-touching slice):**
+Add one step to the end of W17 workflow JSON (`n8n/workflows/profit-17-financial-cents-sync.json`):
+```sql
+UPDATE profit_fc_clients
+   SET is_archived = true, archived_at = now()
+ WHERE last_seen_at < <sync_start_timestamp - 5 minutes>
+   AND is_archived = false;
+```
+
+**Safety guard needed:** only execute the sweep when the sync's pulled-record count is within 90% of the last successful sync's count. Otherwise an FC API glitch returning a partial result set would mass-archive real clients.
+
+**Slot:** fold into V0.7.D-4 (FC sync expansion hardening) or V0.7.G polish, whichever comes first. Estimated: ~30 min n8n edit + careful import/activate.
+
 ## Source-Of-Truth Drift Across Business Rule Domains
 
 Three categories of business rules currently live as static data in our DB but originate upstream. Each should eventually be synced from its source instead of statically seeded:
