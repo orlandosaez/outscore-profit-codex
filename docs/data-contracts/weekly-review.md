@@ -161,6 +161,36 @@ To register a new verdict type in the queue:
 
 Same client/agreement may appear in BOTH `MANUAL_INVOICE_PENDING` and `SLA_BREACHED` simultaneously (e.g. a Schmidli-like client whose tax return is past SLA and whose invoice was never issued). The `UNION ALL` produces two distinct rows. Each row tracks its own review/snooze state via its own `classification_id` so the operator can Mark reviewed or Snooze each verdict independently.
 
+## Staff Assignment Source of Truth (V0.7.D-1.1, 2026-05-12)
+
+**Authoritative source: FC custom fields on each client.** As of 2026-05-12 (Orlando directive), the four FC client custom fields ARE the source of truth for staff assignment:
+
+| FC field name | Used for | Stable ID (as of 2026-05-12) |
+|---|---|---|
+| `Tax Preparer` | Tax / non-bookkeeping SLA `assigned_staff_name` | 111579 |
+| `Tax Reviewer` | Tax-side reviewer (reserved for future use) | 111580 |
+| `Book Primary` | Bookkeeping SLA `assigned_staff_name` (fc_tag like 'S BOOK%') | 111581 |
+| `Book Reviewer` | Bookkeeping reviewer (reserved for future use) | 111582 |
+
+**Ingestion path:** W17 nightly sync pulls FC `raw->custom_fields` into `profit_fc_clients`. View `profit_fc_client_staff_from_custom_fields` (migration 035g) extracts the 4 values per client. `profit_sla_breached_candidates` (rewritten in 035h) reads this view as PRIMARY.
+
+**Lookup priority in `assigned_staff_name`:**
+
+1. **FC custom_fields** (`fc_custom_field` source) — current authoritative
+2. **XLSX-seeded `profit_client_staff_assignments`** (`authoritative_assignment` source) — transitional cache, queued for deprecation
+3. **Derived `profit_fc_client_primary_preparer`** (`derived_primary_preparer` source) — falls back to FC raw->assignees[0]->name over last 365 days
+4. `unassigned` if none resolve
+
+**Why this layering exists:** the migration from XLSX-as-truth to FC-as-truth happens in stages. Each fallback handles a known gap (V0.7.B.4 attribution duplicates that aren't in FC's active list; clients added to FC after the XLSX bulk seed; etc).
+
+**Operator workflow:** edit the 4 fields directly in FC client profile. Changes appear in the SLA queue after the next W26 run (nightly ~2am ET) or after a manual run from `/admin/audit/pipeline-runs`.
+
+**Tech-debt watch:** if you edit a custom field in FC mid-day, the SLA queue lags up to ~24h until next W26. Manual pipeline trigger forces same-day refresh.
+
+**XLSX retired:** `docs/data-references/client-staff-assignments.xlsx` is now a historical artifact + one-time bulk-update seed source. The `profit_client_staff_assignments` table is queued for deprecation after one sprint of stability.
+
+---
+
 ## Attribution Layer (V0.7.B.4)
 
 **The labeled-service attribution rule (Orlando, 2026-05-12):**

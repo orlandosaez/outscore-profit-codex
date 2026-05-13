@@ -90,6 +90,31 @@ V0.7.B Task 1 SLA profiling surfaced three structural V0.7.D dependencies. V0.7.
 
 - **`age_days` semantics for SLA verdicts.** `profit_sla_breached_candidates.age_days` resets to 0 when `profit_apply_classification_transitions` first creates the classification. Operator-relevant "how overdue" is exposed separately as `breach_age_days = current_date - target_date::date`. Frontend renders both: `age_days` (sort tiebreak) and `breach_age_days` (operator label). No further action needed; documented in `docs/data-contracts/weekly-review.md`.
 
+## V0.7.D-1.1 SHIPPED — FC custom_fields as authoritative staff-assignment source (2026-05-12)
+
+**Background:** Orlando bulk-populated 4 FC custom fields (Tax Preparer, Tax Reviewer, Book Primary, Book Reviewer) on 2026-05-12 via FC Open API. The XLSX is retired as authoritative. Migration 035g extracts these fields per client; 035h rewrites `profit_sla_breached_candidates` to use them as primary source.
+
+**Live impact (post-deploy):**
+- SLA queue `staff_source` distribution: fc_custom_field 40 / derived_primary_preparer 1 / unassigned 8 (was authoritative_assignment 13 / derived 23 / unassigned 13)
+- 82% of SLA rows now resolve to a named human directly from FC's source of truth.
+
+**Tech-debt items opened by this shift:**
+
+1. **Mid-day FC edit lag.** W17 sync runs nightly inside W26 step 4. If operator edits a custom field in FC mid-day, the SLA queue lags up to ~24h until the next pipeline run. Mitigation: manual trigger via `POST /api/profit/admin/audit/pipeline-runs`. Long-term fix: webhook or per-field push (defer to V0.7.E or beyond).
+
+2. **`profit_client_staff_assignments` table queued for deprecation.** This table (migration 035e, XLSX-seeded) is now a transitional cache. After one sprint of stability (V0.7.D-2 or V0.7.G), drop it via `DROP TABLE` + remove the `authoritative_assignment` fallback branch in `profit_sla_breached_candidates`.
+
+3. **Williams Bennie has 2 orphan custom_field rows** from the rename test on 2026-05-12 (about_field_id 111574/111575 deleted; value rows persist with field=null). Harmless (invisible in FC UI). Sweepable only via specific orphan-cleanup pattern; deferred.
+
+4. **2 XLSX entries with FC name drift remain unresolved.** "Feig, Hadar Steven (1040)" should be updated in the XLSX to match FC's "Feig, Hadar Steven and Leora (1040)" for future bulk re-runs. "Kar Kraft Auto Services LLC (closeout for 2025)" is archived in FC; either remove from XLSX or unarchive. Confirmed correct in FC already per Orlando 2026-05-12.
+
+**Files shipped:**
+- `supabase/sql/035g_profit_fc_client_staff_from_custom_fields.sql` (view)
+- `supabase/sql/035h_profit_sla_candidates_use_fc_custom_fields.sql` (SLA rewrite)
+- `docs/data-contracts/weekly-review.md` — Staff Assignment Source of Truth section added
+
+---
+
 ## V0.7.B.4 SHIPPED — Labeled-Service Attribution Rule (2026-05-12)
 
 Implements Orlando's domain rule: Anchor service names carry labels (e.g., `"1065 Essential - NDH Holdings LLC"`, `"1040 Plus (Ken & Nancy Wong)"`). The system parses each label, fuzzy-matches it to an FC client, and attributes the service to the labeled entity instead of the agreement holder. Unresolved labels (descriptive annotations like `"proration for monthly billing"`) stay on the agreement holder with an `label_unresolved=true` flag for operator visibility.
