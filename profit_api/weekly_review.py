@@ -8,8 +8,14 @@ WeeklyReviewRow = dict[str, object]
 
 # Verdict codes registered in profit_weekly_review_visible_verdicts.
 # V0.7.A: MANUAL_INVOICE_PENDING; V0.7.B: SLA_BREACHED.
-# V0.7.C-D will add additional codes here alongside the SQL seed.
-VISIBLE_VERDICT_CODES: frozenset[str] = frozenset({"MANUAL_INVOICE_PENDING", "SLA_BREACHED"})
+# V0.7.D-2: MANUAL_RECOGNITION_PENDING and PIPELINE_RUN_FAILED.
+VISIBLE_VERDICT_CODES: frozenset[str] = frozenset(
+    {
+        "MANUAL_INVOICE_PENDING",
+        "MANUAL_RECOGNITION_PENDING",
+        "SLA_BREACHED",
+    }
+)
 
 DEFAULT_LIMIT = 200  # V0.7.B.1: raised from 50 after V0.7.B's 14x queue-volume jump (69 rows) silently truncated V0.7.A manual-invoice rows at sort_rank 65-69
 MAX_LIMIT = 200

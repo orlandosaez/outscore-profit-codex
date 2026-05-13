@@ -223,11 +223,12 @@ class WeeklyReviewApiListTests(unittest.TestCase):
         ordered = [r["classification_id"] for r in resp.json()["rows"]]
         self.assertEqual(ordered, [2, 3, 1])
 
-    def test_visible_verdict_codes_now_includes_sla_breached(self) -> None:
+    def test_visible_verdict_codes_includes_v0_7_d2_manual_recognition(self) -> None:
         from profit_api.weekly_review import VISIBLE_VERDICT_CODES
 
         self.assertIn("MANUAL_INVOICE_PENDING", VISIBLE_VERDICT_CODES)
         self.assertIn("SLA_BREACHED", VISIBLE_VERDICT_CODES)
+        self.assertIn("MANUAL_RECOGNITION_PENDING", VISIBLE_VERDICT_CODES)
 
     def test_list_limit_clamps_to_1_200(self) -> None:
         rows = [_make_row(i) for i in range(1, 6)]

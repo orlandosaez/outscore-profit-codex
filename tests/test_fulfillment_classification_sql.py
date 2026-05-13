@@ -23,6 +23,7 @@ SQL_034 = ROOT / "supabase/sql/034_profit_parse_anchor_service_name.sql"
 SQL_034A = ROOT / "supabase/sql/034a_profit_anchor_services_attributed.sql"
 SQL_034B = ROOT / "supabase/sql/034b_profit_sla_candidates_use_attribution.sql"
 SQL_034C = ROOT / "supabase/sql/034c_profit_weekly_review_items_expose_attribution.sql"
+SQL_036 = ROOT / "supabase/sql/036_profit_manual_recognition_pending_verdict.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -969,6 +970,54 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
         # Both sources still present
         self.assertIn("profit_manual_invoice_pending_candidates", lower)
         self.assertIn("profit_sla_breached_candidates", lower)
+
+    def test_migration_036_manual_recognition_pending_verdict_contract(self) -> None:
+        self.assertTrue(SQL_036.exists(), "036 manual recognition migration must exist")
+        sql = SQL_036.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn("insert into profit_classification_verdicts", lower)
+        self.assertIn("MANUAL_RECOGNITION_PENDING", sql)
+        self.assertIn(
+            "('MANUAL_RECOGNITION_PENDING', 'Manual recognition pending', 'pending', 'show', false, true",
+            sql,
+        )
+
+        self.assertIn("insert into profit_classification_transition_rules", lower)
+        self.assertIn("manual_recognition_pending_detected", sql)
+        self.assertIn("recognition_event_recognized", sql)
+        self.assertIn("no-op resolution", lower)
+
+        self.assertIn(
+            "create or replace view profit_manual_recognition_pending_candidates",
+            lower,
+        )
+        self.assertIn("from profit_pipeline_stuck_recognition_triggers", lower)
+        self.assertIn("'manual_recognition_pending:' || stuck.revenue_event_key", lower)
+
+    def test_migration_036_apply_function_adds_manual_recognition_signals(self) -> None:
+        self.assertTrue(SQL_036.exists(), "036 manual recognition migration must exist")
+        sql = SQL_036.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn("create or replace function profit_apply_classification_transitions", lower)
+        self.assertIn("manual_recognition_pending_detected_signals as", lower)
+        self.assertIn("manual_recognition_event_recognized_signals as", lower)
+        self.assertIn("recognition_status not like 'pending_%'", lower)
+        self.assertIn("coalesce(event.recognized_amount, 0) > 0", lower)
+        self.assertIn("'system:manual_recognition_pending'::text as source_audit_file", lower)
+        self.assertIn("'manual_recognition_pending:' || candidate.revenue_event_key", lower)
+
+        for signal in [
+            "manual_invoice_detected",
+            "manual_invoice_issued",
+            "manual_invoice_agreement_terminated",
+            "sla_breach_detected",
+            "sla_task_complete",
+            "sla_project_archived",
+            "active_agreement_appears",
+        ]:
+            self.assertIn(signal, sql)
 
 
 if __name__ == "__main__":
