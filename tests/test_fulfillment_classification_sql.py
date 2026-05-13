@@ -24,6 +24,7 @@ SQL_034A = ROOT / "supabase/sql/034a_profit_anchor_services_attributed.sql"
 SQL_034B = ROOT / "supabase/sql/034b_profit_sla_candidates_use_attribution.sql"
 SQL_034C = ROOT / "supabase/sql/034c_profit_weekly_review_items_expose_attribution.sql"
 SQL_036 = ROOT / "supabase/sql/036_profit_manual_recognition_pending_verdict.sql"
+SQL_036A = ROOT / "supabase/sql/036a_profit_pipeline_run_failed_verdict.sql"
 
 
 CANONICAL_VERDICTS = [
@@ -1015,6 +1016,54 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
             "sla_breach_detected",
             "sla_task_complete",
             "sla_project_archived",
+            "active_agreement_appears",
+        ]:
+            self.assertIn(signal, sql)
+
+    def test_migration_036a_pipeline_run_failed_verdict_contract(self) -> None:
+        self.assertTrue(SQL_036A.exists(), "036a pipeline run failed migration must exist")
+        sql = SQL_036A.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn("insert into profit_classification_verdicts", lower)
+        self.assertIn("PIPELINE_RUN_FAILED", sql)
+        self.assertIn(
+            "('PIPELINE_RUN_FAILED', 'Pipeline run failed', 'pending', 'show', false, true",
+            sql,
+        )
+
+        self.assertIn("insert into profit_classification_transition_rules", lower)
+        self.assertIn("pipeline_run_failed_detected", sql)
+        self.assertIn("pipeline_run_succeeded_after_failure", sql)
+        self.assertIn("no-op resolution", lower)
+
+        self.assertIn("create or replace view profit_pipeline_run_failed_candidates", lower)
+        self.assertIn("from profit_pipeline_runs run", lower)
+        self.assertIn("run.status = 'failed'", lower)
+        self.assertIn("run.status = 'partial'", lower)
+        self.assertIn("(run.summary->>'total_steps_failed')::integer > 0", lower)
+        self.assertIn("max(success.finished_at)", lower)
+        self.assertIn("'System: Pipeline ' || run.pipeline_run_id::text", sql)
+        self.assertIn("'pipeline_run_failed:' || run.pipeline_run_id::text", lower)
+
+    def test_migration_036a_apply_function_adds_pipeline_run_failed_signals(self) -> None:
+        self.assertTrue(SQL_036A.exists(), "036a pipeline run failed migration must exist")
+        sql = SQL_036A.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn("create or replace function profit_apply_classification_transitions", lower)
+        self.assertIn("pipeline_run_failed_detected_signals as", lower)
+        self.assertIn("pipeline_run_succeeded_after_failure_signals as", lower)
+        self.assertIn("later_success.status = 'success'", lower)
+        self.assertIn("later_success.finished_at > failed_run.finished_at", lower)
+        self.assertIn("'system:pipeline_run_failed'::text as source_audit_file", lower)
+        self.assertIn("'pipeline_run_failed:' || candidate.pipeline_run_id::text", lower)
+
+        for signal in [
+            "manual_recognition_pending_detected",
+            "recognition_event_recognized",
+            "manual_invoice_detected",
+            "sla_breach_detected",
             "active_agreement_appears",
         ]:
             self.assertIn(signal, sql)

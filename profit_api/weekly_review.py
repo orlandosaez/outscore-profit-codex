@@ -13,6 +13,7 @@ VISIBLE_VERDICT_CODES: frozenset[str] = frozenset(
     {
         "MANUAL_INVOICE_PENDING",
         "MANUAL_RECOGNITION_PENDING",
+        "PIPELINE_RUN_FAILED",
         "SLA_BREACHED",
     }
 )
