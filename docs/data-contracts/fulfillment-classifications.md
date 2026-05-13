@@ -193,6 +193,8 @@ The issued-invoice clearance requires at least one `profit_anchor_invoices` row 
 
 The current verdict taxonomy has no terminated-agreement successor equivalent to `CLIENT_TERMINATED`. V0.7.A therefore resolves terminated manual-invoice rows by setting `superseded_at` while leaving `superseded_by_classification_id` null. This is a documented no-op resolution path, not a failed transition.
 
+V0.7.D-2 adds `MANUAL_INVOICE_PENDING` + `manual_invoice_no_active_manual_trigger_services` as stale-row cleanup. The signal fires when the active classification's FC client has no active agreement carrying a manual-trigger service summary in `profit_anchor_agreements.raw->'profitSyncServiceSummary'`. It uses no-successor resolution: the stale row is superseded with `superseded_by_classification_id = null` because there is no successor verdict for "manual invoice no longer applicable".
+
 V0.7.B adds SLA-breach executable paths:
 
 - breached or at-risk service item -> insert `SLA_BREACHED`

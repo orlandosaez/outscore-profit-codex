@@ -25,6 +25,8 @@ SQL_034B = ROOT / "supabase/sql/034b_profit_sla_candidates_use_attribution.sql"
 SQL_034C = ROOT / "supabase/sql/034c_profit_weekly_review_items_expose_attribution.sql"
 SQL_036 = ROOT / "supabase/sql/036_profit_manual_recognition_pending_verdict.sql"
 SQL_036A = ROOT / "supabase/sql/036a_profit_pipeline_run_failed_verdict.sql"
+SQL_036B = ROOT / "supabase/sql/036b_profit_manual_invoice_pending_cleanup.sql"
+FULFILLMENT_CONTRACT = ROOT / "docs/data-contracts/fulfillment-classifications.md"
 
 
 CANONICAL_VERDICTS = [
@@ -1067,6 +1069,43 @@ class FulfillmentClassificationSqlTests(unittest.TestCase):
             "active_agreement_appears",
         ]:
             self.assertIn(signal, sql)
+
+    def test_migration_036b_manual_invoice_no_active_manual_trigger_cleanup(self) -> None:
+        self.assertTrue(SQL_036B.exists(), "036b manual invoice cleanup migration must exist")
+        sql = SQL_036B.read_text(encoding="utf-8")
+        lower = sql.lower()
+
+        self.assertIn("insert into profit_classification_transition_rules", lower)
+        self.assertIn(
+            "('MANUAL_INVOICE_PENDING', 'manual_invoice_no_active_manual_trigger_services', 'MANUAL_INVOICE_PENDING', false, true",
+            sql,
+        )
+        self.assertIn("no-op resolution", lower)
+
+        self.assertIn("create or replace function profit_apply_classification_transitions", lower)
+        self.assertIn("manual_invoice_no_active_manual_trigger_services_signals as", lower)
+        self.assertIn("not exists", lower)
+        self.assertIn("profit_anchor_agreements active_agreement", lower)
+        self.assertIn("active_agreement.display_status = 'active'", lower)
+        self.assertIn(
+            "active_agreement.raw->'profitSyncServiceSummary' @> '[{\"trigger\":\"manual\"}]'::jsonb",
+            sql,
+        )
+
+        for signal in [
+            "manual_recognition_pending_detected",
+            "pipeline_run_failed_detected",
+            "manual_invoice_agreement_terminated",
+            "sla_breach_detected",
+        ]:
+            self.assertIn(signal, sql)
+
+    def test_fulfillment_contract_documents_manual_invoice_no_active_cleanup(self) -> None:
+        contract = FULFILLMENT_CONTRACT.read_text(encoding="utf-8")
+
+        self.assertIn("manual_invoice_no_active_manual_trigger_services", contract)
+        self.assertIn("no active agreement carrying a manual-trigger service", contract)
+        self.assertIn("no-successor resolution", contract)
 
 
 if __name__ == "__main__":
