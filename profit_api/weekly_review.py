@@ -204,3 +204,72 @@ class WeeklyReviewService:
             "snoozed_until": snoozed_until,
             "operator_id": operator_id,
         }
+
+    def unreview(
+        self,
+        classification_id: int,
+        *,
+        operator_id: str = DEFAULT_OPERATOR_ID,
+    ) -> dict[str, object]:
+        """Clear reviewed_at on a queue item, returning it to the actionable queue.
+
+        V0.7.D-2 hotfix: operator wants the ability to un-review items they
+        marked reviewed before the underlying issue was actually addressed.
+        Mirrors the unsnooze pattern. State row is preserved (snoozed_until,
+        operator_id stay intact).
+        """
+        if classification_id <= 0:
+            raise WeeklyReviewValidationError(
+                {
+                    "field": "classification_id",
+                    "message": "classification_id must be a positive integer",
+                }
+            )
+
+        now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+        self.store.patch_rows(
+            "profit_weekly_review_item_state",
+            filters={"classification_id": f"eq.{classification_id}"},
+            payload={"reviewed_at": None, "updated_at": now_str},
+        )
+
+        return {
+            "classification_id": classification_id,
+            "reviewed_at": None,
+            "operator_id": operator_id,
+        }
+
+    def unsnooze(
+        self,
+        classification_id: int,
+        *,
+        operator_id: str = DEFAULT_OPERATOR_ID,
+    ) -> dict[str, object]:
+        """Clear snoozed_until on a queue item, returning it to the actionable queue.
+
+        V0.7.D-2 hotfix: operator feedback that a snoozed item is lost from view
+        with no undo. This endpoint clears the snooze. State row is preserved
+        (reviewed_at, operator_id stay intact).
+        """
+        if classification_id <= 0:
+            raise WeeklyReviewValidationError(
+                {
+                    "field": "classification_id",
+                    "message": "classification_id must be a positive integer",
+                }
+            )
+
+        now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+        self.store.patch_rows(
+            "profit_weekly_review_item_state",
+            filters={"classification_id": f"eq.{classification_id}"},
+            payload={"snoozed_until": None, "updated_at": now_str},
+        )
+
+        return {
+            "classification_id": classification_id,
+            "snoozed_until": None,
+            "operator_id": operator_id,
+        }

@@ -9,7 +9,16 @@ const itemsEndpoint = `${apiBase}/profit/admin/weekly-review/items`;
 const ITEM_TYPE_LABELS = {
   MANUAL_INVOICE_PENDING: "Manual Invoice Pending",
   SLA_BREACHED: "SLA Breached",
+  MANUAL_RECOGNITION_PENDING: "Manual Recognition Pending",
+  PIPELINE_RUN_FAILED: "Pipeline Run Failed",
 };
+
+const VERDICT_FILTERS = [
+  { code: "SLA_BREACHED", label: "SLA" },
+  { code: "MANUAL_INVOICE_PENDING", label: "Manual Invoice" },
+  { code: "MANUAL_RECOGNITION_PENDING", label: "Manual Recognition" },
+  { code: "PIPELINE_RUN_FAILED", label: "Pipeline" },
+];
 
 const SORT_KEYS = {
   rank: "rank",
@@ -21,10 +30,11 @@ const SORT_KEYS = {
 function itemTypeBadge(itemType) {
   const normalized = String(itemType ?? "unknown");
   const label = ITEM_TYPE_LABELS[normalized] ?? normalized.replaceAll("_", " ");
-  return <span className="weekly-review-badge">{label}</span>;
+  const variant = `weekly-review-badge-${normalized.toLowerCase().replaceAll("_", "-")}`;
+  return <span className={`weekly-review-badge ${variant}`}>{label}</span>;
 }
 
-function attributionBadge(row) {
+function attributionBadge(row, { compact }) {
   if (row.label_unresolved) {
     const text = row.label ?? "Unresolved label";
     return (
@@ -41,6 +51,18 @@ function attributionBadge(row) {
     row.agreement_client_business_name &&
     row.agreement_client_business_name !== row.client_name
   ) {
+    const tipText = `via ${row.agreement_client_business_name}`;
+    if (compact) {
+      return (
+        <span
+          className="weekly-review-label-info-icon"
+          title={`${tipText} (attributed via labeled-service rule from the agreement holder)`}
+          aria-label={tipText}
+        >
+          {"\u24D8"}
+        </span>
+      );
+    }
     return (
       <span
         className="weekly-review-label-badge-via"
@@ -84,6 +106,61 @@ function breachStateBadge(breachState) {
   return <span className={className}>{label}</span>;
 }
 
+function macroChip(value) {
+  if (!value) return null;
+  const normalized = String(value).toLowerCase();
+  return (
+    <span className={`weekly-review-macro-chip weekly-review-macro-${normalized}`}>
+      {normalized}
+    </span>
+  );
+}
+
+function pipelineRunIdFromClientName(clientName) {
+  if (!clientName) return null;
+  const match = String(clientName).match(/^System:\s*Pipeline\s+(.+)$/i);
+  return match ? match[1].trim() : null;
+}
+
+function SlaCompact({ row }) {
+  const parts = [];
+  if (row.breach_state) parts.push(row.breach_state.replaceAll("_", " "));
+  if (row.breach_age_days !== null && row.breach_age_days !== undefined) {
+    parts.push(`${row.breach_age_days} days overdue`);
+  }
+  if (row.assigned_staff_name) parts.push(row.assigned_staff_name);
+  return <span className="weekly-review-compact-line">{parts.join(" / ") || "-"}</span>;
+}
+
+function ManualInvoiceCompact({ row }) {
+  const parts = [];
+  const state = row.invoice_state ?? "no_invoice";
+  parts.push(state);
+  const rev = row.est_annual_revenue ?? row.estimated_annual_revenue;
+  if (rev !== null && rev !== undefined && rev !== "") {
+    parts.push(`${currencyValue(rev)} est`);
+  }
+  return <span className="weekly-review-compact-line">{parts.join(" / ")}</span>;
+}
+
+function ManualRecognitionCompact({ row }) {
+  const parts = [];
+  if (row.service_name) parts.push(row.service_name);
+  if (row.age_days !== null && row.age_days !== undefined) {
+    parts.push(`${row.age_days} days stuck`);
+  }
+  return <span className="weekly-review-compact-line">{parts.join(" / ") || "-"}</span>;
+}
+
+function PipelineFailureCompact({ row }) {
+  const age = row.age_days;
+  if (age === null || age === undefined) {
+    return <span className="weekly-review-compact-line">Pipeline failed</span>;
+  }
+  const unit = Number(age) === 1 ? "day" : "days";
+  return <span className="weekly-review-compact-line">Failed {age} {unit} ago</span>;
+}
+
 function SlaDetails({ row }) {
   const staff = textValue(row.assigned_staff_name);
   const source = row.staff_source ? ` (${row.staff_source})` : "";
@@ -103,6 +180,21 @@ function SlaDetails({ row }) {
       <div className="weekly-review-sla-staff">
         Staff: {staff}{source}
       </div>
+      {row.work_age_days !== null && row.work_age_days !== undefined ? (
+        <div className="weekly-review-sla-staff">
+          Work age: {row.work_age_days} days
+        </div>
+      ) : null}
+      {row.latest_workflow_status ? (
+        <div className="weekly-review-sla-staff">
+          Workflow: {row.latest_workflow_status}
+        </div>
+      ) : null}
+      {row.label && row.agreement_client_business_name ? (
+        <div className="weekly-review-sla-staff">
+          Attribution: via {row.agreement_client_business_name}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -114,8 +206,93 @@ function ManualInvoiceDetails({ row }) {
       <div className="weekly-review-manual-rev">
         Est. annual rev: {currencyValue(row.est_annual_revenue ?? row.estimated_annual_revenue)}
       </div>
+      {row.age_days !== null && row.age_days !== undefined ? (
+        <div className="weekly-review-manual-rev">Age: {row.age_days} days</div>
+      ) : null}
     </div>
   );
+}
+
+function ManualRecognitionDetails({ row }) {
+  return (
+    <div className="weekly-review-manual-details">
+      <div className="weekly-review-manual-rev">
+        Service: {textValue(row.service_name)}
+        {row.macro_service_type ? <> {macroChip(row.macro_service_type)}</> : null}
+      </div>
+      {row.age_days !== null && row.age_days !== undefined ? (
+        <div className="weekly-review-manual-rev">
+          {row.age_days} days stuck
+        </div>
+      ) : null}
+      {row.estimated_annual_revenue !== null
+        && row.estimated_annual_revenue !== undefined
+        && row.estimated_annual_revenue !== "" ? (
+        <div className="weekly-review-manual-rev">
+          Est. annual rev: {currencyValue(row.estimated_annual_revenue)}
+        </div>
+      ) : null}
+      {row.fc_tag ? (
+        <div className="weekly-review-manual-rev">FC tag: {row.fc_tag}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function PipelineFailureDetails({ row }) {
+  const runId = pipelineRunIdFromClientName(row.client_name);
+  return (
+    <div className="weekly-review-manual-details">
+      <div className="weekly-review-manual-rev">
+        Pipeline run {runId ?? "(unknown)"} failed
+      </div>
+      {row.age_days !== null && row.age_days !== undefined ? (
+        <div className="weekly-review-manual-rev">
+          {row.age_days} {Number(row.age_days) === 1 ? "day" : "days"} since failure
+        </div>
+      ) : null}
+      {row.action_url ? (
+        <div className="weekly-review-manual-rev">
+          <a
+            className="weekly-review-action-link"
+            href={row.action_url}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            View run details
+          </a>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DetailsCompact({ row }) {
+  switch (row.verdict_code) {
+    case "SLA_BREACHED":
+      return <SlaCompact row={row} />;
+    case "MANUAL_RECOGNITION_PENDING":
+      return <ManualRecognitionCompact row={row} />;
+    case "PIPELINE_RUN_FAILED":
+      return <PipelineFailureCompact row={row} />;
+    case "MANUAL_INVOICE_PENDING":
+    default:
+      return <ManualInvoiceCompact row={row} />;
+  }
+}
+
+function DetailsExpanded({ row }) {
+  switch (row.verdict_code) {
+    case "SLA_BREACHED":
+      return <SlaDetails row={row} />;
+    case "MANUAL_RECOGNITION_PENDING":
+      return <ManualRecognitionDetails row={row} />;
+    case "PIPELINE_RUN_FAILED":
+      return <PipelineFailureDetails row={row} />;
+    case "MANUAL_INVOICE_PENDING":
+    default:
+      return <ManualInvoiceDetails row={row} />;
+  }
 }
 
 function sortKey(row, column) {
@@ -168,65 +345,124 @@ function SortHeader({ label, column, sortColumn, sortDirection, onSort }) {
   );
 }
 
-function WeeklyReviewRow({ row, index, onMarkReviewed, onSnooze }) {
-  const badge = attributionBadge(row);
+function WeeklyReviewRow({ row, index, onMarkReviewed, onUnreview, onSnooze, onUnsnooze, expanded, onToggleExpanded, today }) {
+  const verdictCode = row.verdict_code ?? row.item_type ?? "MANUAL_INVOICE_PENDING";
+  const isSystemAlert = verdictCode === "PIPELINE_RUN_FAILED";
+  const badge = attributionBadge(row, { compact: !expanded });
+  const rowId = row.classification_id ?? `idx-${index}`;
+  const isReviewed = row.reviewed_at != null;
+  const isSnoozed = row.snoozed_until != null && row.snoozed_until >= today;
+  const rowClasses = [
+    isReviewed ? "weekly-review-row-reviewed" : "",
+    isSnoozed ? "weekly-review-row-snoozed" : "",
+  ].filter(Boolean).join(" ");
   return (
-    <tr key={row.classification_id ?? index}>
-      <td>{row.sort_rank ?? index + 1}</td>
+    <tr className={rowClasses || undefined} key={row.classification_id ?? index}>
       <td>
-        <span className="weekly-review-primary">{textValue(row.client_name, row.anchor_client_business_name)}</span>
+        <button
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse details" : "Expand details"}
+          className="weekly-review-disclosure"
+          onClick={() => onToggleExpanded(rowId)}
+          title={expanded ? "Collapse details" : "Expand details"}
+          type="button"
+        >
+          {expanded ? "\u25BC" : "\u25B6"}
+        </button>
+        <span className="weekly-review-rank-num">{row.sort_rank ?? index + 1}</span>
+      </td>
+      <td>
+        {isSystemAlert ? (
+          <span className="weekly-review-system-alert">System Alert</span>
+        ) : (
+          <span className="weekly-review-primary">
+            {textValue(row.client_name, row.anchor_client_business_name)}
+            {badge && row.label_unresolved ? <> {badge}</> : null}
+            {badge && !row.label_unresolved && !expanded ? <> {badge}</> : null}
+          </span>
+        )}
       </td>
       <td>{textValue(row.service_name, row.services)}</td>
       <td>
         <div className="weekly-review-type-cell">
-          {itemTypeBadge(row.item_type ?? row.verdict_code ?? "MANUAL_INVOICE_PENDING")}
-          {badge}
+          {itemTypeBadge(verdictCode)}
+          {expanded && badge && !row.label_unresolved ? badge : null}
         </div>
       </td>
       <td>
-        {row.verdict_code === "SLA_BREACHED" ? (
-          <SlaDetails row={row} />
-        ) : (
-          <ManualInvoiceDetails row={row} />
-        )}
+        {expanded ? <DetailsExpanded row={row} /> : <DetailsCompact row={row} />}
       </td>
       <td>
         {row.action_url ? (
           <a
             className="weekly-review-action-link"
             href={row.action_url}
-            rel="noopener noreferrer"
-            target="_blank"
+            rel={isSystemAlert ? undefined : "noopener noreferrer"}
+            target={isSystemAlert ? "_self" : "_blank"}
           >
-            Open work item
+            {isSystemAlert ? "View run details" : "Open work item"}
           </a>
         ) : (
           "-"
         )}
       </td>
       <td className="weekly-review-controls-cell">
-        <button
-          className="btn btn-secondary weekly-review-btn-sm"
-          disabled={row.classification_id == null}
-          onClick={() => onMarkReviewed(row.classification_id)}
-          title={row.classification_id == null
-            ? "Available after next pipeline run creates the classification"
-            : "Mark this item as reviewed"}
-          type="button"
-        >
-          Mark reviewed
-        </button>
-        <button
-          className="btn btn-secondary weekly-review-btn-sm"
-          disabled={row.classification_id == null}
-          onClick={() => onSnooze(row.classification_id)}
-          title={row.classification_id == null
-            ? "Available after next pipeline run creates the classification"
-            : "Snooze this item for 7 days"}
-          type="button"
-        >
-          Snooze 7 days
-        </button>
+        {isReviewed ? (
+          <span className="weekly-review-state-pill weekly-review-state-reviewed" title={`Reviewed ${row.reviewed_at}`}>
+            Reviewed
+          </span>
+        ) : null}
+        {isSnoozed ? (
+          <span className="weekly-review-state-pill weekly-review-state-snoozed" title={`Snoozed until ${row.snoozed_until}`}>
+            Snoozed until {row.snoozed_until}
+          </span>
+        ) : null}
+        {!isReviewed ? (
+          <button
+            className="btn btn-secondary weekly-review-btn-sm"
+            disabled={row.classification_id == null}
+            onClick={() => onMarkReviewed(row.classification_id)}
+            title={row.classification_id == null
+              ? "Available after next pipeline run creates the classification"
+              : "Mark this item as reviewed"}
+            type="button"
+          >
+            Mark reviewed
+          </button>
+        ) : (
+          <button
+            className="btn btn-secondary weekly-review-btn-sm"
+            disabled={row.classification_id == null}
+            onClick={() => onUnreview(row.classification_id)}
+            title="Bring this item back to the actionable queue — underlying issue not yet resolved"
+            type="button"
+          >
+            Un-review
+          </button>
+        )}
+        {!isSnoozed ? (
+          <button
+            className="btn btn-secondary weekly-review-btn-sm"
+            disabled={row.classification_id == null}
+            onClick={() => onSnooze(row.classification_id)}
+            title={row.classification_id == null
+              ? "Available after next pipeline run creates the classification"
+              : "Snooze this item for 7 days"}
+            type="button"
+          >
+            Snooze 7 days
+          </button>
+        ) : (
+          <button
+            className="btn btn-secondary weekly-review-btn-sm"
+            disabled={row.classification_id == null}
+            onClick={() => onUnsnooze(row.classification_id)}
+            title="Bring this item back into the actionable queue"
+            type="button"
+          >
+            Un-snooze
+          </button>
+        )}
       </td>
     </tr>
   );
@@ -276,18 +512,24 @@ export default function WeeklyReview() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [includeReviewed, setIncludeReviewed] = useState(false);
+  // V0.7.D-2 hotfix: unified "show non-actionable" toggle covers BOTH reviewed
+  // and snoozed items. Separate "Snoozed" chip in the filter row also scopes
+  // to snoozed-only, with an Un-snooze button per row.
+  const [includeNonActionable, setIncludeNonActionable] = useState(false);
   const [sortColumn, setSortColumn] = useState("rank");
   const [sortDirection, setSortDirection] = useState("asc");
   const [viewMode, setViewMode] = useState("flat");
   const [expandedGroups, setExpandedGroups] = useState({});
+  const [verdictFilter, setVerdictFilter] = useState(null);
+  const [showSnoozedOnly, setShowSnoozedOnly] = useState(false);
+  const [expandedRows, setExpandedRows] = useState(() => new Set());
 
-  async function loadItems(withReviewed) {
+  async function loadItems(withNonActionable) {
     setLoading(true);
     setError("");
     try {
-      const url = withReviewed
-        ? `${itemsEndpoint}?include_reviewed=true`
+      const url = withNonActionable
+        ? `${itemsEndpoint}?include_reviewed=true&include_snoozed=true`
         : itemsEndpoint;
       const response = await fetch(url);
       const payload = await response.json();
@@ -312,7 +554,7 @@ export default function WeeklyReview() {
     } catch {
       // silently ignore; refresh will reflect server state
     }
-    loadItems(includeReviewed);
+    loadItems(includeNonActionable);
   }
 
   async function snoozeItem(classificationId) {
@@ -324,17 +566,43 @@ export default function WeeklyReview() {
     } catch {
       // silently ignore; refresh will reflect server state
     }
-    loadItems(includeReviewed);
+    loadItems(includeNonActionable);
   }
 
-  function handleToggleReviewed() {
-    const next = !includeReviewed;
-    setIncludeReviewed(next);
+  async function unsnoozeItem(classificationId) {
+    try {
+      await fetch(
+        `${apiBase}/profit/admin/weekly-review/items/${classificationId}/unsnooze`,
+        { method: "POST" },
+      );
+    } catch {
+      // silently ignore; refresh will reflect server state
+    }
+    loadItems(includeNonActionable);
+  }
+
+  async function unreviewItem(classificationId) {
+    try {
+      await fetch(
+        `${apiBase}/profit/admin/weekly-review/items/${classificationId}/unreview`,
+        { method: "POST" },
+      );
+    } catch {
+      // silently ignore; refresh will reflect server state
+    }
+    loadItems(includeNonActionable);
+  }
+
+  function handleToggleNonActionable() {
+    const next = !includeNonActionable;
+    setIncludeNonActionable(next);
+    // Turning OFF also clears the Snoozed-only filter to avoid an empty queue
+    if (!next) setShowSnoozedOnly(false);
     loadItems(next);
   }
 
   function handleRefresh() {
-    loadItems(includeReviewed);
+    loadItems(includeNonActionable);
   }
 
   function handleSort(column) {
@@ -350,16 +618,57 @@ export default function WeeklyReview() {
     setExpandedGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
   }
 
+  function toggleRowExpanded(rowId) {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  }
+
   const sortedItems = useMemo(() => {
     const arr = Array.isArray(items) ? items.slice() : [];
     arr.sort((a, b) => compareRows(a, b, sortColumn, sortDirection));
     return arr;
   }, [items, sortColumn, sortDirection]);
 
+  const verdictCounts = useMemo(() => {
+    const counts = { SLA_BREACHED: 0, MANUAL_INVOICE_PENDING: 0, MANUAL_RECOGNITION_PENDING: 0, PIPELINE_RUN_FAILED: 0 };
+    for (const row of sortedItems) {
+      const code = row.verdict_code ?? row.item_type;
+      if (code && counts.hasOwnProperty(code)) {
+        counts[code] += 1;
+      }
+    }
+    return counts;
+  }, [sortedItems]);
+
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const snoozedCount = useMemo(
+    () => sortedItems.filter((r) => r.snoozed_until && r.snoozed_until >= today).length,
+    [sortedItems, today],
+  );
+
+  const filteredItems = useMemo(() => {
+    let rows = sortedItems;
+    if (verdictFilter) {
+      rows = rows.filter((row) => (row.verdict_code ?? row.item_type) === verdictFilter);
+    }
+    if (showSnoozedOnly) {
+      rows = rows.filter((row) => row.snoozed_until && row.snoozed_until >= today);
+    }
+    return rows;
+  }, [sortedItems, verdictFilter, showSnoozedOnly, today]);
+
   const groupedItems = useMemo(() => {
     if (viewMode !== "grouped") return null;
     const groups = new Map();
-    for (const row of sortedItems) {
+    for (const row of filteredItems) {
       const key =
         row.agreement_client_business_name
         ?? row.client_name
@@ -376,11 +685,30 @@ export default function WeeklyReview() {
       ).length;
       return { key, rows, breachCount };
     });
-  }, [sortedItems, viewMode]);
+  }, [filteredItems, viewMode]);
+
+  function handleExpandAll() {
+    const next = new Set();
+    for (const row of filteredItems) {
+      next.add(row.classification_id ?? `idx-${filteredItems.indexOf(row)}`);
+    }
+    setExpandedRows(next);
+  }
+
+  function handleCollapseAll() {
+    setExpandedRows(new Set());
+  }
+
+  function isRowExpanded(row, index) {
+    const rowId = row.classification_id ?? `idx-${index}`;
+    return expandedRows.has(rowId);
+  }
 
   useEffect(() => {
     loadItems(false);
   }, []);
+
+  const allExpanded = filteredItems.length > 0 && filteredItems.every((row, i) => isRowExpanded(row, i));
 
   return (
     <main className="weekly-review-page">
@@ -407,11 +735,11 @@ export default function WeeklyReview() {
       <div className="weekly-review-controls">
         <label className="weekly-review-toggle-label">
           <input
-            checked={includeReviewed}
-            onChange={handleToggleReviewed}
+            checked={includeNonActionable}
+            onChange={handleToggleNonActionable}
             type="checkbox"
           />
-          {" "}Show reviewed
+          {" "}Show reviewed or snoozed
         </label>
         <div className="weekly-review-view-toggle" role="radiogroup" aria-label="View mode">
           <label>
@@ -432,6 +760,55 @@ export default function WeeklyReview() {
             />
             {" "}Grouped by agreement
           </label>
+        </div>
+      </div>
+
+      <div className="weekly-review-filter-bar">
+        <div className="weekly-review-filter-chips" role="group" aria-label="Filter by verdict">
+          {VERDICT_FILTERS.map((f) => {
+            const active = verdictFilter === f.code;
+            const count = verdictCounts[f.code] ?? 0;
+            return (
+              <button
+                aria-pressed={active}
+                className={`weekly-review-chip weekly-review-chip-${f.code.toLowerCase().replaceAll("_", "-")} ${active ? "weekly-review-chip-active" : ""}`}
+                key={f.code}
+                onClick={() => setVerdictFilter(active ? null : f.code)}
+                type="button"
+              >
+                {f.label} <span className="weekly-review-chip-count">({count})</span>
+              </button>
+            );
+          })}
+          {includeNonActionable && snoozedCount > 0 ? (
+            <button
+              aria-pressed={showSnoozedOnly}
+              className={`weekly-review-chip weekly-review-chip-snoozed ${showSnoozedOnly ? "weekly-review-chip-active" : ""}`}
+              onClick={() => setShowSnoozedOnly((v) => !v)}
+              title="Show snoozed items only — each row has an Un-snooze button"
+              type="button"
+            >
+              Snoozed <span className="weekly-review-chip-count">({snoozedCount})</span>
+            </button>
+          ) : null}
+          {(verdictFilter || showSnoozedOnly) ? (
+            <button
+              className="weekly-review-clear-filter"
+              onClick={() => { setVerdictFilter(null); setShowSnoozedOnly(false); }}
+              type="button"
+            >
+              Clear filters
+            </button>
+          ) : null}
+        </div>
+        <div className="weekly-review-expand-controls">
+          <button
+            className="weekly-review-expand-toggle"
+            onClick={allExpanded ? handleCollapseAll : handleExpandAll}
+            type="button"
+          >
+            {allExpanded ? "Collapse all" : "Expand all"}
+          </button>
         </div>
       </div>
 
@@ -459,7 +836,7 @@ export default function WeeklyReview() {
                     <span className="weekly-review-group-row-count">
                       {group.rows.length} item{group.rows.length === 1 ? "" : "s"}
                       {group.breachCount > 0
-                        ? ` · ${group.breachCount} breach${group.breachCount === 1 ? "" : "es"}`
+                        ? ` \u00B7 ${group.breachCount} breach${group.breachCount === 1 ? "" : "es"}`
                         : ""}
                     </span>
                   </button>
@@ -474,11 +851,16 @@ export default function WeeklyReview() {
                         <tbody>
                           {group.rows.map((row, index) => (
                             <WeeklyReviewRow
+                              expanded={isRowExpanded(row, index)}
                               index={index}
                               key={row.classification_id ?? `${group.key}-${index}`}
                               onMarkReviewed={markReviewed}
+                              onUnreview={unreviewItem}
                               onSnooze={snoozeItem}
+                              onUnsnooze={unsnoozeItem}
+                              onToggleExpanded={toggleRowExpanded}
                               row={row}
+                              today={today}
                             />
                           ))}
                         </tbody>
@@ -501,14 +883,19 @@ export default function WeeklyReview() {
               sortDirection={sortDirection}
             />
             <tbody>
-              {sortedItems.length ? (
-                sortedItems.map((row, index) => (
+              {filteredItems.length ? (
+                filteredItems.map((row, index) => (
                   <WeeklyReviewRow
+                    expanded={isRowExpanded(row, index)}
                     index={index}
                     key={row.classification_id ?? index}
                     onMarkReviewed={markReviewed}
+                    onUnreview={unreviewItem}
                     onSnooze={snoozeItem}
+                    onUnsnooze={unsnoozeItem}
+                    onToggleExpanded={toggleRowExpanded}
                     row={row}
+                    today={today}
                   />
                 ))
               ) : (

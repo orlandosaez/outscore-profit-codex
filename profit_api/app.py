@@ -414,6 +414,20 @@ def create_app(
         except WeeklyReviewValidationError as exc:
             raise HTTPException(status_code=422, detail=exc.detail) from exc
 
+    @app.post("/api/profit/admin/weekly-review/items/{classification_id}/unsnooze")
+    def weekly_review_unsnooze(classification_id: int) -> dict[str, object]:
+        try:
+            return weekly_review_dashboard_service.unsnooze(classification_id)
+        except WeeklyReviewValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
+
+    @app.post("/api/profit/admin/weekly-review/items/{classification_id}/unreview")
+    def weekly_review_unreview(classification_id: int) -> dict[str, object]:
+        try:
+            return weekly_review_dashboard_service.unreview(classification_id)
+        except WeeklyReviewValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
+
     return app
 
 
