@@ -315,6 +315,74 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/rpc/profit_fc_sync_start",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        120,
+        0
+      ],
+      "id": "046fcs17-26cb-4b2b-9a0d-000046000a01",
+      "name": "Start FC Sync Run",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/rpc/profit_fc_sync_complete",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_sync_id: $('Start FC Sync Run').first().json[0].sync_id, p_current_count: $('Map FC Clients').first().json.fcClientCount }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4520,
+        0
+      ],
+      "id": "046fcs17-26cb-4b2b-9a0d-000046000a02",
+      "name": "Complete FC Sync Run",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
         "jsCode": "const maxPages = 10;\nreturn Array.from({ length: maxPages }, (_, index) => ({\n  json: { page: index + 1 },\n}));\n"
       },
       "type": "n8n-nodes-base.code",
@@ -507,7 +575,29 @@
       "main": [
         [
           {
+            "node": "Start FC Sync Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start FC Sync Run": {
+      "main": [
+        [
+          {
             "node": "Build FC Client Page Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize FC Sync": {
+      "main": [
+        [
+          {
+            "node": "Complete FC Sync Run",
             "type": "main",
             "index": 0
           }

@@ -190,13 +190,39 @@ class N8nWorkflowTests(unittest.TestCase):
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
         connections = workflow["connections"]
 
+        # V0.7.G (046/047): Manual Trigger now routes through Start FC Sync Run
+        # before page-request building. Start FC Sync Run captures sync_id +
+        # prior_client_count via profit_fc_sync_start RPC for the stale-record
+        # safety guard.
         self.assertEqual(
             connections["Manual Trigger"]["main"][0][0]["node"],
+            "Start FC Sync Run",
+        )
+        self.assertEqual(
+            connections["Start FC Sync Run"]["main"][0][0]["node"],
             "Build FC Client Page Requests",
         )
         self.assertEqual(
             connections["Build FC Client Page Requests"]["main"][0][0]["node"],
             "Fetch FC Clients",
+        )
+        # Summarize FC Sync now hands off to Complete FC Sync Run which calls
+        # profit_fc_sync_complete RPC. The RPC auto-archives stale rows if
+        # current count >= 90% of prior; otherwise marks safety_skipped.
+        self.assertEqual(
+            connections["Summarize FC Sync"]["main"][0][0]["node"],
+            "Complete FC Sync Run",
+        )
+        nodes_by_name_v07g = {node["name"]: node for node in workflow["nodes"]}
+        self.assertIn("Start FC Sync Run", nodes_by_name_v07g)
+        self.assertIn("Complete FC Sync Run", nodes_by_name_v07g)
+        self.assertIn(
+            "profit_fc_sync_start",
+            nodes_by_name_v07g["Start FC Sync Run"]["parameters"]["url"],
+        )
+        self.assertIn(
+            "profit_fc_sync_complete",
+            nodes_by_name_v07g["Complete FC Sync Run"]["parameters"]["url"],
         )
         self.assertEqual(
             connections["Upsert FC Clients"]["main"][0][0]["node"],
