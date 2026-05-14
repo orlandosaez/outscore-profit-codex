@@ -149,21 +149,45 @@ function PrepaidLiabilityTile({ prepaidLiability, onDrillDown }) {
     );
   }
 
+  // V0.7.E.1 (044): T&C-aligned tile split.
+  //   Deferred Revenue – Project: real GAAP liability (QBO account 2050).
+  //     Includes Project + Mixed + unclassified engagement_type (conservative).
+  //   Subscription Service Reserve: operational cash cushion, NOT GAAP liability.
+  //     Pure Subscription engagement_type only.
+  //   Trigger Backlog: unchanged — unrecognized delivery, not a QBO liability.
+  const projectBalance = summary.deferred_revenue_project_balance ?? 0;
+  const reserveBalance = summary.subscription_service_reserve_balance ?? 0;
+  const projectNote =
+    summary.deferred_revenue_project_note ??
+    "Real GAAP liability per T&C — Project Engagement prepayments. QBO account 2050.";
+  const reserveNote =
+    summary.subscription_service_reserve_note ??
+    "Operational cash cushion — Subscription Monthly Fees per T&C are earned-on-receipt, NOT GAAP liability.";
+
   return (
     <section className="stat prepaid-stat">
       <div className="stat-icon">
         <Landmark size={18} aria-hidden="true" />
       </div>
       <div className="prepaid-stat-body">
-        <p>Prepaid Liability · point-in-time</p>
+        <p>Prepaid Liability · point-in-time (T&amp;C aligned)</p>
         <button
           className="prepaid-stat-row prepaid-stat-row-clickable"
           onClick={() => onDrillDown?.("tax")}
-          title="Open Prepaid Liability Drilldown filtered to Tax Deferred. Record this exact amount as Deferred Revenue in QuickBooks."
+          title={`${projectNote} Record this exact amount as Deferred Revenue in QuickBooks (account 2050).`}
           type="button"
         >
-          <span>Tax Deferred Revenue</span>
-          <strong>{formatMoney(summary.tax_deferred_revenue_balance)}</strong>
+          <span>Deferred Revenue – Project</span>
+          <strong>{formatMoney(projectBalance)}</strong>
+        </button>
+        <button
+          className="prepaid-stat-row prepaid-stat-row-clickable"
+          onClick={() => onDrillDown?.("tax")}
+          title={reserveNote}
+          type="button"
+        >
+          <span>Subscription Service Reserve</span>
+          <strong>{formatMoney(reserveBalance)}</strong>
         </button>
         <button
           className="prepaid-stat-row prepaid-stat-row-clickable"
@@ -174,7 +198,7 @@ function PrepaidLiabilityTile({ prepaidLiability, onDrillDown }) {
           <span>Trigger Backlog</span>
           <strong>{formatMoney(summary.trigger_backlog_balance)}</strong>
         </button>
-        <div className="prepaid-stat-row reference" title="Sum of both buckets. Do not record this as a single QBO entry.">
+        <div className="prepaid-stat-row reference" title="Sum across all 3 buckets. Do not record as a single QBO entry.">
           <span>Total reference</span>
           <strong>{formatMoney(summary.total_prepaid_liability_balance)}</strong>
         </div>

@@ -136,6 +136,17 @@ def _read_prepaid_liability(reader: SupabaseReader) -> dict[str, object]:
         "client_balance_count": 0,
         "collection_count": 0,
         "last_updated": None,
+        # V0.7.E.1 (044): T&C-aligned engagement bucket split
+        "deferred_revenue_project_balance": 0,
+        "subscription_service_reserve_balance": 0,
+        "deferred_revenue_project_note": (
+            "Real GAAP liability per T&C — Project Engagement prepayments + "
+            "Mixed/unclassified (conservative). QBO account 2050."
+        ),
+        "subscription_service_reserve_note": (
+            "Operational cash cushion — Subscription Monthly Fees per T&C are "
+            "earned-on-receipt, NOT GAAP liability. No QBO liability account."
+        ),
     }
 
     try:
