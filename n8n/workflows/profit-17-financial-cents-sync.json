@@ -329,7 +329,7 @@
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "={}",
+        "jsonBody": "{}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -363,7 +363,7 @@
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_sync_id: $('Start FC Sync Run').first().json[0].sync_id, p_current_count: $('Map FC Clients').first().json.fcClientCount }) }}",
+        "jsonBody": "={\n  \"p_sync_id\": \"{{ $('Start FC Sync Run').first().json.sync_id || $('Start FC Sync Run').first().json[0].sync_id }}\",\n  \"p_current_count\": {{ $('Map FC Clients').first().json.fcClientCount }}\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
