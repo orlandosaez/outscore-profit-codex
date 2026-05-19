@@ -643,7 +643,14 @@ class N8nWorkflowTests(unittest.TestCase):
             "/api/profit/admin/audit/pipeline-runs",
             request_parameters["url"],
         )
-        self.assertIn("PROFIT_API_BASE_URL", request_parameters["url"])
+        # 2026-05-18: switched from env-var expression to hardcoded URL.
+        # Previous {{ $env.PROFIT_API_BASE_URL || ... }} pattern failed silently
+        # for 9+ days because n8n blocks env var access in expressions by default.
+        # Detected by "access to env vars denied" in execution logs; cron fired
+        # every night at 06:00 UTC and immediately errored. Hardcoded localhost
+        # URL bypasses that class of failure entirely.
+        self.assertIn("/api/profit/admin/audit/pipeline-runs", request_parameters["url"])
+        self.assertNotIn("$env", request_parameters["url"])
         self.assertEqual(request_parameters["contentType"], "json")
         self.assertEqual(request_parameters["specifyBody"], "json")
         self.assertEqual(

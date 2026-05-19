@@ -64,7 +64,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.PROFIT_API_BASE_URL || 'https://app.outscore.com/profit').replace(/\\/$/, '') }}/api/profit/admin/audit/pipeline-runs",
+        "url": "http://127.0.0.1:8010/api/profit/admin/audit/pipeline-runs",
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",

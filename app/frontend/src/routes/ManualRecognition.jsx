@@ -351,6 +351,7 @@ export default function ManualRecognition() {
             <thead>
               <tr>
                 <th>Client</th>
+                <th>Invoice</th>
                 <th>Service</th>
                 <th>Period</th>
                 <th>Source amount</th>
@@ -369,6 +370,7 @@ export default function ManualRecognition() {
                       </span>
                     ) : null}
                   </td>
+                  <td title={row.anchor_invoice_id ?? ""}>{row.invoice_number ?? "—"}</td>
                   <td>{row.macro_service_type}</td>
                   <td>{monthLabel(row.candidate_period_month)}</td>
                   <td className="money-cell">{formatMoney(row.source_amount)}</td>
@@ -378,7 +380,7 @@ export default function ManualRecognition() {
               ))}
               {visiblePendingRows.length ? null : (
                 <EmptyRow
-                  colSpan={6}
+                  colSpan={7}
                   hint="Tax-deferred and $0/negative events are hidden by default — toggle the filters above to inspect them."
                   label="No pending revenue events loaded"
                 />
@@ -400,6 +402,8 @@ export default function ManualRecognition() {
             </button>
           </div>
           <dl className="manual-event-details">
+            <dt>Invoice</dt>
+            <dd title={selectedEvent.anchor_invoice_id ?? ""}>{selectedEvent.invoice_number ?? "—"}</dd>
             <dt>Revenue event</dt>
             <dd className="key-value" title={selectedEvent.revenue_event_key}>{shortKey(selectedEvent.revenue_event_key)}</dd>
             <dt>Client</dt>
@@ -426,7 +430,7 @@ export default function ManualRecognition() {
                       type="checkbox"
                     />
                     <strong>{formatMoney(row.source_amount)}</strong>
-                    <span className="key-value" title={row.revenue_event_key}>{shortKey(row.revenue_event_key)}</span>
+                    <span title={row.anchor_invoice_id ?? row.revenue_event_key}>{row.invoice_number ?? shortKey(row.revenue_event_key)}</span>
                     {row.revenue_event_key === selectedEvent.revenue_event_key ? <em><span aria-hidden="true">●</span> selected</em> : null}
                   </li>
                 ))}
@@ -487,7 +491,7 @@ export default function ManualRecognition() {
             <thead>
               <tr>
                 <th>Approved</th>
-                <th>Event</th>
+                <th>Invoice</th>
                 <th>Client</th>
                 <th>Service</th>
                 <th>Amount</th>
@@ -499,7 +503,7 @@ export default function ManualRecognition() {
               {recentOverrides.map((row) => (
                 <tr key={row.recognition_trigger_key}>
                   <td>{row.approved_at}</td>
-                  <td>{row.revenue_event_key}</td>
+                  <td title={row.revenue_event_key}>{row.invoice_number ?? shortKey(row.revenue_event_key)}</td>
                   <td>{row.anchor_client_business_name ?? "Unassigned"}</td>
                   <td>{row.macro_service_type}</td>
                   <td>{formatMoney(row.source_amount)}</td>
