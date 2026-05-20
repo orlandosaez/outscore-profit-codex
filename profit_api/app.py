@@ -267,6 +267,15 @@ def create_app(
             offset=max(offset, 0),
         )
 
+    # V0.7.I (050): Layer 1 cron visibility — surface every n8n schedule fire,
+    # even those that failed before creating a pipeline_run row.
+    @app.get("/api/profit/admin/audit/pipeline-cron-attempts")
+    def audit_pipeline_cron_attempts(limit: int = 30, offset: int = 0) -> dict[str, object]:
+        return pipeline_dashboard_service.list_cron_attempts(
+            limit=min(max(limit, 1), 200),
+            offset=max(offset, 0),
+        )
+
     @app.get("/api/profit/admin/audit/pipeline-runs/{pipeline_run_id}")
     def audit_pipeline_run_detail(pipeline_run_id: str) -> dict[str, object]:
         try:

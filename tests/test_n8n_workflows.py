@@ -662,10 +662,41 @@ class N8nWorkflowTests(unittest.TestCase):
             workflow["connections"]["Nightly 2 AM ET Schedule"]["main"][0][0]["node"],
             "Finalize Stale Pipeline Runs",
         )
+        # V0.7.I (050): Layer 1 cron visibility — Record Cron Attempt + Update
+        # Cron Attempt Result nodes wrap the API call so failed handoffs become
+        # visible on /profit/admin/pipeline. Order is now:
+        #   Schedule → Finalize Stale → Record Cron Attempt → Start Cron Pipeline Run → Update Cron Attempt Result
         self.assertEqual(
             workflow["connections"]["Finalize Stale Pipeline Runs"]["main"][0][0]["node"],
+            "Record Cron Attempt",
+        )
+        self.assertEqual(
+            workflow["connections"]["Record Cron Attempt"]["main"][0][0]["node"],
             "Start Cron Pipeline Run",
         )
+        self.assertEqual(
+            workflow["connections"]["Start Cron Pipeline Run"]["main"][0][0]["node"],
+            "Update Cron Attempt Result",
+        )
+        self.assertIn("Record Cron Attempt", nodes_by_name)
+        self.assertIn("Update Cron Attempt Result", nodes_by_name)
+        self.assertIn(
+            "/rest/v1/profit_pipeline_cron_attempts",
+            nodes_by_name["Record Cron Attempt"]["parameters"]["url"],
+        )
+        self.assertIn(
+            "cron_attempt_id=eq.",
+            nodes_by_name["Update Cron Attempt Result"]["parameters"]["url"],
+        )
+        # Both new nodes must be best-effort so cron visibility survives transient
+        # write failures — they should never block the main pipeline path.
+        self.assertTrue(nodes_by_name["Record Cron Attempt"].get("continueOnFail"))
+        self.assertTrue(nodes_by_name["Update Cron Attempt Result"].get("continueOnFail"))
+        # Start Cron Pipeline Run must also be continueOnFail + alwaysOutputData so
+        # the Update node always fires (and can record a failed_handoff row).
+        self.assertTrue(nodes_by_name["Start Cron Pipeline Run"].get("continueOnFail"))
+        self.assertTrue(nodes_by_name["Start Cron Pipeline Run"].get("alwaysOutputData"))
+
         self.assertNotIn("profit-pipeline-run", serialized)
         self.assertIn("profit_finalize_stale_pipeline_runs", serialized)
 

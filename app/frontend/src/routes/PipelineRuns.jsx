@@ -7,6 +7,7 @@ import PipelineStatusSummary from "../components/PipelineStatusSummary.jsx";
 
 const apiBase = import.meta.env.VITE_PROFIT_API_BASE ?? "/api";
 const pipelineRunsEndpoint = `${apiBase}/profit/admin/audit/pipeline-runs`;
+const cronAttemptsEndpoint = `${apiBase}/profit/admin/audit/pipeline-cron-attempts`;
 const PIPELINE_STEP_LABELS = {
   anchor_agreement_sync: "Anchor Agreement Sync",
   anchor_invoice_revenue_sync: "Anchor Invoice and Revenue Sync",
@@ -149,10 +150,111 @@ function RunSummaryBlock({ run }) {
   );
 }
 
+// V0.7.I (050): Layer 1 cron visibility. Shows every n8n schedule fire —
+// success or failure — including handoffs that errored BEFORE creating a
+// pipeline_run row. Closes the silent-failure gap that hid 5 days of broken
+// nightly crons (2026-05-16 through 2026-05-20).
+function CronAttemptStatusBadge({ status }) {
+  const labelMap = {
+    handed_off: "Success",
+    failed_handoff: "Handoff failed",
+    fired: "Started (awaiting result)",
+  };
+  return (
+    <span className={`pipeline-status-badge pipeline-status-${status === "handed_off" ? "success" : status === "failed_handoff" ? "failed" : "running"}`}>
+      {labelMap[status] ?? status ?? "unknown"}
+    </span>
+  );
+}
+
+function CronAttemptsPanel({ attempts, loading, onRefresh }) {
+  const recent = (attempts ?? []).slice(0, 10);
+  const lastSuccess = recent.find((a) => a.handoff_status === "handed_off");
+  const lastFailure = recent.find((a) => a.handoff_status === "failed_handoff");
+  const lastFireDate = recent[0]?.fired_at;
+  const hoursSinceFire = lastFireDate
+    ? Math.floor((Date.now() - new Date(lastFireDate).getTime()) / 3600000)
+    : null;
+
+  return (
+    <section className="panel" aria-label="Nightly schedule fires">
+      <div className="panel-title">
+        <h2>Nightly schedule fires</h2>
+        <span className="pipeline-meta-count">
+          {recent.length} attempt{recent.length === 1 ? "" : "s"}
+          {hoursSinceFire !== null ? ` · last fire ${hoursSinceFire}h ago` : " · no fires recorded"}
+        </span>
+        <button
+          className="btn btn-secondary"
+          onClick={onRefresh}
+          type="button"
+          disabled={loading}
+          style={{ marginLeft: "auto" }}
+        >
+          {loading ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+      {recent.length === 0 ? (
+        <p style={{ padding: "12px 16px", color: "#a55", fontWeight: 500 }}>
+          No schedule fires recorded yet. If the nightly cron should have fired (2 AM ET = 06:00 UTC daily),
+          paste this to Claude: <em>"Pipeline page shows no schedule fires recorded. Investigate W29."</em>
+        </p>
+      ) : (
+        <div className="table-wrap">
+          <table className="pipeline-table">
+            <thead>
+              <tr>
+                <th>Fired at (UTC)</th>
+                <th>Schedule</th>
+                <th>Status</th>
+                <th>HTTP</th>
+                <th>Pipeline run</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent.map((a) => (
+                <tr key={a.cron_attempt_id}>
+                  <td>{a.fired_at ? new Date(a.fired_at).toLocaleString("en-US", { dateStyle: "short", timeStyle: "short", hour12: false }) : "—"}</td>
+                  <td>{a.schedule_source ?? "—"}</td>
+                  <td><CronAttemptStatusBadge status={a.handoff_status} /></td>
+                  <td>{a.http_status_code ?? "—"}</td>
+                  <td>
+                    {a.pipeline_run_id ? (
+                      <a href={`/profit/admin/pipeline/${a.pipeline_run_id}`} title={a.pipeline_run_id}>
+                        {a.pipeline_run_id.slice(0, 8)}…
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td title={a.handoff_error ?? ""} style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {a.handoff_error ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {lastFailure && (!lastSuccess || new Date(lastFailure.fired_at) > new Date(lastSuccess.fired_at)) ? (
+        <div className="error-toast" style={{ margin: "12px 16px" }}>
+          <strong>Latest fire failed.</strong> Paste this to Claude:{" "}
+          <code style={{ background: "#fff", padding: "2px 6px", borderRadius: 4 }}>
+            "Pipeline page latest schedule fire failed at {new Date(lastFailure.fired_at).toLocaleString("en-US", { dateStyle: "short", timeStyle: "short", hour12: false })} with: {lastFailure.handoff_error}"
+          </code>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export default function PipelineRuns() {
   const { pipelineRunId } = useParams();
   const [runs, setRuns] = useState([]);
   const [detail, setDetail] = useState(null);
+  const [cronAttempts, setCronAttempts] = useState([]);
+  const [cronAttemptsLoading, setCronAttemptsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -182,6 +284,20 @@ export default function PipelineRuns() {
     }
   }
 
+  async function loadCronAttempts() {
+    setCronAttemptsLoading(true);
+    try {
+      const response = await fetch(`${cronAttemptsEndpoint}?limit=10`);
+      if (!response.ok) return;  // best-effort; silent failure ok here
+      const payload = await response.json();
+      setCronAttempts(payload.rows ?? []);
+    } catch (_err) {
+      // best-effort
+    } finally {
+      setCronAttemptsLoading(false);
+    }
+  }
+
   async function loadRunDetail() {
     if (!pipelineRunId) return;
     setLoading(true);
@@ -205,6 +321,7 @@ export default function PipelineRuns() {
       setDetail(null);
       loadRuns();
     }
+    loadCronAttempts();
   }, [pipelineRunId]);
 
   useEffect(() => {
@@ -233,6 +350,13 @@ export default function PipelineRuns() {
         onRefresh={() => setDialogOpen(true)}
         emptyLabel="No runs yet"
       />
+
+      <CronAttemptsPanel
+        attempts={cronAttempts}
+        loading={cronAttemptsLoading}
+        onRefresh={loadCronAttempts}
+      />
+
       {error ? <div className="error-toast">{error}</div> : null}
 
       {pipelineRunId ? (

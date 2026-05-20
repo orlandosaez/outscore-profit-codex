@@ -64,7 +64,43 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://127.0.0.1:8010/api/profit/admin/audit/pipeline-runs",
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_cron_attempts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Prefer", "value": "return=representation" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"schedule_source\": \"w29_nightly_2am_et\",\n  \"handoff_status\": \"fired\",\n  \"notes\": \"W29 schedule trigger fired; about to attempt handoff to pipeline API.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "a050cf01-29cb-4b2b-9a0d-000050000a01",
+      "name": "Record Cron Attempt",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.18.0.1:8010/api/profit/admin/audit/pipeline-runs",
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
@@ -74,11 +110,49 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        520,
+        780,
         0
       ],
       "id": "03bf8f9e-29cb-4b2b-9a0d-000000000029",
-      "name": "Start Cron Pipeline Run"
+      "name": "Start Cron Pipeline Run",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_cron_attempts?cron_attempt_id=eq.{{ $('Record Cron Attempt').first().json[0].cron_attempt_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Prefer", "value": "return=representation" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"handoff_status\": \"{{ $json.error ? 'failed_handoff' : 'handed_off' }}\",\n  \"handoff_error\": {{ $json.error ? JSON.stringify(($json.error.message || $json.error.description || 'unknown error') + ($json.error.httpCode ? ' (HTTP ' + $json.error.httpCode + ')' : '')) : 'null' }},\n  \"pipeline_run_id\": {{ ($json.run && $json.run.pipeline_run_id) ? JSON.stringify($json.run.pipeline_run_id) : 'null' }},\n  \"http_status_code\": {{ $json.error ? ($json.error.httpCode || 0) : 201 }},\n  \"completed_at\": \"{{ $now.toISO() }}\",\n  \"raw_response\": {{ JSON.stringify($json).slice(0, 4000) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "a050cf02-29cb-4b2b-9a0d-000050000a02",
+      "name": "Update Cron Attempt Result",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     }
   ],
   "connections": {
@@ -97,7 +171,29 @@
       "main": [
         [
           {
+            "node": "Record Cron Attempt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Cron Attempt": {
+      "main": [
+        [
+          {
             "node": "Start Cron Pipeline Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Cron Pipeline Run": {
+      "main": [
+        [
+          {
+            "node": "Update Cron Attempt Result",
             "type": "main",
             "index": 0
           }
@@ -112,7 +208,7 @@
   "staticData": null,
   "tags": [],
   "triggerCount": 0,
-  "updatedAt": "2026-05-09T00:00:00.000Z",
-  "versionId": "profit-29-schedule-wrapper-v1",
+  "updatedAt": "2026-05-20T16:00:00.000Z",
+  "versionId": "profit-29-schedule-wrapper-v2-cron-attempts",
   "active": false
 }

@@ -204,6 +204,36 @@ class PipelineService:
             "offset": offset,
         }
 
+    # V0.7.I (050): Layer 1 cron visibility — surface every n8n schedule fire
+    # regardless of whether the API handoff succeeded. Closes the silent-
+    # failure gap where W29 errored before profit_pipeline_runs got a row.
+    def list_cron_attempts(self, *, limit: int = 30, offset: int = 0) -> dict[str, object]:
+        rows = self.store.read_view(
+            "profit_pipeline_cron_attempts",
+            order="fired_at.desc",
+            limit=limit,
+            offset=offset,
+        )
+        return {
+            "rows": [self._cron_attempt_payload(row) for row in rows],
+            "limit": limit,
+            "offset": offset,
+        }
+
+    @staticmethod
+    def _cron_attempt_payload(row: PipelineRow) -> PipelineRow:
+        return {
+            "cron_attempt_id": row.get("cron_attempt_id"),
+            "fired_at": row.get("fired_at"),
+            "schedule_source": row.get("schedule_source"),
+            "handoff_status": row.get("handoff_status"),
+            "handoff_error": row.get("handoff_error"),
+            "pipeline_run_id": row.get("pipeline_run_id"),
+            "http_status_code": row.get("http_status_code"),
+            "completed_at": row.get("completed_at"),
+            "notes": row.get("notes"),
+        }
+
     def run_detail(self, pipeline_run_id: str) -> dict[str, object]:
         self._validate_uuid(pipeline_run_id)
         rows = self.store.read_view(
