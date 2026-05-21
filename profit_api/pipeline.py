@@ -253,12 +253,24 @@ class PipelineService:
             "steps": [self._step_payload(step) for step in steps],
         }
 
-    def trigger_manual_run(self, *, triggered_by: str | None = None) -> dict[str, object]:
-        row = self._insert_running_row_with_retry(triggered_by=triggered_by or "orlando")
+    def trigger_manual_run(
+        self,
+        *,
+        triggered_by: str | None = None,
+        run_source: str | None = None,
+    ) -> dict[str, object]:
+        # V0.7.I follow-up: accept run_source so cron-triggered calls are
+        # tagged 'cron' (not the default 'manual'). Whitelist values to
+        # avoid bad data on the page SOURCE column.
+        effective_source = run_source if run_source in {"manual", "cron"} else "manual"
+        row = self._insert_running_row_with_retry(
+            triggered_by=triggered_by or "orlando",
+            run_source=effective_source,
+        )
         pipeline_run_id = str(row["pipeline_run_id"])
         payload = {
             "pipeline_run_id": pipeline_run_id,
-            "run_source": "manual",
+            "run_source": effective_source,
             "triggered_by": row.get("triggered_by") or "orlando",
             "requested_at": datetime.now(timezone.utc).isoformat(),
             "requested_by": "profit_api",
@@ -282,9 +294,11 @@ class PipelineService:
             ) from exc
         return {"run": self._run_payload(row)}
 
-    def _insert_running_row_with_retry(self, *, triggered_by: str) -> PipelineRow:
+    def _insert_running_row_with_retry(
+        self, *, triggered_by: str, run_source: str = "manual"
+    ) -> PipelineRow:
         try:
-            return self._insert_running_row(triggered_by=triggered_by)
+            return self._insert_running_row(triggered_by=triggered_by, run_source=run_source)
         except SupabaseRestError as exc:
             if not self._is_running_conflict(exc):
                 raise
@@ -292,7 +306,7 @@ class PipelineService:
             if current:
                 raise PipelineRunConflictError(self._conflict_detail(current)) from exc
             try:
-                return self._insert_running_row(triggered_by=triggered_by)
+                return self._insert_running_row(triggered_by=triggered_by, run_source=run_source)
             except SupabaseRestError as retry_exc:
                 if self._is_running_conflict(retry_exc):
                     current_after_retry = self._current_running_row()
@@ -310,12 +324,12 @@ class PipelineService:
                     ) from retry_exc
                 raise
 
-    def _insert_running_row(self, *, triggered_by: str) -> PipelineRow:
+    def _insert_running_row(self, *, triggered_by: str, run_source: str = "manual") -> PipelineRow:
         rows = self.store.insert_rows(
             "profit_pipeline_runs",
             [
                 {
-                    "run_source": "manual",
+                    "run_source": run_source,
                     "status": "running",
                     "triggered_by": triggered_by,
                     "summary": {},

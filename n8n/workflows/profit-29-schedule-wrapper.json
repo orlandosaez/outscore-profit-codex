@@ -121,7 +121,7 @@
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_cron_attempts?cron_attempt_id=eq.{{ $('Record Cron Attempt').first().json[0].cron_attempt_id }}",
+        "url": "=https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_pipeline_cron_attempts?cron_attempt_id=eq.{{ $('Record Cron Attempt').first().json.cron_attempt_id }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,

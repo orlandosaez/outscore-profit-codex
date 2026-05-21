@@ -61,6 +61,9 @@ class AuditClassificationPayload(BaseModel):
 
 class PipelineRunPayload(BaseModel):
     triggered_by: str | None = "orlando"
+    # V0.7.I follow-up: accept run_source from body so cron-triggered runs
+    # don't display as "manual" in the admin page SOURCE column.
+    run_source: str | None = None
 
 
 def create_app(
@@ -288,6 +291,7 @@ def create_app(
         try:
             return pipeline_dashboard_service.trigger_manual_run(
                 triggered_by=payload.triggered_by or "orlando",
+                run_source=payload.run_source,
             )
         except PipelineRunConflictError as exc:
             raise HTTPException(status_code=409, detail=exc.detail) from exc
