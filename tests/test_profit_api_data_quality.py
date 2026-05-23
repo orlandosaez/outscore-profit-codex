@@ -53,6 +53,42 @@ SAMPLE_ROWS = [
         "action_url": "https://app.sayanchor.com/...",
         "detected_at": "2026-05-13T18:00:00Z",
     },
+    {
+        "alert_category": "client_match_suspected_dup_or_gap",
+        "severity": "medium",
+        "subject_kind": "fc_client",
+        "subject_id": "L.1:2426001",
+        "subject_name": "Anderson Kool Air LLC-1",
+        "fc_client_id": 2426001,
+        "anchor_relationship_id": None,
+        "description": "L.1 FC client Anderson Kool Air LLC-1 looks like an auto-dedup of an existing record.",
+        "action_url": "https://app.financial-cents.com/clients/2426001",
+        "detected_at": "2026-05-23T18:00:00Z",
+    },
+    {
+        "alert_category": "client_match_suspected_dup_or_gap",
+        "severity": "medium",
+        "subject_kind": "client_match_candidate",
+        "subject_id": "L.2:2426002:relationship-bachert",
+        "subject_name": "The Bachert Law Firm PA <> Bachert Law Firm",
+        "fc_client_id": 2426002,
+        "anchor_relationship_id": "relationship-bachert",
+        "description": "L.2 FC The Bachert Law Firm PA and Anchor Bachert Law Firm look like the same client (similarity 0.89).",
+        "action_url": "https://app.sayanchor.com/home/relationship/relationship-bachert/agreement",
+        "detected_at": "2026-05-23T18:00:00Z",
+    },
+    {
+        "alert_category": "client_match_suspected_dup_or_gap",
+        "severity": "medium",
+        "subject_kind": "anchor_agreement",
+        "subject_id": "L.3:relationship-gap",
+        "subject_name": "Unlinked Anchor Client LLC",
+        "fc_client_id": None,
+        "anchor_relationship_id": "relationship-gap",
+        "description": "L.3 Anchor agreement relationship-gap for Unlinked Anchor Client LLC has no FC client link.",
+        "action_url": "https://app.sayanchor.com/home/relationship/relationship-gap/agreement",
+        "detected_at": "2026-05-23T18:00:00Z",
+    },
 ]
 
 
@@ -84,7 +120,7 @@ class DataQualityServiceTests(unittest.TestCase):
 
         result = service.list_alerts()
 
-        self.assertEqual(len(result["rows"]), 3)
+        self.assertEqual(len(result["rows"]), 6)
         first = result["rows"][0]
         self.assertEqual(first["alert_category"], "paid_anchor_invoice_not_cleared")
         self.assertEqual(first["severity"], "high")
@@ -98,7 +134,7 @@ class DataQualityServiceTests(unittest.TestCase):
 
         result = service.list_alerts(severity="medium")
 
-        self.assertEqual(len(result["rows"]), 2)
+        self.assertEqual(len(result["rows"]), 5)
         for row in result["rows"]:
             self.assertEqual(row["severity"], "medium")
 
@@ -120,12 +156,16 @@ class DataQualityServiceTests(unittest.TestCase):
 
         result = service.summary()
 
-        self.assertEqual(result["total"], 3)
+        self.assertEqual(result["total"], 6)
         self.assertEqual(result["audit_status"], "critical")
-        self.assertEqual(result["by_severity"], {"high": 1, "medium": 2, "low": 0})
+        self.assertEqual(result["by_severity"], {"high": 1, "medium": 5, "low": 0})
         self.assertEqual(
             result["by_category"],
-            {"anchor_no_fc_match": 2, "paid_anchor_invoice_not_cleared": 1},
+            {
+                "client_match_suspected_dup_or_gap": 3,
+                "anchor_no_fc_match": 2,
+                "paid_anchor_invoice_not_cleared": 1,
+            },
         )
 
     def test_summary_clean_when_empty(self) -> None:
@@ -153,7 +193,7 @@ class DataQualityRoutesTests(unittest.TestCase):
         client = self._build_client(SAMPLE_ROWS)
         response = client.get("/api/profit/admin/data-quality-alerts")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()["rows"]), 3)
+        self.assertEqual(len(response.json()["rows"]), 6)
 
     def test_get_alerts_with_severity_filter(self) -> None:
         client = self._build_client(SAMPLE_ROWS)
@@ -161,7 +201,7 @@ class DataQualityRoutesTests(unittest.TestCase):
             "/api/profit/admin/data-quality-alerts?severity=medium"
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()["rows"]), 2)
+        self.assertEqual(len(response.json()["rows"]), 5)
 
     def test_get_alerts_rejects_invalid_severity(self) -> None:
         client = self._build_client(SAMPLE_ROWS)
@@ -177,8 +217,29 @@ class DataQualityRoutesTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(body["total"], 3)
+        self.assertEqual(body["total"], 6)
         self.assertEqual(body["audit_status"], "critical")
+
+    def test_client_match_category_snapshots_l1_l2_l3_shape(self) -> None:
+        service = DataQualityService(FakeStore(SAMPLE_ROWS))
+
+        result = service.list_alerts(category="client_match_suspected_dup_or_gap")
+
+        self.assertEqual(
+            [row["subject_id"] for row in result["rows"]],
+            [
+                "L.1:2426001",
+                "L.2:2426002:relationship-bachert",
+                "L.3:relationship-gap",
+            ],
+        )
+        self.assertEqual(
+            {row["alert_category"] for row in result["rows"]},
+            {"client_match_suspected_dup_or_gap"},
+        )
+        self.assertIn("auto-dedup", str(result["rows"][0]["description"]))
+        self.assertIn("similarity 0.89", str(result["rows"][1]["description"]))
+        self.assertIn("has no FC client link", str(result["rows"][2]["description"]))
 
 
 if __name__ == "__main__":

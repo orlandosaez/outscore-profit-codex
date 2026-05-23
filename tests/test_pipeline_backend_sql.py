@@ -157,3 +157,114 @@ def test_migration_026c_hardcodes_stuck_threshold() -> None:
     assert "now() - interval '30 days'" in sql
     assert "threshold is operational policy; if changed, update this view rather than parameterizing" in sql
     assert "p_stuck_days" not in sql
+
+
+def test_migration_052_defines_alias_table_and_only_midas_seed_rows() -> None:
+    sql = read_sql(
+        "supabase/sql/052_profit_client_aliases_and_anchor_match_candidates_fuzzy.sql"
+    )
+    lower = sql.lower()
+
+    assert "create table if not exists profit_client_aliases" in lower
+    assert "manual_fka" in lower
+    assert "manual_dba" in lower
+    assert "manual_legal_to_dba" in lower
+    assert "operator_note" in lower
+    assert "1415 Cortez Rd LLC" in sql
+    assert "Midas South Bradenton" in sql
+    assert "6712 Manatee Ave LLC" in sql
+    assert "Midas North Bradenton" in sql
+    assert "Bachert" not in sql
+    assert "Lee's" not in sql
+    assert "DVH" not in sql
+    assert "Hadar" not in sql
+    assert "Anderson Kool Air LLC-1" not in sql
+
+
+def test_migration_052_candidate_view_preserves_status_truth_table_under_fuzzy() -> None:
+    sql = read_sql(
+        "supabase/sql/052_profit_client_aliases_and_anchor_match_candidates_fuzzy.sql"
+    )
+    lower = sql.lower()
+
+    assert "create or replace view profit_fc_client_anchor_match_candidates" in lower
+    assert "when anchor_candidate.display_status = 'active' then 1" in lower
+    assert "when anchor_candidate.display_status = 'terminated' then 2" in lower
+    assert "when anchor_candidate.display_status = 'stale' then 3" in lower
+    assert "active_anchor_count = 1" in lower
+    assert "active_anchor_count > 1" in lower
+    assert "terminated-only" in lower
+    assert "stale-only" in lower
+
+
+def test_migration_052_candidate_view_adds_candidate_only_fuzzy_tier() -> None:
+    sql = read_sql(
+        "supabase/sql/052_profit_client_aliases_and_anchor_match_candidates_fuzzy.sql"
+    ).lower()
+
+    assert "create extension if not exists pg_trgm" in sql
+    assert "similarity(" in sql
+    assert ">= 0.92" in sql
+    assert "'auto_fuzzy'" in sql
+    assert "match_confidence" in sql
+    assert "not exists" in sql
+    assert "profit_fc_client_anchor_matches" not in sql
+    assert "manual_override" not in sql
+
+
+def test_migration_052_names_gap_case_and_regression_fixtures() -> None:
+    sql = read_sql(
+        "supabase/sql/052_profit_client_aliases_and_anchor_match_candidates_fuzzy.sql"
+    )
+
+    for fixture in [
+        "fixture: bachert_article_suffix_normalizes",
+        "fixture: hadar_sorted_helper_audit_only",
+        "fixture: anderson_dedup_suffix_normalizes",
+        "fixture: midas_south_alias_auto_exact",
+        "fixture: midas_north_alias_auto_exact",
+        "fixture: lees_apostrophe_suffix_normalizes",
+        "fixture: corey_monaghan_monanghan_fuzzy_candidate",
+        "E & O Automotive LLC",
+        "Kar Kraft Auto Repair LLC (TempleTerrace)",
+        "Kar Kraft Services LLC (Zephyrhills)",
+        "YV Enterprises HB LLC",
+        "YV Enterprises PSL LLC",
+    ]:
+        assert fixture in sql
+
+
+def test_migration_053_adds_l_category_without_new_subcategory_column() -> None:
+    sql = read_sql("supabase/sql/053_profit_data_quality_alerts_client_match.sql")
+    lower = sql.lower()
+
+    assert "create or replace view profit_data_quality_alerts" in lower
+    assert lower.count("'client_match_suspected_dup_or_gap'::text") == 3
+    assert "'l.1:'" in lower
+    assert "'l.2:'" in lower
+    assert "'l.3:'" in lower
+    assert " as subcategory" not in lower
+    assert "subcategory text" not in lower
+    assert "client_master" not in lower
+
+
+def test_migration_053_l1_l2_l3_conditions_and_thresholds() -> None:
+    sql = read_sql("supabase/sql/053_profit_data_quality_alerts_client_match.sql").lower()
+
+    assert "fc.name ~ '-[0-9]+$'" in sql
+    assert "similarity(" in sql
+    assert "sim.score >= 0.85" in sql
+    assert "sim.score < 0.92" in sql
+    assert "ag.display_status = 'active'" in sql
+    assert "profit_client_aliases" in sql
+    assert "exact/alias/fuzzy fc candidate" in sql
+
+
+def test_migration_053_anchor_no_fc_match_suppresses_pending_candidates() -> None:
+    sql = read_sql("supabase/sql/053_profit_data_quality_alerts_client_match.sql").lower()
+
+    assert "-- b. anchor_no_fc_match" in sql
+    assert "profit_fc_client_anchor_match_candidates candidate" in sql
+    assert "candidate.anchor_relationship_id = ag.anchor_relationship_id" in sql
+    assert "candidate.match_status in ('auto_exact', 'auto_fuzzy')" in sql
+    assert "awaiting w25 confirmation" in sql
