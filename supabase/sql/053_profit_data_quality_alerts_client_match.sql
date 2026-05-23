@@ -338,10 +338,75 @@ where ag.display_status = 'active'
     from profit_fc_client_anchor_match_candidates candidate
     where candidate.anchor_relationship_id = ag.anchor_relationship_id
       and candidate.match_status in ('auto_exact', 'auto_fuzzy')
-  );
+  )
+
+union all
+-- pipeline_cron_stale (V0.7.I, carried forward from migration 050).
+-- Sub-condition A: latest cron attempt failed_handoff within 30h.
+select
+  'pipeline_cron_stale'::text,
+  'high'::text,
+  'anchor_agreement'::text,
+  ca.cron_attempt_id::text,
+  'Nightly cron handoff failed' as subject_name,
+  null::bigint,
+  null::text,
+  'Last n8n schedule fire at ' || to_char(ca.fired_at, 'YYYY-MM-DD HH24:MI')
+    || ' UTC failed to reach the pipeline API: ' || coalesce(ca.handoff_error, '<no error captured>')
+    || '. No pipeline_run was created. Paste this to Claude: "Pipeline page latest schedule fire failed at '
+    || to_char(ca.fired_at, 'YYYY-MM-DD HH24:MI') || ' with ' || coalesce(ca.handoff_error, 'unknown') || '."',
+  '/profit/admin/pipeline',
+  now()
+from (
+  select * from profit_pipeline_cron_attempts
+   where handoff_status = 'failed_handoff'
+   order by fired_at desc
+   limit 1
+) ca
+where ca.fired_at > now() - interval '30 hours'
+
+union all
+-- Sub-condition B: no cron attempt at all in last 26h.
+select
+  'pipeline_cron_stale'::text,
+  'high'::text,
+  'anchor_agreement'::text,
+  'no_cron_fire_in_26h'::text,
+  'Nightly cron has not fired'::text,
+  null::bigint,
+  null::text,
+  'No n8n schedule fire recorded in the last 26 hours. Either the cron trigger is disabled, '
+    || 'or n8n is down. Paste this to Claude: "Pipeline page shows no schedule fires in last 26h. '
+    || 'Check W29 status and n8n container health."',
+  '/profit/admin/pipeline',
+  now()
+where not exists (
+  select 1 from profit_pipeline_cron_attempts
+   where fired_at > now() - interval '26 hours'
+)
+
+union all
+-- Sub-condition C: no successful pipeline_run in last 30h.
+select
+  'pipeline_cron_stale'::text,
+  'high'::text,
+  'anchor_agreement'::text,
+  'no_successful_pipeline_run_in_30h'::text,
+  'Pipeline has not run successfully'::text,
+  null::bigint,
+  null::text,
+  'Latest successful pipeline_run is more than 30 hours old. Paste to Claude: '
+    || '"Pipeline page latest success is YYYY-MM-DD HH:MM. Investigate why no fresh runs."',
+  '/profit/admin/pipeline',
+  now()
+where not exists (
+  select 1 from profit_pipeline_runs
+   where status = 'success'
+     and started_at > now() - interval '30 hours'
+);
 
 comment on view profit_data_quality_alerts is
-  'V0.7.J: 12 alert categories A-K plus L client_match_suspected_dup_or_gap. L has three same-shape UNION ALL branches: L.1 FC auto-dedup suffix, L.2 audit-only 0.85 <= trigram < 0.92 across active FC clients and active Anchor agreements, L.3 active Anchor agreement with no exact/alias/fuzzy FC candidate. Category B suppresses active Anchor rows when a candidate exists awaiting W25 confirmation.';
+  'V0.7.J: 12 alert categories A-K, plus pipeline_cron_stale (V0.7.I 050 carry-forward, 3 sub-conditions), plus L client_match_suspected_dup_or_gap. L has three same-shape UNION ALL branches: L.1 FC auto-dedup suffix (trailing -N only; (N) form excluded to avoid (1040)-style false positives), L.2 audit-only 0.85 <= trigram < 0.92 across active FC clients and active Anchor agreements, L.3 active Anchor agreement with no exact/alias/fuzzy FC candidate. Category B suppresses active Anchor rows when a candidate exists awaiting W25 confirmation.';
 
 -- Verify: schema-only check. Do not invoke side-effect RPCs or inspect live data.
 do $$
