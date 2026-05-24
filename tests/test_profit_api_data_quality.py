@@ -89,6 +89,18 @@ SAMPLE_ROWS = [
         "action_url": "https://app.sayanchor.com/home/relationship/relationship-gap/agreement",
         "detected_at": "2026-05-23T18:00:00Z",
     },
+    {
+        "alert_category": "held_invoice_unpaid",
+        "severity": "medium",
+        "subject_kind": "anchor_invoice",
+        "subject_id": "invoice-held-123",
+        "subject_name": "Bachert Law Firm",
+        "fc_client_id": 2426002,
+        "anchor_relationship_id": "relationship-bachert",
+        "description": "Held Anchor invoice for Bachert Law Firm (SBC-00123) is unpaid after 45 days; qbo_status=<blank>, display_status=draft.",
+        "action_url": "https://app.sayanchor.com/home/relationship/relationship-bachert/agreement",
+        "detected_at": "2026-05-23T18:00:00Z",
+    },
 ]
 
 
@@ -120,7 +132,7 @@ class DataQualityServiceTests(unittest.TestCase):
 
         result = service.list_alerts()
 
-        self.assertEqual(len(result["rows"]), 6)
+        self.assertEqual(len(result["rows"]), 7)
         first = result["rows"][0]
         self.assertEqual(first["alert_category"], "paid_anchor_invoice_not_cleared")
         self.assertEqual(first["severity"], "high")
@@ -134,7 +146,7 @@ class DataQualityServiceTests(unittest.TestCase):
 
         result = service.list_alerts(severity="medium")
 
-        self.assertEqual(len(result["rows"]), 5)
+        self.assertEqual(len(result["rows"]), 6)
         for row in result["rows"]:
             self.assertEqual(row["severity"], "medium")
 
@@ -156,15 +168,16 @@ class DataQualityServiceTests(unittest.TestCase):
 
         result = service.summary()
 
-        self.assertEqual(result["total"], 6)
+        self.assertEqual(result["total"], 7)
         self.assertEqual(result["audit_status"], "critical")
-        self.assertEqual(result["by_severity"], {"high": 1, "medium": 5, "low": 0})
+        self.assertEqual(result["by_severity"], {"high": 1, "medium": 6, "low": 0})
         self.assertEqual(
             result["by_category"],
             {
                 "client_match_suspected_dup_or_gap": 3,
                 "anchor_no_fc_match": 2,
                 "paid_anchor_invoice_not_cleared": 1,
+                "held_invoice_unpaid": 1,
             },
         )
 
@@ -193,7 +206,7 @@ class DataQualityRoutesTests(unittest.TestCase):
         client = self._build_client(SAMPLE_ROWS)
         response = client.get("/api/profit/admin/data-quality-alerts")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()["rows"]), 6)
+        self.assertEqual(len(response.json()["rows"]), 7)
 
     def test_get_alerts_with_severity_filter(self) -> None:
         client = self._build_client(SAMPLE_ROWS)
@@ -201,7 +214,7 @@ class DataQualityRoutesTests(unittest.TestCase):
             "/api/profit/admin/data-quality-alerts?severity=medium"
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()["rows"]), 5)
+        self.assertEqual(len(response.json()["rows"]), 6)
 
     def test_get_alerts_rejects_invalid_severity(self) -> None:
         client = self._build_client(SAMPLE_ROWS)
@@ -217,7 +230,7 @@ class DataQualityRoutesTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(body["total"], 6)
+        self.assertEqual(body["total"], 7)
         self.assertEqual(body["audit_status"], "critical")
 
     def test_client_match_category_snapshots_l1_l2_l3_shape(self) -> None:
@@ -240,6 +253,23 @@ class DataQualityRoutesTests(unittest.TestCase):
         self.assertIn("auto-dedup", str(result["rows"][0]["description"]))
         self.assertIn("similarity 0.89", str(result["rows"][1]["description"]))
         self.assertIn("has no FC client link", str(result["rows"][2]["description"]))
+
+    def test_held_invoice_unpaid_snapshot_shape(self) -> None:
+        service = DataQualityService(FakeStore(SAMPLE_ROWS))
+
+        result = service.list_alerts(category="held_invoice_unpaid")
+
+        self.assertEqual(len(result["rows"]), 1)
+        row = result["rows"][0]
+        self.assertEqual(row["alert_category"], "held_invoice_unpaid")
+        self.assertEqual(row["severity"], "medium")
+        self.assertEqual(row["subject_kind"], "anchor_invoice")
+        self.assertEqual(row["subject_id"], "invoice-held-123")
+        self.assertEqual(row["subject_name"], "Bachert Law Firm")
+        self.assertEqual(row["fc_client_id"], 2426002)
+        self.assertEqual(row["anchor_relationship_id"], "relationship-bachert")
+        self.assertIn("SBC-00123", str(row["description"]))
+        self.assertIn("unpaid after 45 days", str(row["description"]))
 
 
 if __name__ == "__main__":

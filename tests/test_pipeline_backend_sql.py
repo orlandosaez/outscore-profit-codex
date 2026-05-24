@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -268,3 +269,127 @@ def test_migration_053_anchor_no_fc_match_suppresses_pending_candidates() -> Non
     assert "candidate.anchor_relationship_id = ag.anchor_relationship_id" in sql
     assert "candidate.match_status in ('auto_exact', 'auto_fuzzy')" in sql
     assert "awaiting w25 confirmation" in sql
+
+
+def test_migration_054_category_e_only_fires_for_auto_trigger() -> None:
+    sql = read_sql("supabase/sql/054_profit_billing_audit_frequency_aware.sql")
+    lower = sql.lower()
+
+    assert "create or replace view profit_data_quality_alerts" in lower
+    assert "coalesce(service->'billing'->>'trigger', '') = 'auto'" in lower
+    assert "coalesce(service->'status'->>'type', '') = 'approved'" in lower
+    assert "service->'billing'->>'occurrence'" in lower
+    assert "service->>'trigger'" not in lower
+    assert "service->>'occurrence'" not in lower
+    assert "service->>'status'" not in lower
+
+
+def test_migration_054_category_e_threshold_per_occurrence() -> None:
+    sql = read_sql("supabase/sql/054_profit_billing_audit_frequency_aware.sql").lower()
+
+    fixtures = [
+        ("monthly safe", "monthly", 30, False),
+        ("monthly fire", "monthly", 50, True),
+        ("quarterly safe", "quarterly", 90, False),
+        ("quarterly fire", "quarterly", 110, True),
+        ("yearly safe", "yearly", 200, False),
+    ]
+    thresholds = {"monthly": 45, "quarterly": 100}
+
+    for _, occurrence, days_since_invoice, should_fire in fixtures:
+        threshold = thresholds.get(occurrence, 380)
+        assert (days_since_invoice > threshold) is should_fire
+
+    assert "when 'monthly' then 45" in sql
+    assert "when 'quarterly' then 100" in sql
+    assert "else 380" in sql
+    assert "> (cadence.threshold_days::text || ' days')::interval" in sql
+    assert "'d threshold for '" in sql
+    assert "'auto-billed service cadence violated: ' || violations.violating_services" in sql
+
+
+def test_migration_054_category_m_fires_on_held_invoice() -> None:
+    sql = read_sql("supabase/sql/054_profit_billing_audit_frequency_aware.sql").lower()
+
+    fixtures = [
+        {
+            "name": "held > 30d fires",
+            "amount_paid": 0,
+            "qbo_status": "",
+            "display_status": "",
+            "days_old": 45,
+            "fires": True,
+        },
+        {
+            "name": "recent draft safe",
+            "amount_paid": 0,
+            "qbo_status": "",
+            "display_status": "",
+            "days_old": 12,
+            "fires": False,
+        },
+        {
+            "name": "paymentSynced safe",
+            "amount_paid": 0,
+            "qbo_status": "paymentSynced",
+            "display_status": "",
+            "days_old": 45,
+            "fires": False,
+        },
+        {
+            "name": "voidSynced safe",
+            "amount_paid": 0,
+            "qbo_status": "voidSynced",
+            "display_status": "",
+            "days_old": 45,
+            "fires": False,
+        },
+    ]
+    safe_qbo = {"paymentSynced", "paid", "voidSynced", "voidedSynced"}
+    safe_display = {"voided", "cancelled", "void"}
+
+    for fixture in fixtures:
+        fires = (
+            fixture["amount_paid"] == 0
+            and fixture["qbo_status"] not in safe_qbo
+            and fixture["display_status"] not in safe_display
+            and fixture["days_old"] > 30
+        )
+        assert fires is fixture["fires"], fixture["name"]
+
+    assert "'held_invoice_unpaid'::text" in sql
+    assert "'anchor_invoice'::text" in sql
+    assert "coalesce(inv.amount_paid, 0) = 0" in sql
+    assert "coalesce(inv.qbo_status, '') not in (\n    'paymentsynced', 'paid', 'voidsynced', 'voidedsynced'\n  )" in sql
+    assert "coalesce(inv.display_status, '') not in (\n    'voided', 'cancelled', 'void'\n  )" in sql
+    assert "now() - inv.issue_date::timestamptz > interval '30 days'" in sql
+
+
+def test_migration_054_carries_forward_all_prior_categories() -> None:
+    sql = read_sql("supabase/sql/054_profit_billing_audit_frequency_aware.sql")
+    view_sql = sql.split("comment on view profit_data_quality_alerts", maxsplit=1)[0]
+    categories = set(
+        re.findall(
+            r"(?:^|\n)select(?:\s+distinct)?\s+(?:\n\s*)?'([a-z0-9_]+)'(?:::text)?(?:\s+as\s+\w+)?\s*,",
+            view_sql,
+        )
+    )
+
+    assert categories == {
+        "fc_stale_record",
+        "anchor_no_fc_match",
+        "engagement_type_unclassified",
+        "subscription_with_manual_service",
+        "subscription_billing_gap",
+        "orphan_attribution_duplicate",
+        "parent_child_1040_false_positive",
+        "paid_anchor_invoice_not_cleared",
+        "manual_invoice_already_invoiced",
+        "catalog_gap_service_no_rule",
+        "label_unresolved_with_sibling_candidate",
+        "pipeline_cron_stale",
+        "client_match_suspected_dup_or_gap",
+        "held_invoice_unpaid",
+    }
+
+    assert len(categories) == 14
