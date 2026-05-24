@@ -311,57 +311,76 @@ def test_migration_054_category_e_threshold_per_occurrence() -> None:
 def test_migration_054_category_m_fires_on_held_invoice() -> None:
     sql = read_sql("supabase/sql/054_profit_billing_audit_frequency_aware.sql").lower()
 
+    # Anchor's raw.status whitelist post-2026-05-24 hotfix: only 'issued' or 'overdue'
+    # invoices with amount_due > 0 and age > 30d fire M. Net-zero paid invoices
+    # (e.g., SBC-00055: $650 charge + $650 credit memo) used to false-fire under
+    # the prior amount_paid=0 + qbo_status filter. Now Anchor's authoritative
+    # status is the primary signal.
     fixtures = [
         {
-            "name": "held > 30d fires",
-            "amount_paid": 0,
-            "qbo_status": "",
-            "display_status": "",
+            "name": "issued > 30d fires",
+            "anchor_status": "issued",
+            "amount_due": 650,
             "days_old": 45,
             "fires": True,
         },
         {
-            "name": "recent draft safe",
-            "amount_paid": 0,
-            "qbo_status": "",
-            "display_status": "",
+            "name": "overdue > 30d fires",
+            "anchor_status": "overdue",
+            "amount_due": 650,
+            "days_old": 45,
+            "fires": True,
+        },
+        {
+            "name": "issued recent safe (< 30d)",
+            "anchor_status": "issued",
+            "amount_due": 650,
             "days_old": 12,
             "fires": False,
         },
         {
-            "name": "paymentSynced safe",
-            "amount_paid": 0,
-            "qbo_status": "paymentSynced",
-            "display_status": "",
+            "name": "paid safe",
+            "anchor_status": "paid",
+            "amount_due": 0,
             "days_old": 45,
             "fires": False,
         },
         {
-            "name": "voidSynced safe",
-            "amount_paid": 0,
-            "qbo_status": "voidSynced",
-            "display_status": "",
+            "name": "voided safe",
+            "anchor_status": "voided",
+            "amount_due": 0,
             "days_old": 45,
             "fires": False,
         },
+        {
+            "name": "processing safe (in-flight ACH)",
+            "anchor_status": "processing",
+            "amount_due": 650,
+            "days_old": 45,
+            "fires": False,
+        },
+        {
+            "name": "net-zero credit-balanced 'paid' invoice safe (SBC-00055 regression lock)",
+            "anchor_status": "paid",
+            "amount_due": 0,
+            "days_old": 112,
+            "fires": False,
+        },
     ]
-    safe_qbo = {"paymentSynced", "paid", "voidSynced", "voidedSynced"}
-    safe_display = {"voided", "cancelled", "void"}
+    fire_statuses = {"issued", "overdue"}
 
     for fixture in fixtures:
         fires = (
-            fixture["amount_paid"] == 0
-            and fixture["qbo_status"] not in safe_qbo
-            and fixture["display_status"] not in safe_display
+            fixture["anchor_status"] in fire_statuses
+            and fixture["amount_due"] > 0
             and fixture["days_old"] > 30
         )
         assert fires is fixture["fires"], fixture["name"]
 
     assert "'held_invoice_unpaid'::text" in sql
     assert "'anchor_invoice'::text" in sql
-    assert "coalesce(inv.amount_paid, 0) = 0" in sql
-    assert "coalesce(inv.qbo_status, '') not in (\n    'paymentsynced', 'paid', 'voidsynced', 'voidedsynced'\n  )" in sql
-    assert "coalesce(inv.display_status, '') not in (\n    'voided', 'cancelled', 'void'\n  )" in sql
+    assert "coalesce(inv.raw->>'status', '') in ('issued', 'overdue')" in sql
+    assert "coalesce(inv.amount_due, 0) > 0" in sql
     assert "now() - inv.issue_date::timestamptz > interval '30 days'" in sql
 
 

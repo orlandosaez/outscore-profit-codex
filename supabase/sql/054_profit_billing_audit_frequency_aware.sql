@@ -133,8 +133,8 @@ select
   'Held Anchor invoice for ' || ag.client_business_name
     || ' (' || coalesce(inv.invoice_number, inv.anchor_invoice_id) || ') is unpaid after '
     || (now()::date - inv.issue_date::date)::text
-    || ' days; qbo_status=' || coalesce(inv.qbo_status, '<blank>')
-    || ', display_status=' || coalesce(inv.display_status, '<blank>') || '.',
+    || ' days; anchor_status=' || coalesce(inv.raw->>'status', '<blank>')
+    || ', amount_due=$' || coalesce(inv.amount_due, 0)::text || '.',
   coalesce(ag.raw->>'link', 'https://app.sayanchor.com/home/relationship/' || ag.anchor_relationship_id || '/agreement'),
   now()
 from profit_anchor_invoices inv
@@ -143,13 +143,15 @@ join profit_anchor_agreements ag
 left join profit_fc_client_anchor_matches m
   on m.anchor_relationship_id = ag.anchor_relationship_id
 where ag.display_status = 'active'
-  and coalesce(inv.amount_paid, 0) = 0
-  and coalesce(inv.qbo_status, '') not in (
-    'paymentSynced', 'paid', 'voidSynced', 'voidedSynced'
-  )
-  and coalesce(inv.display_status, '') not in (
-    'voided', 'cancelled', 'void'
-  )
+  -- Use Anchor's authoritative raw.status as the primary signal.
+  -- Whitelist 'issued' + 'overdue' (the only states genuinely needing collection)
+  -- rather than blacklisting variants of "done". Discovered 2026-05-24: SBC-00055
+  -- false-fired under amount_paid=0 + qbo_status=invoiceSynced because it was a
+  -- net-zero invoice (charge + offsetting credit memo); Anchor's raw.status='paid'
+  -- is the truth, but our qbo_status stayed at invoiceSynced because there was no
+  -- payment event to sync for a $0 invoice.
+  and coalesce(inv.raw->>'status', '') in ('issued', 'overdue')
+  and coalesce(inv.amount_due, 0) > 0
   and inv.issue_date is not null
   and now() - inv.issue_date::timestamptz > interval '30 days'
 
