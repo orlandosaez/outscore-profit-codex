@@ -15,6 +15,19 @@
     },
     {
       "parameters": {
+        "jsCode": "const runStartedAt = new Date().toISOString();\n\nreturn [\n  {\n    json: {\n      run_started_at: runStartedAt,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "2d6d32c4-2af7-4ab5-a107-070000000001",
+      "name": "Start Invoice Sync Run"
+    },
+    {
+      "parameters": {
         "url": "https://api.sayanchor.com/agreements?limit=100&status=active",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
@@ -32,7 +45,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        260,
+        520,
         0
       ],
       "id": "c6d37e50-2062-4f21-b536-472b5aee907d",
@@ -42,20 +55,171 @@
           "id": "W8lch59bMcSdcLsz",
           "name": "Anchor API - Production"
         }
-      }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "jsCode": "const agreements = $input.first().json.entries ?? [];\n\nif (!Array.isArray(agreements)) {\n  throw new Error('Anchor agreements response did not include entries[]');\n}\n\nreturn agreements.map((agreement) => ({\n  json: {\n    relationshipId: agreement.id,\n    agreementName: agreement.name ?? null,\n    clientBusinessName: agreement.client?.business?.name ?? null,\n  },\n}));\n"
+        "jsCode": "const root = $input.first()?.json ?? {};\nconst entries = Array.isArray(root.entries) ? root.entries : [];\nconst statusCode = Number(root.statusCode ?? root.status ?? root.error?.statusCode ?? root.error?.status ?? 0);\nconst hasHttpError = Boolean(root.error) || (Number.isFinite(statusCode) && statusCode >= 400);\nconst tier1Succeeded = !hasHttpError && Array.isArray(root.entries);\n\nreturn [\n  {\n    json: {\n      tier1_succeeded: tier1Succeeded,\n      entries: tier1Succeeded ? entries : [],\n      sourceTotalCount: Number.isFinite(Number(root.totalCount)) ? Number(root.totalCount) : null,\n      tier1_status_code: Number.isFinite(statusCode) && statusCode > 0 ? statusCode : null,\n      fallbackSummary: {\n        mode: tier1Succeeded ? 'list_full' : 'per_id_only',\n        failed_list_pages: [],\n        list_discovered_count: tier1Succeeded ? entries.length : 0,\n        known_gap_count: 0,\n        per_id_fetched_count: 0,\n        per_id_failures: [],\n      },\n    },\n  },\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        520,
+        780,
         0
       ],
-      "id": "c8a23d35-7601-49b9-9772-b2ece49f020c",
-      "name": "Explode Agreements"
+      "id": "dc197da4-9f4a-4dc6-9f9d-070000000002",
+      "name": "Normalize Active Agreement List Result"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b81f77bd-c32b-4969-a1c7-070000000003-condition",
+              "leftValue": "={{ $(\"Normalize Active Agreement List Result\").first().json.tier1_succeeded === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "b81f77bd-c32b-4969-a1c7-070000000003",
+      "name": "Tier 1 Active Agreement List Succeeded?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const tier1 = $('Normalize Active Agreement List Result').first().json;\nconst seen = new Set();\nconst rows = [];\n\nfor (const agreement of tier1.entries ?? []) {\n  const relationshipId = agreement.relationship?.id ?? agreement.relationship_id ?? agreement.id;\n  if (!relationshipId || seen.has(relationshipId)) continue;\n  seen.add(relationshipId);\n  rows.push({\n    json: {\n      relationshipId,\n      agreementName: agreement.name ?? agreement.agreementName ?? null,\n      clientBusinessName: agreement.client?.business?.name ?? null,\n      listAgreement: agreement,\n      isKnownGap: false,\n      sourceTotalCount: tier1.sourceTotalCount,\n      run_started_at: $('Start Invoice Sync Run').first().json.run_started_at,\n      fallbackSummary: tier1.fallbackSummary,\n      knownGapIds: [],\n    },\n  });\n}\n\nreturn rows;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        -160
+      ],
+      "id": "e69fe131-f781-4e93-9cc5-070000000004",
+      "name": "Prepare Tier 1 Active Agreement Requests"
+    },
+    {
+      "parameters": {
+        "jsCode": "const tier1 = $('Normalize Active Agreement List Result').first().json;\nif (tier1.tier1_succeeded) return [];\n\nconst safeCeiling = 250;\nconst knownTotalCount = Number(tier1.sourceTotalCount);\nconst maxPages = Number.isFinite(knownTotalCount) && knownTotalCount > 0\n  ? Math.min(knownTotalCount, safeCeiling)\n  : safeCeiling;\n\nreturn Array.from({ length: maxPages }, (_, index) => ({\n  json: {\n    page: index + 1,\n    limit: 1,\n    run_started_at: $('Start Invoice Sync Run').first().json.run_started_at,\n  },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        160
+      ],
+      "id": "6cf163dc-d0c3-45d8-a4b5-070000000005",
+      "name": "Build Paginated Active Agreement Requests"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.sayanchor.com/agreements?limit=1&status=active&page={{ $json.page }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        160
+      ],
+      "id": "f4e65092-e96d-4f67-a60f-070000000006",
+      "name": "Fetch Paginated Active Agreement Page",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const pageItems = $input.all();\n\nreturn [\n  {\n    json: {\n      paginated_page_count: pageItems.length,\n      run_started_at: $('Start Invoice Sync Run').first().json.run_started_at,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        160
+      ],
+      "id": "b23e92f5-c3db-4c14-b0d6-070000000007",
+      "name": "Collapse Paginated Active Agreement Pages"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_agreements?select=anchor_relationship_id&status=eq.active&order=anchor_relationship_id.asc",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2080,
+        160
+      ],
+      "id": "ba19d9c1-ec89-4863-a902-070000000008",
+      "name": "Fetch Known Active Anchor Agreement IDs",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const tier1 = $('Normalize Active Agreement List Result').first().json;\nif (tier1.tier1_succeeded) return [];\n\nfunction nodeItems(name) {\n  try {\n    return $(name).all();\n  } catch (error) {\n    return [];\n  }\n}\n\nfunction relationshipIdFromAnchorRecord(record) {\n  if (!record || typeof record !== 'object') return null;\n  return record.relationship?.id ?? record.relationship_id ?? record.id ?? null;\n}\n\nconst knownIds = $input.all()\n  .map((item) => item.json.anchor_relationship_id)\n  .filter(Boolean);\nconst uniqueKnownIds = [...new Set(knownIds)];\n\nconst failedListPages = [];\nconst discoveredById = new Map();\nconst paginatedItems = nodeItems('Fetch Paginated Active Agreement Page');\n\npaginatedItems.forEach((item, index) => {\n  const pageNumber = Number(item.json.page ?? index + 1);\n  const statusCode = Number(item.json.statusCode ?? item.json.status ?? item.json.error?.statusCode ?? item.json.error?.status ?? 0);\n  const entries = Array.isArray(item.json.entries) ? item.json.entries : [];\n  const failed = Boolean(item.json.error) || (Number.isFinite(statusCode) && statusCode >= 400) || !Array.isArray(item.json.entries);\n  if (failed) {\n    failedListPages.push(pageNumber);\n    return;\n  }\n\n  for (const agreement of entries) {\n    const relationshipId = relationshipIdFromAnchorRecord(agreement);\n    if (!relationshipId || discoveredById.has(relationshipId)) continue;\n    discoveredById.set(relationshipId, agreement);\n  }\n});\n\nconst gapIds = uniqueKnownIds.filter((anchor_relationship_id) => !discoveredById.has(anchor_relationship_id));\nconst fallbackSummary = {\n  mode: discoveredById.size > 0 ? 'paginated_with_gaps' : 'per_id_only',\n  failed_list_pages: failedListPages,\n  list_discovered_count: discoveredById.size,\n  known_gap_count: gapIds.length,\n  per_id_fetched_count: 0,\n  per_id_failures: [],\n};\n\nconst requestsById = new Map();\nfor (const [relationshipId, agreement] of discoveredById.entries()) {\n  requestsById.set(relationshipId, {\n    relationshipId,\n    agreementName: agreement.name ?? agreement.agreementName ?? null,\n    clientBusinessName: agreement.client?.business?.name ?? null,\n    listAgreement: agreement,\n    isKnownGap: false,\n  });\n}\nfor (const relationshipId of gapIds) {\n  requestsById.set(relationshipId, {\n    relationshipId,\n    agreementName: null,\n    clientBusinessName: null,\n    listAgreement: null,\n    isKnownGap: true,\n  });\n}\n\nreturn [...requestsById.values()].map((request) => ({\n  json: {\n    ...request,\n    sourceTotalCount: tier1.sourceTotalCount,\n    run_started_at: $('Start Invoice Sync Run').first().json.run_started_at,\n    fallbackSummary,\n    knownGapIds: gapIds,\n  },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2340,
+        160
+      ],
+      "id": "64b53af8-e071-4b64-bf4a-070000000009",
+      "name": "Identify Known Active Agreement Gaps"
     },
     {
       "parameters": {
@@ -76,7 +240,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        780,
+        2600,
         0
       ],
       "id": "f81f3d30-4a4c-4404-827c-5dc70644dcd6",
@@ -86,16 +250,18 @@
           "id": "W8lch59bMcSdcLsz",
           "name": "Anchor API - Production"
         }
-      }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "jsCode": "const invoiceItems = [];\nconst overLimitRelationships = [];\n\nfor (const item of $input.all()) {\n  const root = item.json;\n  const invoices = Array.isArray(root.entries) ? root.entries : [];\n  if ((root.totalCount ?? 0) > (root.limit ?? 100)) {\n    overLimitRelationships.push({ totalCount: root.totalCount, limit: root.limit });\n  }\n\n  for (const invoice of invoices) {\n    invoiceItems.push({\n      json: {\n        invoiceId: invoice.id,\n        listInvoice: invoice,\n        overLimitRelationships,\n      },\n    });\n  }\n}\n\nreturn invoiceItems;\n"
+        "jsCode": "const invoiceItems = [];\nconst overLimitRelationships = [];\n\nfunction nodeItems(name) {\n  try {\n    return $(name).all();\n  } catch (error) {\n    return [];\n  }\n}\n\nconst tier1Requests = nodeItems('Prepare Tier 1 Active Agreement Requests');\nconst fallbackRequests = nodeItems('Identify Known Active Agreement Gaps');\nconst sourceRequests = fallbackRequests.length > 0 ? fallbackRequests : tier1Requests;\nconst firstRequest = sourceRequests[0]?.json ?? {};\nconst knownGapIds = Array.isArray(firstRequest.knownGapIds) ? firstRequest.knownGapIds : [];\nconst perIdFailures = [];\n\nfor (const [index, item] of $input.all().entries()) {\n  const root = item.json;\n  const request = sourceRequests[index]?.json ?? {};\n  const relationshipId = request.relationshipId ?? root.relationshipId ?? null;\n  const statusCode = Number(root.statusCode ?? root.status ?? root.error?.statusCode ?? root.error?.status ?? 0);\n  const hasHttpError = Boolean(root.error) || (Number.isFinite(statusCode) && statusCode >= 400);\n  const invoices = Array.isArray(root.entries) ? root.entries : [];\n\n  if (hasHttpError || !Array.isArray(root.entries)) {\n    if (request.isKnownGap && relationshipId) perIdFailures.push(relationshipId);\n    continue;\n  }\n\n  if (request.isKnownGap && relationshipId) {\n    // The per-ID fallback succeeded even when the agreement currently has no invoices.\n  }\n\n  if ((root.totalCount ?? 0) > (root.limit ?? 100)) {\n    overLimitRelationships.push({\n      relationshipId,\n      totalCount: root.totalCount,\n      limit: root.limit,\n    });\n  }\n\n  for (const invoice of invoices) {\n    invoiceItems.push({\n      json: {\n        invoiceId: invoice.id,\n        relationshipId,\n        listInvoice: invoice,\n        overLimitRelationships,\n      },\n    });\n  }\n}\n\nconst fallbackSummary = {\n  ...(firstRequest.fallbackSummary ?? {\n    mode: 'list_full',\n    failed_list_pages: [],\n    list_discovered_count: sourceRequests.length,\n    known_gap_count: knownGapIds.length,\n    per_id_fetched_count: 0,\n    per_id_failures: [],\n  }),\n  per_id_fetched_count: Math.max(0, knownGapIds.length - perIdFailures.length),\n  per_id_failures: perIdFailures,\n};\n\nreturn invoiceItems.map((item) => ({\n  json: {\n    ...item.json,\n    fallbackSummary,\n    knownGapIds,\n  },\n}));\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1040,
+        2860,
         0
       ],
       "id": "b183828e-93c9-4895-bc69-7f8aa9cb01a7",
@@ -120,7 +286,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1300,
+        3120,
         0
       ],
       "id": "8c37a68d-f169-491e-966a-93e3a8499900",
@@ -134,12 +300,12 @@
     },
     {
       "parameters": {
-        "jsCode": "const lastSeenAt = new Date().toISOString();\n\nfunction parseMoney(value) {\n  if (value === undefined || value === null || value === '') return null;\n  if (typeof value === 'number') return value;\n  const cleaned = String(value).replace(/[$,]/g, '').trim();\n  if (!cleaned) return null;\n  const parsed = Number(cleaned);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction parseNumber(value) {\n  if (value === undefined || value === null || value === '') return null;\n  const parsed = Number(value);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction invoiceNote(invoice) {\n  return invoice.note ?? invoice.notes ?? invoice.memo ?? invoice.description ?? invoice.message ?? null;\n}\n\nfunction serviceNameForLineItem(lineItem) {\n  return lineItem.name\n    ?? lineItem.serviceName\n    ?? lineItem.service?.name\n    ?? lineItem.origin?.serviceBundle?.name\n    ?? lineItem.integrations?.quickbooks?.item?.name\n    ?? null;\n}\n\nfunction flattenLineItems(invoice, lineItems, parentLineItemId = null) {\n  const rows = [];\n\n  for (const lineItem of lineItems ?? []) {\n    const children = [\n      ...(Array.isArray(lineItem.groupedLineItems) ? lineItem.groupedLineItems : []),\n      ...(Array.isArray(lineItem.subItems) ? lineItem.subItems : []),\n    ];\n\n    rows.push({\n      anchor_line_item_id: lineItem.id,\n      anchor_invoice_id: invoice.id,\n      anchor_relationship_id: invoice.agreement?.id ?? null,\n      parent_line_item_id: parentLineItemId,\n      service_id: lineItem.serviceId ?? lineItem.origin?.serviceBundle?.bundleItemId ?? null,\n      service_template_id: lineItem.serviceTemplateId ?? lineItem.origin?.serviceBundle?.serviceTemplateId ?? null,\n      service_name: serviceNameForLineItem(lineItem),\n      name: lineItem.name ?? null,\n      amount: parseMoney(lineItem.amount),\n      rate: parseMoney(lineItem.rate),\n      quantity: parseNumber(lineItem.quantity),\n      unit_name: lineItem.unitName ?? null,\n      qbo_product_id: lineItem.integrations?.quickbooks?.item?.id ?? null,\n      qbo_product_name: lineItem.integrations?.quickbooks?.item?.name ?? null,\n      is_bundle_parent: children.length > 0,\n      raw: lineItem,\n      last_seen_at: lastSeenAt,\n    });\n\n    rows.push(...flattenLineItems(invoice, children, lineItem.id));\n  }\n\n  return rows;\n}\n\nconst invoices = $input.all().map((item) => item.json);\nconst invoiceRows = invoices.map((invoice) => ({\n  anchor_invoice_id: invoice.id,\n  anchor_relationship_id: invoice.agreement?.id ?? null,\n  invoice_number: invoice.invoiceNumber ?? null,\n  issue_date: invoice.issueDate ?? null,\n  due_date: invoice.dueDate ?? null,\n  total_amount: parseMoney(invoice.totalAmount),\n  amount_paid: parseMoney(invoice.amountPaid),\n  amount_due: parseMoney(invoice.amountDue),\n  display_status: invoice.status?.displayStatus ?? invoice.status?.type ?? null,\n  qbo_status: invoice.integrations?.quickbooks?.status ?? null,\n  invoice_note: invoiceNote(invoice),\n  raw: invoice,\n  last_seen_at: lastSeenAt,\n}));\n\nconst lineRows = invoices.flatMap((invoice) => flattenLineItems(invoice, invoice.lineItems));\n\nreturn [\n  {\n    json: {\n      invoiceCount: invoiceRows.length,\n      lineItemCount: lineRows.length,\n      invoiceRows,\n      lineRows,\n      sampleInvoices: invoiceRows.slice(0, 5).map((row) => ({\n        anchor_invoice_id: row.anchor_invoice_id,\n        invoice_number: row.invoice_number,\n        anchor_relationship_id: row.anchor_relationship_id,\n        total_amount: row.total_amount,\n        display_status: row.display_status,\n        invoice_note: row.invoice_note,\n      })),\n      sampleLineItems: lineRows.slice(0, 5).map((row) => ({\n        anchor_line_item_id: row.anchor_line_item_id,\n        anchor_invoice_id: row.anchor_invoice_id,\n        service_name: row.service_name,\n        name: row.name,\n        amount: row.amount,\n        qbo_product_name: row.qbo_product_name,\n      })),\n    },\n  },\n];\n"
+        "jsCode": "const lastSeenAt = new Date().toISOString();\nconst explodedInvoice = (() => {\n  try {\n    return $('Explode Invoices').first().json;\n  } catch (error) {\n    return {};\n  }\n})();\nconst fallbackSummary = explodedInvoice.fallbackSummary ?? {\n  mode: 'list_full',\n  failed_list_pages: [],\n  list_discovered_count: 0,\n  known_gap_count: 0,\n  per_id_fetched_count: 0,\n  per_id_failures: [],\n};\n\nfunction parseMoney(value) {\n  if (value === undefined || value === null || value === '') return null;\n  if (typeof value === 'number') return value;\n  const cleaned = String(value).replace(/[$,]/g, '').trim();\n  if (!cleaned) return null;\n  const parsed = Number(cleaned);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction parseNumber(value) {\n  if (value === undefined || value === null || value === '') return null;\n  const parsed = Number(value);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction invoiceNote(invoice) {\n  return invoice.note ?? invoice.notes ?? invoice.memo ?? invoice.description ?? invoice.message ?? null;\n}\n\nfunction serviceNameForLineItem(lineItem) {\n  return lineItem.name\n    ?? lineItem.serviceName\n    ?? lineItem.service?.name\n    ?? lineItem.origin?.serviceBundle?.name\n    ?? lineItem.integrations?.quickbooks?.item?.name\n    ?? null;\n}\n\nfunction flattenLineItems(invoice, lineItems, parentLineItemId = null) {\n  const rows = [];\n\n  for (const lineItem of lineItems ?? []) {\n    const children = [\n      ...(Array.isArray(lineItem.groupedLineItems) ? lineItem.groupedLineItems : []),\n      ...(Array.isArray(lineItem.subItems) ? lineItem.subItems : []),\n    ];\n\n    rows.push({\n      anchor_line_item_id: lineItem.id,\n      anchor_invoice_id: invoice.id,\n      anchor_relationship_id: invoice.agreement?.id ?? null,\n      parent_line_item_id: parentLineItemId,\n      service_id: lineItem.serviceId ?? lineItem.origin?.serviceBundle?.bundleItemId ?? null,\n      service_template_id: lineItem.serviceTemplateId ?? lineItem.origin?.serviceBundle?.serviceTemplateId ?? null,\n      service_name: serviceNameForLineItem(lineItem),\n      name: lineItem.name ?? null,\n      amount: parseMoney(lineItem.amount),\n      rate: parseMoney(lineItem.rate),\n      quantity: parseNumber(lineItem.quantity),\n      unit_name: lineItem.unitName ?? null,\n      qbo_product_id: lineItem.integrations?.quickbooks?.item?.id ?? null,\n      qbo_product_name: lineItem.integrations?.quickbooks?.item?.name ?? null,\n      is_bundle_parent: children.length > 0,\n      raw: lineItem,\n      last_seen_at: lastSeenAt,\n    });\n\n    rows.push(...flattenLineItems(invoice, children, lineItem.id));\n  }\n\n  return rows;\n}\n\nconst invoices = $input.all()\n  .map((item) => item.json)\n  .filter((invoice) => invoice && invoice.id && !invoice.error);\nconst invoiceRows = invoices.map((invoice) => ({\n  anchor_invoice_id: invoice.id,\n  anchor_relationship_id: invoice.agreement?.id ?? null,\n  invoice_number: invoice.invoiceNumber ?? null,\n  issue_date: invoice.issueDate ?? null,\n  due_date: invoice.dueDate ?? null,\n  total_amount: parseMoney(invoice.totalAmount),\n  amount_paid: parseMoney(invoice.amountPaid),\n  amount_due: parseMoney(invoice.amountDue),\n  display_status: invoice.status?.displayStatus ?? invoice.status?.type ?? null,\n  qbo_status: invoice.integrations?.quickbooks?.status ?? null,\n  invoice_note: invoiceNote(invoice),\n  raw: invoice,\n  last_seen_at: lastSeenAt,\n}));\n\nconst lineRows = invoices.flatMap((invoice) => flattenLineItems(invoice, invoice.lineItems));\n\nreturn [\n  {\n    json: {\n      invoiceCount: invoiceRows.length,\n      lineItemCount: lineRows.length,\n      invoiceRows,\n      lineRows,\n      fallbackSummary,\n      sampleInvoices: invoiceRows.slice(0, 5).map((row) => ({\n        anchor_invoice_id: row.anchor_invoice_id,\n        invoice_number: row.invoice_number,\n        anchor_relationship_id: row.anchor_relationship_id,\n        total_amount: row.total_amount,\n        display_status: row.display_status,\n        invoice_note: row.invoice_note,\n      })),\n      sampleLineItems: lineRows.slice(0, 5).map((row) => ({\n        anchor_line_item_id: row.anchor_line_item_id,\n        anchor_invoice_id: row.anchor_invoice_id,\n        service_name: row.service_name,\n        name: row.name,\n        amount: row.amount,\n        qbo_product_name: row.qbo_product_name,\n      })),\n    },\n  },\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1560,
+        3380,
         0
       ],
       "id": "d0e3b46d-1ce4-405a-91bd-51bd66153898",
@@ -169,7 +335,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1820,
+        3640,
         -120
       ],
       "id": "21d8ab44-e1ad-48d4-ae2d-8c8f5d7c276d",
@@ -205,7 +371,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1820,
+        3640,
         120
       ],
       "id": "b381de9e-de81-4862-8c65-ea43224f05db",
@@ -219,12 +385,12 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [\n  {\n    json: {\n      status: 'ok',\n      upsertedInvoiceCount: rows.length,\n      sample: rows.slice(0, 5).map((row) => ({\n        anchor_invoice_id: row.anchor_invoice_id,\n        invoice_number: row.invoice_number,\n        total_amount: row.total_amount,\n        display_status: row.display_status,\n      })),\n    },\n  },\n];\n"
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst mapped = $('Map Invoice Rows').first().json;\nreturn [\n  {\n    json: {\n      status: 'ok',\n      upsertedInvoiceCount: rows.length,\n      fallbackSummary: mapped.fallbackSummary,\n      sample: rows.slice(0, 5).map((row) => ({\n        anchor_invoice_id: row.anchor_invoice_id,\n        invoice_number: row.invoice_number,\n        total_amount: row.total_amount,\n        display_status: row.display_status,\n      })),\n    },\n  },\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2080,
+        3900,
         -120
       ],
       "id": "b2190611-7b28-44aa-a055-780424fa760d",
@@ -232,12 +398,12 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.all().map((item) => item.json);\nreturn [\n  {\n    json: {\n      status: 'ok',\n      upsertedLineItemCount: rows.length,\n      sample: rows.slice(0, 5).map((row) => ({\n        anchor_line_item_id: row.anchor_line_item_id,\n        anchor_invoice_id: row.anchor_invoice_id,\n        name: row.name,\n        amount: row.amount,\n        qbo_product_name: row.qbo_product_name,\n      })),\n    },\n  },\n];\n"
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst mapped = $('Map Invoice Rows').first().json;\nreturn [\n  {\n    json: {\n      status: 'ok',\n      upsertedLineItemCount: rows.length,\n      fallbackSummary: mapped.fallbackSummary,\n      sample: rows.slice(0, 5).map((row) => ({\n        anchor_line_item_id: row.anchor_line_item_id,\n        anchor_invoice_id: row.anchor_invoice_id,\n        name: row.name,\n        amount: row.amount,\n        qbo_product_name: row.qbo_product_name,\n      })),\n    },\n  },\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2080,
+        3900,
         120
       ],
       "id": "627f9b70-bf42-42af-b056-0fed2f059f6b",
@@ -246,6 +412,17 @@
   ],
   "connections": {
     "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Start Invoice Sync Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Invoice Sync Run": {
       "main": [
         [
           {
@@ -260,14 +437,98 @@
       "main": [
         [
           {
-            "node": "Explode Agreements",
+            "node": "Normalize Active Agreement List Result",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Explode Agreements": {
+    "Normalize Active Agreement List Result": {
+      "main": [
+        [
+          {
+            "node": "Tier 1 Active Agreement List Succeeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tier 1 Active Agreement List Succeeded?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Tier 1 Active Agreement Requests",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Paginated Active Agreement Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Tier 1 Active Agreement Requests": {
+      "main": [
+        [
+          {
+            "node": "Fetch Invoices For Agreement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Paginated Active Agreement Requests": {
+      "main": [
+        [
+          {
+            "node": "Fetch Paginated Active Agreement Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Paginated Active Agreement Page": {
+      "main": [
+        [
+          {
+            "node": "Collapse Paginated Active Agreement Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse Paginated Active Agreement Pages": {
+      "main": [
+        [
+          {
+            "node": "Fetch Known Active Anchor Agreement IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Known Active Anchor Agreement IDs": {
+      "main": [
+        [
+          {
+            "node": "Identify Known Active Agreement Gaps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identify Known Active Agreement Gaps": {
       "main": [
         [
           {

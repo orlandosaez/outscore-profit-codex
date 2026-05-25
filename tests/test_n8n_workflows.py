@@ -579,6 +579,146 @@ console.log(JSON.stringify(result));
         self.assertIn("service_name", workflow)
         self.assertIn("lineItem.name", workflow)
 
+    def test_anchor_invoice_sync_has_three_tier_anchor_fallback_structure(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-07-anchor-invoices-sync.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        nodes_by_name = {node["name"]: node for node in workflow["nodes"]}
+        serialized = json.dumps(workflow)
+
+        initial_node = nodes_by_name["Fetch Active Agreements"]
+        self.assertTrue(initial_node.get("continueOnFail"))
+        self.assertTrue(initial_node.get("alwaysOutputData"))
+
+        self.assertIn("Fetch Paginated Active Agreement Page", nodes_by_name)
+        self.assertIn(
+            "limit=1",
+            nodes_by_name["Fetch Paginated Active Agreement Page"]["parameters"]["url"],
+        )
+        self.assertTrue(nodes_by_name["Fetch Paginated Active Agreement Page"].get("continueOnFail"))
+        self.assertTrue(nodes_by_name["Fetch Paginated Active Agreement Page"].get("alwaysOutputData"))
+
+        known_ids_node = nodes_by_name["Fetch Known Active Anchor Agreement IDs"]
+        self.assertEqual(known_ids_node["type"], "n8n-nodes-base.httpRequest")
+        self.assertIn(
+            "profit_anchor_agreements?select=anchor_relationship_id",
+            known_ids_node["parameters"]["url"],
+        )
+        self.assertIn("status=eq.active", known_ids_node["parameters"]["url"])
+
+        gap_node = nodes_by_name["Identify Known Active Agreement Gaps"]
+        self.assertEqual(gap_node["type"], "n8n-nodes-base.code")
+        gap_code = gap_node["parameters"]["jsCode"]
+        self.assertIn("anchor_relationship_id", gap_code)
+        self.assertIn("relationshipId", gap_code)
+
+        self.assertEqual(
+            workflow["connections"]["Normalize Active Agreement List Result"]["main"][0][0]["node"],
+            "Tier 1 Active Agreement List Succeeded?",
+        )
+        self.assertEqual(
+            workflow["connections"]["Tier 1 Active Agreement List Succeeded?"]["main"][0][0]["node"],
+            "Prepare Tier 1 Active Agreement Requests",
+        )
+        self.assertEqual(
+            workflow["connections"]["Tier 1 Active Agreement List Succeeded?"]["main"][1][0]["node"],
+            "Build Paginated Active Agreement Requests",
+        )
+        self.assertEqual(
+            workflow["connections"]["Identify Known Active Agreement Gaps"]["main"][0][0]["node"],
+            "Fetch Invoices For Agreement",
+        )
+
+        self.assertIn("mode", serialized)
+        self.assertIn("failed_list_pages", serialized)
+        self.assertIn("list_discovered_count", serialized)
+        self.assertIn("known_gap_count", serialized)
+        self.assertIn("per_id_fetched_count", serialized)
+        self.assertIn("per_id_failures", serialized)
+
+    def test_anchor_invoice_sync_gap_identifier_behavior(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-07-anchor-invoices-sync.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        nodes_by_name = {node["name"]: node for node in workflow["nodes"]}
+        gap_code = nodes_by_name["Identify Known Active Agreement Gaps"]["parameters"]["jsCode"]
+
+        tier1_success = self._run_n8n_code_node(
+            gap_code,
+            node_items={
+                "Normalize Active Agreement List Result": [
+                    {"json": {"tier1_succeeded": True, "sourceTotalCount": 3}}
+                ],
+                "Start Invoice Sync Run": [
+                    {"json": {"run_started_at": "2026-05-25T01:23:00.000Z"}}
+                ],
+            },
+            input_items=[
+                {"json": {"anchor_relationship_id": "rel_a"}},
+            ],
+        )
+        self.assertEqual(tier1_success, [])
+
+        partial_tier2 = self._run_n8n_code_node(
+            gap_code,
+            node_items={
+                "Normalize Active Agreement List Result": [
+                    {"json": {"tier1_succeeded": False, "sourceTotalCount": 4}}
+                ],
+                "Fetch Paginated Active Agreement Page": [
+                    {"json": {"page": 1, "entries": [{"id": "rel_a", "name": "A"}]}},
+                    {"json": {"page": 2, "statusCode": 400, "error": {"message": "Bad request"}}},
+                    {"json": {"page": 3, "entries": [{"relationship": {"id": "rel_c"}}]}},
+                ],
+                "Start Invoice Sync Run": [
+                    {"json": {"run_started_at": "2026-05-25T01:23:00.000Z"}}
+                ],
+            },
+            input_items=[
+                {"json": {"anchor_relationship_id": "rel_a"}},
+                {"json": {"anchor_relationship_id": "rel_b"}},
+                {"json": {"anchor_relationship_id": "rel_c"}},
+                {"json": {"anchor_relationship_id": "rel_d"}},
+            ],
+        )
+        self.assertEqual(
+            [item["json"]["relationshipId"] for item in partial_tier2],
+            ["rel_a", "rel_c", "rel_b", "rel_d"],
+        )
+        partial_summary = partial_tier2[0]["json"]["fallbackSummary"]
+        self.assertEqual(partial_summary["mode"], "paginated_with_gaps")
+        self.assertEqual(partial_summary["failed_list_pages"], [2])
+        self.assertEqual(partial_summary["list_discovered_count"], 2)
+        self.assertEqual(partial_summary["known_gap_count"], 2)
+        self.assertEqual(partial_tier2[0]["json"]["knownGapIds"], ["rel_b", "rel_d"])
+
+        per_id_only = self._run_n8n_code_node(
+            gap_code,
+            node_items={
+                "Normalize Active Agreement List Result": [
+                    {"json": {"tier1_succeeded": False, "sourceTotalCount": None}}
+                ],
+                "Fetch Paginated Active Agreement Page": [
+                    {"json": {"page": 1, "statusCode": 400, "error": {"message": "Bad request"}}},
+                    {"json": {"page": 2, "statusCode": 400, "error": {"message": "Bad request"}}},
+                ],
+                "Start Invoice Sync Run": [
+                    {"json": {"run_started_at": "2026-05-25T01:23:00.000Z"}}
+                ],
+            },
+            input_items=[
+                {"json": {"anchor_relationship_id": "rel_b"}},
+                {"json": {"anchor_relationship_id": "rel_d"}},
+            ],
+        )
+        self.assertEqual(
+            [item["json"]["relationshipId"] for item in per_id_only],
+            ["rel_b", "rel_d"],
+        )
+        per_id_summary = per_id_only[0]["json"]["fallbackSummary"]
+        self.assertEqual(per_id_summary["mode"], "per_id_only")
+        self.assertEqual(per_id_summary["failed_list_pages"], [1, 2])
+        self.assertEqual(per_id_summary["list_discovered_count"], 0)
+        self.assertEqual(per_id_summary["known_gap_count"], 2)
+
     def test_revenue_event_loader_carries_service_name(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-15-load-revenue-event-candidates.json"
         workflow = workflow_path.read_text(encoding="utf-8")
