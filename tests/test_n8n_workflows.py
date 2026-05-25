@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -8,6 +9,40 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class N8nWorkflowTests(unittest.TestCase):
+    def _run_n8n_code_node(
+        self,
+        js_code: str,
+        *,
+        node_items: dict[str, list[dict]],
+        input_items: list[dict],
+    ) -> list[dict]:
+        harness = f"""
+const nodeItems = {json.dumps(node_items)};
+const inputItems = {json.dumps(input_items)};
+function $(name) {{
+  const items = nodeItems[name] ?? [];
+  return {{
+    all: () => items,
+    first: () => items[0],
+  }};
+}}
+const $input = {{
+  all: () => inputItems,
+  first: () => inputItems[0],
+}};
+const result = (() => {{
+{js_code}
+}})();
+console.log(JSON.stringify(result));
+"""
+        completed = subprocess.run(
+            ["node", "-e", harness],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return json.loads(completed.stdout)
+
     def test_revenue_event_candidate_loader_uses_valid_supabase_filters(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-15-load-revenue-event-candidates.json"
         workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
@@ -140,6 +175,143 @@ class N8nWorkflowTests(unittest.TestCase):
         self.assertIn("display_status", serialized)
         self.assertIn("terminated_at", serialized)
         self.assertIn("status_synced_at", serialized)
+
+    def test_anchor_agreements_sync_has_three_tier_anchor_fallback_structure(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-05-anchor-agreements-sync.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        nodes_by_name = {node["name"]: node for node in workflow["nodes"]}
+        serialized = json.dumps(workflow)
+
+        initial_node = nodes_by_name["Fetch API Visible Agreements"]
+        self.assertTrue(initial_node.get("continueOnFail"))
+        self.assertTrue(initial_node.get("alwaysOutputData"))
+
+        self.assertIn("Fetch Paginated Agreement Page", nodes_by_name)
+        self.assertIn(
+            "limit=1",
+            nodes_by_name["Fetch Paginated Agreement Page"]["parameters"]["url"],
+        )
+
+        known_ids_node = nodes_by_name["Fetch Known Anchor Agreement IDs"]
+        self.assertEqual(known_ids_node["type"], "n8n-nodes-base.httpRequest")
+        self.assertIn(
+            "profit_anchor_agreements?select=anchor_relationship_id",
+            known_ids_node["parameters"]["url"],
+        )
+
+        gap_node = nodes_by_name["Identify Known Agreement Gaps"]
+        self.assertEqual(gap_node["type"], "n8n-nodes-base.code")
+        gap_code = gap_node["parameters"]["jsCode"]
+        self.assertIn("relationship", gap_code)
+        self.assertIn("anchor_relationship_id", gap_code)
+
+        self.assertIn("Stale Reconciliation Safe?", nodes_by_name)
+        stale_gate = nodes_by_name["Stale Reconciliation Safe?"]
+        self.assertIn("stale_reconciliation_allowed", json.dumps(stale_gate))
+        self.assertEqual(
+            workflow["connections"]["Prepare Stale Reconciliation"]["main"][0][0]["node"],
+            "Stale Reconciliation Safe?",
+        )
+        self.assertEqual(
+            workflow["connections"]["Stale Reconciliation Safe?"]["main"][0][0]["node"],
+            "Mark Stale Agreements",
+        )
+        self.assertEqual(
+            workflow["connections"]["Stale Reconciliation Safe?"]["main"][1][0]["node"],
+            "Fetch Current Stale Agreements",
+        )
+        self.assertNotIn(
+            "Mark Stale Agreements",
+            json.dumps(workflow["connections"]["Prepare Stale Reconciliation"]),
+        )
+
+        self.assertIn("mode", serialized)
+        self.assertIn("failed_list_pages", serialized)
+        self.assertIn("per_id_failures", serialized)
+
+    def test_anchor_agreements_gap_identifier_behavior(self) -> None:
+        workflow_path = ROOT / "n8n/workflows/profit-05-anchor-agreements-sync.json"
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+        nodes_by_name = {node["name"]: node for node in workflow["nodes"]}
+        gap_code = nodes_by_name["Identify Known Agreement Gaps"]["parameters"]["jsCode"]
+
+        tier1_success = self._run_n8n_code_node(
+            gap_code,
+            node_items={
+                "Normalize Tier 1 List Result": [
+                    {"json": {"tier1_succeeded": True, "sourceTotalCount": 4}}
+                ],
+                "Start Agreement Sync Run": [
+                    {"json": {"run_started_at": "2026-05-24T00:00:00.000Z"}}
+                ],
+            },
+            input_items=[
+                {"json": {"anchor_relationship_id": "rel_a"}},
+            ],
+        )
+        self.assertEqual(tier1_success, [])
+
+        partial_tier2 = self._run_n8n_code_node(
+            gap_code,
+            node_items={
+                "Normalize Tier 1 List Result": [
+                    {"json": {"tier1_succeeded": False, "sourceTotalCount": 4}}
+                ],
+                "Fetch Paginated Agreement Page": [
+                    {"json": {"page": 1, "entries": [{"relationship": {"id": "rel_a"}}]}},
+                    {"json": {"page": 2, "statusCode": 400, "error": {"message": "record not found"}}},
+                    {"json": {"page": 3, "entries": [{"id": "rel_c"}]}},
+                ],
+                "Start Agreement Sync Run": [
+                    {"json": {"run_started_at": "2026-05-24T00:00:00.000Z"}}
+                ],
+            },
+            input_items=[
+                {"json": {"anchor_relationship_id": "rel_a"}},
+                {"json": {"anchor_relationship_id": "rel_b"}},
+                {"json": {"anchor_relationship_id": "rel_c"}},
+                {"json": {"anchor_relationship_id": "rel_d"}},
+            ],
+        )
+        self.assertEqual(
+            [item["json"]["relationshipId"] for item in partial_tier2],
+            ["rel_a", "rel_c", "rel_b", "rel_d"],
+        )
+        partial_summary = partial_tier2[0]["json"]["fallbackSummary"]
+        self.assertEqual(partial_summary["mode"], "paginated_with_gaps")
+        self.assertEqual(partial_summary["failed_list_pages"], [2])
+        self.assertEqual(partial_summary["list_discovered_count"], 2)
+        self.assertEqual(partial_summary["known_gap_count"], 2)
+        self.assertEqual(partial_tier2[0]["json"]["knownGapIds"], ["rel_b", "rel_d"])
+
+        full_tier1_fail = self._run_n8n_code_node(
+            gap_code,
+            node_items={
+                "Normalize Tier 1 List Result": [
+                    {"json": {"tier1_succeeded": False, "sourceTotalCount": None}}
+                ],
+                "Fetch Paginated Agreement Page": [
+                    {"json": {"page": 1, "statusCode": 400, "error": {"message": "record not found"}}},
+                    {"json": {"page": 2, "statusCode": 400, "error": {"message": "record not found"}}},
+                ],
+                "Start Agreement Sync Run": [
+                    {"json": {"run_started_at": "2026-05-24T00:00:00.000Z"}}
+                ],
+            },
+            input_items=[
+                {"json": {"anchor_relationship_id": "rel_b"}},
+                {"json": {"anchor_relationship_id": "rel_d"}},
+            ],
+        )
+        self.assertEqual(
+            [item["json"]["relationshipId"] for item in full_tier1_fail],
+            ["rel_b", "rel_d"],
+        )
+        full_fail_summary = full_tier1_fail[0]["json"]["fallbackSummary"]
+        self.assertEqual(full_fail_summary["mode"], "per_id_only")
+        self.assertEqual(full_fail_summary["failed_list_pages"], [1, 2])
+        self.assertEqual(full_fail_summary["list_discovered_count"], 0)
+        self.assertEqual(full_fail_summary["known_gap_count"], 2)
 
     def test_financial_cents_sync_captures_fc_tags(self) -> None:
         workflow_path = ROOT / "n8n/workflows/profit-17-financial-cents-sync.json"

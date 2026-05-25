@@ -55,11 +55,13 @@
           "id": "W8lch59bMcSdcLsz",
           "name": "Anchor API - Production"
         }
-      }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "jsCode": "const root = $input.first().json;\nconst agreements = root.entries ?? [];\nconst runStartedAt = $('Start Agreement Sync Run').first().json.run_started_at;\n\nif (!Array.isArray(agreements)) {\n  throw new Error('Anchor agreements response did not include entries[]');\n}\n\nreturn agreements.map((agreement) => ({\n  json: {\n    relationshipId: agreement.id,\n    listAgreement: agreement,\n    sourceTotalCount: root.totalCount ?? null,\n    run_started_at: runStartedAt,\n  },\n}));\n"
+        "jsCode": "const root = $input.first()?.json ?? {};\nconst entries = Array.isArray(root.entries) ? root.entries : [];\nconst statusCode = Number(root.statusCode ?? root.status ?? root.error?.statusCode ?? root.error?.status ?? 0);\nconst hasHttpError = Boolean(root.error) || (Number.isFinite(statusCode) && statusCode >= 400);\nconst tier1Succeeded = !hasHttpError && Array.isArray(root.entries);\n\nreturn [\n  {\n    json: {\n      tier1_succeeded: tier1Succeeded,\n      entries: tier1Succeeded ? entries : [],\n      sourceTotalCount: Number.isFinite(Number(root.totalCount)) ? Number(root.totalCount) : null,\n      tier1_status_code: Number.isFinite(statusCode) && statusCode > 0 ? statusCode : null,\n      fallbackSummary: {\n        mode: tier1Succeeded ? 'list_full' : 'per_id_only',\n        failed_list_pages: [],\n        list_discovered_count: tier1Succeeded ? entries.length : 0,\n        known_gap_count: 0,\n        per_id_fetched_count: 0,\n        per_id_failures: [],\n      },\n      stale_reconciliation_allowed: tier1Succeeded,\n    },\n  },\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -67,8 +69,191 @@
         780,
         0
       ],
-      "id": "54eda8d3-b355-4036-90e1-97f670be4991",
-      "name": "Explode Agreements"
+      "id": "9f1bcf49-a8ff-4fd6-9476-f0137ad00005",
+      "name": "Normalize Tier 1 List Result"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a3f9aa51-2f62-47fb-9aac-0e6c0ab00005-condition",
+              "leftValue": "={{ $(\"Normalize Tier 1 List Result\").first().json.tier1_succeeded === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "a3f9aa51-2f62-47fb-9aac-0e6c0ab00005",
+      "name": "Tier 1 List Succeeded?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const tier1 = $('Normalize Tier 1 List Result').first().json;\nconst seen = new Set();\nconst rows = [];\n\nfor (const agreement of tier1.entries ?? []) {\n  const relationshipId = agreement.relationship?.id ?? agreement.relationship_id ?? agreement.id;\n  if (!relationshipId || seen.has(relationshipId)) continue;\n  seen.add(relationshipId);\n  rows.push({\n    json: {\n      relationshipId,\n      listAgreement: agreement,\n      sourceTotalCount: tier1.sourceTotalCount,\n      run_started_at: $('Start Agreement Sync Run').first().json.run_started_at,\n      fallbackSummary: tier1.fallbackSummary,\n      stale_reconciliation_allowed: true,\n      knownGapIds: [],\n    },\n  });\n}\n\nreturn rows;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        -160
+      ],
+      "id": "30390cb2-0e30-475a-a49f-b8cb2ad00005",
+      "name": "Prepare Tier 1 Agreement Requests"
+    },
+    {
+      "parameters": {
+        "jsCode": "const tier1 = $('Normalize Tier 1 List Result').first().json;\nif (tier1.tier1_succeeded) return [];\n\nconst safeCeiling = 250;\nconst knownTotalCount = Number(tier1.sourceTotalCount);\nconst maxPages = Number.isFinite(knownTotalCount) && knownTotalCount > 0\n  ? Math.min(knownTotalCount, safeCeiling)\n  : safeCeiling;\n\nreturn Array.from({ length: maxPages }, (_, index) => ({\n  json: {\n    page: index + 1,\n    limit: 1,\n    run_started_at: $('Start Agreement Sync Run').first().json.run_started_at,\n  },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        160
+      ],
+      "id": "8c29bd31-8dcc-4f82-8733-3b3d3ad00005",
+      "name": "Build Paginated Agreement Requests"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.sayanchor.com/agreements?limit=1&page={{ $json.page }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Anchor-User-Email",
+              "value": "osaez@outscore.com"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        160
+      ],
+      "id": "9f0fa7bf-7d1e-4a04-9d88-7d40ead00005",
+      "name": "Fetch Paginated Agreement Page",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "W8lch59bMcSdcLsz",
+          "name": "Anchor API - Production"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const pageItems = $input.all();\n\nreturn [\n  {\n    json: {\n      paginated_page_count: pageItems.length,\n      run_started_at: $('Start Agreement Sync Run').first().json.run_started_at,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        160
+      ],
+      "id": "c74cdb1d-067e-4ed2-b7ee-fef65ad00005",
+      "name": "Collapse Paginated Agreement Pages"
+    },
+    {
+      "parameters": {
+        "url": "https://xkaquelxqllmejmhffyf.supabase.co/rest/v1/profit_anchor_agreements?select=anchor_relationship_id&order=anchor_relationship_id.asc",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2080,
+        160
+      ],
+      "id": "eddd0d06-6d46-4484-b4f2-e3480ad00005",
+      "name": "Fetch Known Anchor Agreement IDs",
+      "credentials": {
+        "supabaseApi": {
+          "id": "puB2mQFyyQ277f42",
+          "name": "Supabase account 2"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const tier1 = $('Normalize Tier 1 List Result').first().json;\nif (tier1.tier1_succeeded) return [];\n\nfunction nodeItems(name) {\n  try {\n    return $(name).all();\n  } catch (error) {\n    return [];\n  }\n}\n\nfunction relationshipIdFromAnchorRecord(record) {\n  if (!record || typeof record !== 'object') return null;\n  return record.relationship?.id ?? record.relationship_id ?? record.id ?? null;\n}\n\nconst knownIds = $input.all()\n  .map((item) => item.json.anchor_relationship_id)\n  .filter(Boolean);\nconst uniqueKnownIds = [...new Set(knownIds)];\n\nconst failedListPages = [];\nconst discoveredById = new Map();\nconst paginatedItems = nodeItems('Fetch Paginated Agreement Page');\n\npaginatedItems.forEach((item, index) => {\n  const pageNumber = Number(item.json.page ?? index + 1);\n  const statusCode = Number(item.json.statusCode ?? item.json.status ?? item.json.error?.statusCode ?? item.json.error?.status ?? 0);\n  const entries = Array.isArray(item.json.entries) ? item.json.entries : [];\n  const failed = Boolean(item.json.error) || (Number.isFinite(statusCode) && statusCode >= 400) || !Array.isArray(item.json.entries);\n  if (failed) {\n    failedListPages.push(pageNumber);\n    return;\n  }\n\n  for (const agreement of entries) {\n    const relationshipId = relationshipIdFromAnchorRecord(agreement);\n    if (!relationshipId || discoveredById.has(relationshipId)) continue;\n    discoveredById.set(relationshipId, agreement);\n  }\n});\n\nconst gapIds = uniqueKnownIds.filter((anchor_relationship_id) => !discoveredById.has(anchor_relationship_id));\nconst fallbackSummary = {\n  mode: discoveredById.size > 0 ? 'paginated_with_gaps' : 'per_id_only',\n  failed_list_pages: failedListPages,\n  list_discovered_count: discoveredById.size,\n  known_gap_count: gapIds.length,\n  per_id_fetched_count: 0,\n  per_id_failures: [],\n};\n\nconst requestsById = new Map();\nfor (const [relationshipId, agreement] of discoveredById.entries()) {\n  requestsById.set(relationshipId, {\n    relationshipId,\n    listAgreement: agreement,\n    isKnownGap: false,\n  });\n}\nfor (const relationshipId of gapIds) {\n  requestsById.set(relationshipId, {\n    relationshipId,\n    listAgreement: null,\n    isKnownGap: true,\n  });\n}\n\nreturn [...requestsById.values()].map((request) => ({\n  json: {\n    ...request,\n    sourceTotalCount: tier1.sourceTotalCount,\n    run_started_at: $('Start Agreement Sync Run').first().json.run_started_at,\n    fallbackSummary,\n    knownGapIds: gapIds,\n    stale_reconciliation_allowed: gapIds.length === 0,\n  },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2340,
+        160
+      ],
+      "id": "11841835-ed27-49d2-adbc-df68bad00005",
+      "name": "Identify Known Agreement Gaps"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4e01b637-8ebf-44ff-815e-452acad00005-condition",
+              "leftValue": "={{ $(\"Prepare Stale Reconciliation\").first().json.stale_reconciliation_allowed === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3640,
+        0
+      ],
+      "id": "4e01b637-8ebf-44ff-815e-452acad00005",
+      "name": "Stale Reconciliation Safe?"
     },
     {
       "parameters": {
@@ -89,7 +274,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1040,
+        2600,
         0
       ],
       "id": "5cf3f42a-8eda-4e7f-b015-3e7cc99675a0",
@@ -99,16 +284,18 @@
           "id": "W8lch59bMcSdcLsz",
           "name": "Anchor API - Production"
         }
-      }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "jsCode": "const runStartedAt = $('Start Agreement Sync Run').first().json.run_started_at;\nconst lastSeenAt = runStartedAt;\n\nfunction cleanNumber(value) {\n  if (value === undefined || value === null || value === '') return null;\n  const parsed = Number(value);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction summarizeServices(services) {\n  const summary = [];\n\n  for (const service of services) {\n    const children = Array.isArray(service.bundle?.services) ? service.bundle.services : [];\n    summary.push({\n      service_id: service.id ?? null,\n      parent_service_id: null,\n      service_template_id: service.serviceTemplateId ?? null,\n      name: service.name ?? null,\n      occurrence: service.billing?.occurrence ?? null,\n      trigger: service.billing?.trigger ?? null,\n      is_billed_upfront: service.billing?.isBilledUpfront ?? null,\n      pricing_type: service.rate?.pricingType ?? null,\n      price: cleanNumber(service.rate?.priceAfterDiscount ?? service.rate?.price),\n      status: service.status?.type ?? null,\n      is_paused: service.isPaused ?? null,\n      is_bundle_parent: children.length > 0,\n      is_bundle_child: false,\n    });\n\n    for (const child of children) {\n      summary.push({\n        service_id: child.id ?? null,\n        parent_service_id: service.id ?? null,\n        service_template_id: child.serviceTemplateId ?? null,\n        name: child.name ?? null,\n        occurrence: service.billing?.occurrence ?? null,\n        trigger: service.billing?.trigger ?? null,\n        is_billed_upfront: service.billing?.isBilledUpfront ?? null,\n        pricing_type: service.rate?.pricingType ?? null,\n        price: cleanNumber(child.rate),\n        status: service.status?.type ?? null,\n        is_paused: service.isPaused ?? null,\n        is_bundle_parent: false,\n        is_bundle_child: true,\n      });\n    }\n  }\n\n  return summary;\n}\n\nconst rows = $input.all().map((item) => {\n  const agreement = item.json;\n  const services = Array.isArray(agreement.services) ? agreement.services : [];\n  const serviceSummary = summarizeServices(services);\n  const displayStatus = agreement.status ?? null;\n\n  return {\n    anchor_relationship_id: agreement.id,\n    agreement_name: agreement.agreementName ?? agreement.name ?? null,\n    status: agreement.status ?? null,\n    display_status: displayStatus,\n    terminated_at: displayStatus === 'terminated' ? agreement.lastUpdatedAt ?? null : null,\n    status_synced_at: runStartedAt,\n    client_business_id: agreement.client?.business?.id ?? null,\n    client_business_name: agreement.client?.business?.name ?? null,\n    client_contact_id: agreement.client?.contactId ?? null,\n    effective_date: agreement.effectiveDate ?? null,\n    last_updated_at: agreement.lastUpdatedAt ?? null,\n    raw: {\n      ...agreement,\n      profitSyncServiceSummary: serviceSummary,\n    },\n    last_seen_at: lastSeenAt,\n  };\n});\n\nreturn [\n  {\n    json: {\n      run_started_at: runStartedAt,\n      rowCount: rows.length,\n      rows,\n      sample: rows.slice(0, 3).map((row) => ({\n        anchor_relationship_id: row.anchor_relationship_id,\n        agreement_name: row.agreement_name,\n        client_business_name: row.client_business_name,\n        display_status: row.display_status,\n        terminated_at: row.terminated_at,\n        serviceCount: row.raw.profitSyncServiceSummary.length,\n        bundleChildCount: row.raw.profitSyncServiceSummary.filter((service) => service.is_bundle_child).length,\n      })),\n    },\n  },\n];\n"
+        "jsCode": "const runStartedAt = $('Start Agreement Sync Run').first().json.run_started_at;\nconst lastSeenAt = runStartedAt;\n\nfunction nodeItems(name) {\n  try {\n    return $(name).all();\n  } catch (error) {\n    return [];\n  }\n}\n\nfunction firstJson(name) {\n  const items = nodeItems(name);\n  return items.length > 0 ? items[0].json : null;\n}\n\nfunction cleanNumber(value) {\n  if (value === undefined || value === null || value === '') return null;\n  const parsed = Number(value);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction summarizeServices(services) {\n  const summary = [];\n\n  for (const service of services) {\n    const children = Array.isArray(service.bundle?.services) ? service.bundle.services : [];\n    summary.push({\n      service_id: service.id ?? null,\n      parent_service_id: null,\n      service_template_id: service.serviceTemplateId ?? null,\n      name: service.name ?? null,\n      occurrence: service.billing?.occurrence ?? null,\n      trigger: service.billing?.trigger ?? null,\n      is_billed_upfront: service.billing?.isBilledUpfront ?? null,\n      pricing_type: service.rate?.pricingType ?? null,\n      price: cleanNumber(service.rate?.priceAfterDiscount ?? service.rate?.price),\n      status: service.status?.type ?? null,\n      is_paused: service.isPaused ?? null,\n      is_bundle_parent: children.length > 0,\n      is_bundle_child: false,\n    });\n\n    for (const child of children) {\n      summary.push({\n        service_id: child.id ?? null,\n        parent_service_id: service.id ?? null,\n        service_template_id: child.serviceTemplateId ?? null,\n        name: child.name ?? null,\n        occurrence: service.billing?.occurrence ?? null,\n        trigger: service.billing?.trigger ?? null,\n        is_billed_upfront: service.billing?.isBilledUpfront ?? null,\n        pricing_type: service.rate?.pricingType ?? null,\n        price: cleanNumber(child.rate),\n        status: service.status?.type ?? null,\n        is_paused: service.isPaused ?? null,\n        is_bundle_parent: false,\n        is_bundle_child: true,\n      });\n    }\n  }\n\n  return summary;\n}\n\nconst tier1 = firstJson('Normalize Tier 1 List Result') ?? {};\nconst fallbackRequest = firstJson('Identify Known Agreement Gaps') ?? firstJson('Prepare Tier 1 Agreement Requests') ?? {};\nconst knownGapIds = Array.isArray(fallbackRequest.knownGapIds) ? fallbackRequest.knownGapIds : [];\nconst fetchedAgreements = $input.all()\n  .map((item) => item.json)\n  .filter((agreement) => agreement && agreement.id && !agreement.error);\nconst fetchedAgreementIds = new Set(fetchedAgreements.map((agreement) => agreement.id));\nconst perIdFailures = knownGapIds.filter((relationshipId) => !fetchedAgreementIds.has(relationshipId));\nconst fallbackSummary = {\n  ...(fallbackRequest.fallbackSummary ?? tier1.fallbackSummary ?? {\n    mode: 'per_id_only',\n    failed_list_pages: [],\n    list_discovered_count: 0,\n    known_gap_count: 0,\n    per_id_fetched_count: 0,\n    per_id_failures: [],\n  }),\n  per_id_fetched_count: Math.max(0, knownGapIds.length - perIdFailures.length),\n  per_id_failures: perIdFailures,\n};\nconst staleReconciliationAllowed = fallbackSummary.mode === 'list_full' || perIdFailures.length === 0;\n\nconst rows = fetchedAgreements.map((agreement) => {\n  const services = Array.isArray(agreement.services) ? agreement.services : [];\n  const serviceSummary = summarizeServices(services);\n  const displayStatus = agreement.status ?? null;\n\n  return {\n    anchor_relationship_id: agreement.id,\n    agreement_name: agreement.agreementName ?? agreement.name ?? null,\n    status: agreement.status ?? null,\n    display_status: displayStatus,\n    terminated_at: displayStatus === 'terminated' ? agreement.lastUpdatedAt ?? null : null,\n    status_synced_at: runStartedAt,\n    client_business_id: agreement.client?.business?.id ?? null,\n    client_business_name: agreement.client?.business?.name ?? null,\n    client_contact_id: agreement.client?.contactId ?? null,\n    effective_date: agreement.effectiveDate ?? null,\n    last_updated_at: agreement.lastUpdatedAt ?? null,\n    raw: {\n      ...agreement,\n      profitSyncServiceSummary: serviceSummary,\n    },\n    last_seen_at: lastSeenAt,\n  };\n});\n\nreturn [\n  {\n    json: {\n      run_started_at: runStartedAt,\n      rowCount: rows.length,\n      rows,\n      sample: rows.slice(0, 3).map((row) => ({\n        anchor_relationship_id: row.anchor_relationship_id,\n        agreement_name: row.agreement_name,\n        client_business_name: row.client_business_name,\n        display_status: row.display_status,\n        terminated_at: row.terminated_at,\n        serviceCount: row.raw.profitSyncServiceSummary.length,\n        bundleChildCount: row.raw.profitSyncServiceSummary.filter((service) => service.is_bundle_child).length,\n      })),\n      fallbackSummary,\n      stale_reconciliation_allowed: staleReconciliationAllowed,\n    },\n  },\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1300,
+        2860,
         0
       ],
       "id": "c237fe0a-6589-4095-971b-f88030c47036",
@@ -138,7 +325,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1560,
+        3120,
         0
       ],
       "id": "d36a3b7d-92db-46f4-ad9b-505143a9b1e7",
@@ -152,12 +339,12 @@
     },
     {
       "parameters": {
-        "jsCode": "return [\n  {\n    json: {\n      run_started_at: $('Start Agreement Sync Run').first().json.run_started_at,\n      upserted_count: $('Upsert Agreements').all().length,\n    },\n  },\n];\n"
+        "jsCode": "const mapped = $('Map Agreement Rows').first().json;\n\nreturn [\n  {\n    json: {\n      run_started_at: $('Start Agreement Sync Run').first().json.run_started_at,\n      upserted_count: $('Upsert Agreements').all().length,\n      fallbackSummary: mapped.fallbackSummary,\n      stale_reconciliation_allowed: mapped.stale_reconciliation_allowed === true,\n    },\n  },\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1820,
+        3380,
         0
       ],
       "id": "b286b30d-7565-4ed6-922e-20e754e1751d",
@@ -187,8 +374,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2080,
-        0
+        3900,
+        -80
       ],
       "id": "605ee548-f1fb-47fc-8dbd-319d4220ce54",
       "name": "Mark Stale Agreements",
@@ -210,7 +397,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2340,
+        4160,
         0
       ],
       "id": "df519370-58ad-4342-a4b7-f6ead803d1d5",
@@ -225,12 +412,12 @@
     },
     {
       "parameters": {
-        "jsCode": "const upsertedRows = $('Upsert Agreements').all().map((item) => item.json);\nconst staleRows = $input.all().map((item) => item.json).filter((row) => row.anchor_relationship_id);\n\nreturn [\n  {\n    json: {\n      status: 'ok',\n      run_started_at: $('Start Agreement Sync Run').first().json.run_started_at,\n      upsertedCount: upsertedRows.length,\n      staleRowCount: staleRows.length,\n      staleSample: staleRows.slice(0, 5).map((row) => ({\n        anchor_relationship_id: row.anchor_relationship_id,\n        agreement_name: row.agreement_name,\n        client_business_name: row.client_business_name,\n        display_status: row.display_status,\n        status_synced_at: row.status_synced_at ?? null,\n      })),\n      sample: upsertedRows.slice(0, 5).map((row) => ({\n        anchor_relationship_id: row.anchor_relationship_id,\n        agreement_name: row.agreement_name,\n        client_business_name: row.client_business_name,\n        display_status: row.display_status,\n        serviceCount: row.raw?.profitSyncServiceSummary?.length ?? 0,\n      })),\n    },\n  },\n];\n"
+        "jsCode": "const upsertedRows = $('Upsert Agreements').all().map((item) => item.json);\nconst staleRows = $input.all().map((item) => item.json).filter((row) => row.anchor_relationship_id);\nconst mapped = $('Map Agreement Rows').first().json;\nconst fallbackSummary = mapped.fallbackSummary ?? {\n  mode: 'per_id_only',\n  failed_list_pages: [],\n  list_discovered_count: 0,\n  known_gap_count: 0,\n  per_id_fetched_count: 0,\n  per_id_failures: [],\n};\n\nreturn [\n  {\n    json: {\n      status: 'ok',\n      run_started_at: $('Start Agreement Sync Run').first().json.run_started_at,\n      upsertedCount: upsertedRows.length,\n      staleRowCount: staleRows.length,\n      staleReconciliationAllowed: mapped.stale_reconciliation_allowed === true,\n      fallbackSummary,\n      steps: [\n        {\n          name: 'anchor_agreements_sync',\n          details: fallbackSummary,\n        },\n      ],\n      staleSample: staleRows.slice(0, 5).map((row) => ({\n        anchor_relationship_id: row.anchor_relationship_id,\n        agreement_name: row.agreement_name,\n        client_business_name: row.client_business_name,\n        display_status: row.display_status,\n        status_synced_at: row.status_synced_at ?? null,\n      })),\n      sample: upsertedRows.slice(0, 5).map((row) => ({\n        anchor_relationship_id: row.anchor_relationship_id,\n        agreement_name: row.agreement_name,\n        client_business_name: row.client_business_name,\n        display_status: row.display_status,\n        serviceCount: row.raw?.profitSyncServiceSummary?.length ?? 0,\n      })),\n    },\n  },\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2600,
+        4420,
         0
       ],
       "id": "26a012e7-411a-472e-a4e4-a1eb2fa556aa",
@@ -264,14 +451,87 @@
       "main": [
         [
           {
-            "node": "Explode Agreements",
+            "node": "Normalize Tier 1 List Result",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Explode Agreements": {
+    "Normalize Tier 1 List Result": {
+      "main": [
+        [
+          {
+            "node": "Tier 1 List Succeeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tier 1 List Succeeded?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Tier 1 Agreement Requests",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Paginated Agreement Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Tier 1 Agreement Requests": {
+      "main": [
+        [
+          {
+            "node": "Fetch Agreement Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Paginated Agreement Requests": {
+      "main": [
+        [
+          {
+            "node": "Fetch Paginated Agreement Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Paginated Agreement Page": {
+      "main": [
+        [
+          {
+            "node": "Collapse Paginated Agreement Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Known Anchor Agreement IDs": {
+      "main": [
+        [
+          {
+            "node": "Identify Known Agreement Gaps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identify Known Agreement Gaps": {
       "main": [
         [
           {
@@ -315,6 +575,35 @@
         ]
       ]
     },
+    "Prepare Stale Reconciliation": {
+      "main": [
+        [
+          {
+            "node": "Stale Reconciliation Safe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stale Reconciliation Safe?": {
+      "main": [
+        [
+          {
+            "node": "Mark Stale Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Current Stale Agreements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Mark Stale Agreements": {
       "main": [
         [
@@ -326,22 +615,22 @@
         ]
       ]
     },
-    "Prepare Stale Reconciliation": {
+    "Fetch Current Stale Agreements": {
       "main": [
         [
           {
-            "node": "Mark Stale Agreements",
+            "node": "Summarize Upsert",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fetch Current Stale Agreements": {
+    "Collapse Paginated Agreement Pages": {
       "main": [
         [
           {
-            "node": "Summarize Upsert",
+            "node": "Fetch Known Anchor Agreement IDs",
             "type": "main",
             "index": 0
           }
