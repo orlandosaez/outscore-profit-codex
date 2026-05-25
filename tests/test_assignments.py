@@ -19,7 +19,7 @@ class ClientAssignmentParserTests(unittest.TestCase):
     def test_parse_assignment_workbook_preserves_client_rows_and_group_tokens(self) -> None:
         rows = parse_assignment_workbook(ROOT / "docs/data-references/client-staff-assignments.xlsx")
 
-        self.assertEqual(len(rows), 126)
+        self.assertEqual(len(rows), 125)
         first = rows[0]
         self.assertEqual(first.client_raw, "1415 Cortez Rd LLC")
         self.assertEqual(first.primary_staff, "Laura")

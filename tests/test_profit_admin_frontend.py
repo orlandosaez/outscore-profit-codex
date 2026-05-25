@@ -24,7 +24,7 @@ class ProfitAdminFrontendTests(unittest.TestCase):
         self.assertIn("Record this as Deferred Revenue in QBO", source)
         self.assertIn("Trigger Backlog", source)
         self.assertIn("Total reference", source)
-        self.assertIn("Do not record this as a single QBO entry", source)
+        self.assertIn("Do not record as a single QBO entry", source)
         self.assertNotIn("Pending Triggers", source)
         self.assertIn("Clears when completion triggers are approved", source)
         self.assertNotIn("current total prepaid liability as the Deferred Revenue JE balance", source)

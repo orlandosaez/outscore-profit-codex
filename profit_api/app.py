@@ -66,6 +66,12 @@ class PipelineRunPayload(BaseModel):
     run_source: str | None = None
 
 
+def _model_dump(payload: BaseModel) -> dict[str, Any]:
+    if hasattr(payload, "model_dump"):
+        return payload.model_dump()
+    return payload.dict()
+
+
 def create_app(
     service: AdminDashboardService | None = None,
     manual_recognition_service: ManualRecognitionService | None = None,
@@ -244,7 +250,7 @@ def create_app(
             return audit_dashboard_service.apply_classifications(
                 request_id=payload.request_id,
                 classified_by=payload.classified_by,
-                rows=[row.model_dump() for row in payload.rows],
+                rows=[_model_dump(row) for row in payload.rows],
             )
         except AuditDashboardValidationError as exc:
             raise HTTPException(status_code=422, detail=exc.detail) from exc
